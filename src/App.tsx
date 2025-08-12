@@ -27,7 +27,6 @@ import ProfilePage from './components/ProfilePage';
 import PaymentTracking from './components/PaymentTracking';
 import ChurnAnalysis from './components/ChurnAnalysis';
 import CustomerProfile from './components/CustomerProfile';
-import CustomerProfile from './components/CustomerProfile';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
