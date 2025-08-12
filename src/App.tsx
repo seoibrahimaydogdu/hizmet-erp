@@ -30,15 +30,8 @@ import CustomerProfile from './components/CustomerProfile';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-
-  // Make functions available globally for customer profile navigation
-  useEffect(() => {
-    (window as any).setCurrentPage = setCurrentPage;
-    (window as any).setSelectedCustomerId = setSelectedCustomerId;
-  }, []);
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -174,17 +167,6 @@ function App() {
         return <SettingsPage />;
       case 'profile':
         return <ProfilePage />;
-      case 'customer-profile':
-        return selectedCustomerId ? (
-          <CustomerProfile 
-            customerId={selectedCustomerId} 
-            onBack={() => setCurrentPage('customers')} 
-          />
-        ) : (
-          <div className="p-6">
-            <p className="text-gray-500">Müşteri seçilmedi</p>
-          </div>
-        );
       default:
         return <div className="p-6">Sayfa bulunamadı</div>;
     }
