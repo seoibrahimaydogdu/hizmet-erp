@@ -252,28 +252,24 @@ const ReportsPage: React.FC = () => {
 
   // Rapor türüne göre farklı stat kartları göster
   const getStatsCards = () => {
-    const baseCards = [
-      {
-        title: 'Toplam Talepler',
-        value: stats.totalTickets.toString(),
-        change: '+12%',
-        trend: 'up',
-        icon: MessageSquare,
-        color: 'blue'
-      },
-      {
-        title: 'Çözülen Talepler',
-        value: stats.resolvedTickets.toString(),
-        change: '+8%',
-        trend: 'up',
-        icon: CheckCircle,
-        color: 'green'
-      }
-    ];
-
     if (reportType === 'agent_performance') {
       return [
-        ...baseCards,
+        {
+          title: 'Toplam Talepler',
+          value: stats.totalTickets.toString(),
+          change: '+12%',
+          trend: 'up',
+          icon: MessageSquare,
+          color: 'blue'
+        },
+        {
+          title: 'Çözülen Talepler',
+          value: stats.resolvedTickets.toString(),
+          change: '+8%',
+          trend: 'up',
+          icon: CheckCircle,
+          color: 'green'
+        },
         {
           title: 'Aktif Temsilciler',
           value: stats.activeAgents.toString(),
@@ -293,7 +289,6 @@ const ReportsPage: React.FC = () => {
       ];
     } else if (reportType === 'customer_satisfaction') {
       return [
-        ...baseCards,
         {
           title: 'Müşteri Memnuniyeti',
           value: stats.avgSatisfaction,
@@ -303,17 +298,85 @@ const ReportsPage: React.FC = () => {
           color: 'purple'
         },
         {
-          title: 'Değerlendiren Müşteri',
+          title: 'Toplam Müşteri',
           value: filteredCustomers.length.toString(),
           change: '+5',
           trend: 'up',
           icon: Users,
           color: 'indigo'
+        },
+        {
+          title: 'Ortalama Yanıt Süresi',
+          value: stats.avgResponseTime,
+          change: '-10 dk',
+          trend: 'down',
+          icon: Clock,
+          color: 'orange'
+        },
+        {
+          title: 'Memnun Müşteri Oranı',
+          value: filteredCustomers.length > 0 ? 
+            Math.round((filteredCustomers.filter(c => c.satisfaction_score >= 4).length / filteredCustomers.length) * 100) + '%' : '0%',
+          change: '+5%',
+          trend: 'up',
+          icon: CheckCircle,
+          color: 'green'
+        }
+      ];
+    } else if (reportType === 'category_analysis') {
+      return [
+        {
+          title: 'Toplam Kategori',
+          value: categoryData.length.toString(),
+          change: '0',
+          trend: 'neutral',
+          icon: MessageSquare,
+          color: 'blue'
+        },
+        {
+          title: 'En Popüler Kategori',
+          value: categoryData.length > 0 ? categoryData.reduce((prev, current) => (prev.value > current.value) ? prev : current).name : 'Yok',
+          change: '+15%',
+          trend: 'up',
+          icon: TrendingUp,
+          color: 'green'
+        },
+        {
+          title: 'Kategori Başına Ortalama',
+          value: categoryData.length > 0 ? Math.round(stats.totalTickets / categoryData.length).toString() : '0',
+          change: '+3',
+          trend: 'up',
+          icon: Star,
+          color: 'purple'
+        },
+        {
+          title: 'Çözüm Oranı',
+          value: stats.totalTickets > 0 ? Math.round((stats.resolvedTickets / stats.totalTickets) * 100) + '%' : '0%',
+          change: '+8%',
+          trend: 'up',
+          icon: CheckCircle,
+          color: 'indigo'
         }
       ];
     } else {
+      // Genel Bakış
       return [
-        ...baseCards,
+        {
+          title: 'Toplam Talepler',
+          value: stats.totalTickets.toString(),
+          change: '+12%',
+          trend: 'up',
+          icon: MessageSquare,
+          color: 'blue'
+        },
+        {
+          title: 'Çözülen Talepler',
+          value: stats.resolvedTickets.toString(),
+          change: '+8%',
+          trend: 'up',
+          icon: CheckCircle,
+          color: 'green'
+        },
         {
           title: 'Ortalama Yanıt Süresi',
           value: stats.avgResponseTime,
