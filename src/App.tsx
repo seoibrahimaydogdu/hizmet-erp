@@ -24,7 +24,8 @@ import {
   AlertCircle,
   TrendingUp,
   TrendingDown,
-  Star
+  Star,
+  User
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -36,7 +37,15 @@ import LiveChat from './components/LiveChat';
 import ReportsPage from './components/ReportsPage';
 import ProfilePage from './components/ProfilePage';
 import SettingsPage from './components/SettingsPage';
-import { toast } from 'react-hot-toast';
+
+// Search functionality
+interface SearchResult {
+  type: 'page' | 'ticket' | 'customer' | 'agent';
+  id: string;
+  title: string;
+  subtitle?: string;
+  icon: React.ComponentType<any>;
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -45,19 +54,14 @@ function App() {
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState('');
-  const [newTicketData, setNewTicketData] = useState({
-    title: '',
-    description: '',
-    priority: 'medium',
-    category: 'general',
-    customer_id: '',
-    agent_id: ''
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   const {
     loading,
-    searchTerm,
-    setSearchTerm,
+    searchTerm: supabaseSearchTerm,
+    setSearchTerm: setSupabaseSearchTerm,
     currentPage,
     setCurrentPage,
     totalPages,
@@ -95,6 +99,112 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Search functionality
+  const performSearch = (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    const results: SearchResult[] = [];
+    const lowerQuery = query.toLowerCase();
+
+    // Search pages
+    const pages = [
+      { id: 'dashboard', title: 'Dashboard', subtitle: 'Ana sayfa', icon: LayoutDashboard },
+      { id: 'tickets', title: 'Talepler', subtitle: 'Destek talepleri', icon: MessageSquare },
+      { id: 'customers', title: 'Müşteriler', subtitle: 'Müşteri yönetimi', icon: Users },
+      { id: 'agents', title: 'Temsilciler', subtitle: 'Temsilci yönetimi', icon: UserCheck },
+      { id: 'chat', title: 'Canlı Destek', subtitle: 'Canlı sohbet', icon: MessageCircle },
+      { id: 'reports', title: 'Raporlar', subtitle: 'Analitik ve raporlar', icon: BarChart3 },
+      { id: 'profile', title: 'Profil', subtitle: 'Profil ayarları', icon: User },
+      { id: 'settings', title: 'Ayarlar', subtitle: 'Sistem ayarları', icon: Settings }
+    ];
+
+    pages.forEach(page => {
+      if (page.title.toLowerCase().includes(lowerQuery) || 
+          page.subtitle.toLowerCase().includes(lowerQuery)) {
+        results.push({
+          type: 'page',
+          id: page.id,
+          title: page.title,
+          subtitle: page.subtitle,
+          icon: page.icon
+        });
+      }
+    });
+
+    // Search tickets
+    tickets.slice(0, 5).forEach(ticket => {
+      if (ticket.title.toLowerCase().includes(lowerQuery) ||
+          ticket.customers?.name.toLowerCase().includes(lowerQuery)) {
+        results.push({
+          type: 'ticket',
+          id: ticket.id,
+          title: ticket.title,
+          subtitle: `Müşteri: ${ticket.customers?.name || 'Bilinmeyen'}`,
+          icon: MessageSquare
+        });
+      }
+    });
+
+    // Search customers
+    customers.slice(0, 5).forEach(customer => {
+      if (customer.name.toLowerCase().includes(lowerQuery) ||
+          customer.email.toLowerCase().includes(lowerQuery) ||
+          customer.company?.toLowerCase().includes(lowerQuery)) {
+        results.push({
+          type: 'customer',
+          id: customer.id,
+          title: customer.name,
+          subtitle: customer.email,
+          icon: Users
+        });
+      }
+    });
+
+    // Search agents
+    agents.slice(0, 5).forEach(agent => {
+      if (agent.name.toLowerCase().includes(lowerQuery) ||
+          agent.email.toLowerCase().includes(lowerQuery)) {
+        results.push({
+          type: 'agent',
+          id: agent.id,
+          title: agent.name,
+          subtitle: agent.email,
+          icon: UserCheck
+        });
+      }
+    });
+
+    setSearchResults(results.slice(0, 10)); // Limit to 10 results
+    setShowSearchResults(true);
+  };
+
+  const handleSearchResultClick = (result: SearchResult) => {
+    if (result.type === 'page') {
+      setActiveTab(result.id);
+    } else if (result.type === 'ticket') {
+      setActiveTab('tickets');
+      // You could add logic to highlight the specific ticket
+    } else if (result.type === 'customer') {
+      setActiveTab('customers');
+      // You could add logic to highlight the specific customer
+    } else if (result.type === 'agent') {
+      setActiveTab('agents');
+      // You could add logic to highlight the specific agent
+    }
+    setShowSearchResults(false);
+    setSearchTerm('');
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchTerm(value);
+    performSearch(value);
+  };
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -214,18 +324,6 @@ function App() {
     await bulkUpdateTickets(selectedTickets, updates);
     setSelectedTickets([]);
     setBulkAction('');
-  };
-
-  const handleCreateTicket = async () => {
-    if (!newTicketData.title.trim()) {
-      toast.error('Talep başlığı gerekli');
-      return;
-    }
-    
-    toast.success('Yeni talep oluşturuldu');
-    setShowNewTicketModal(false);
-    setNewTicketData({ title: '', description: '', priority: 'medium', category: 'general', customer_id: '', agent_id: '' });
-    fetchTickets();
   };
 
   const renderDashboard = () => (
@@ -391,8 +489,8 @@ function App() {
               <input
                 type="text"
                 placeholder="Talep ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={supabaseSearchTerm}
+                onChange={(e) => setSupabaseSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -651,8 +749,8 @@ function App() {
               <input
                 type="text"
                 placeholder="Müşteri ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={supabaseSearchTerm}
+                onChange={(e) => setSupabaseSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -773,8 +871,8 @@ function App() {
               <input
                 type="text"
                 placeholder="Temsilci ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={supabaseSearchTerm}
+                onChange={(e) => setSupabaseSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -791,11 +889,6 @@ function App() {
         </div>
       </div>
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-        {loading && (
-          <div className="flex items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        )}
         {loading && (
           <div className="flex items-center justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -819,9 +912,6 @@ function App() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Performans
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  İşlemler
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   İşlemler
@@ -868,19 +958,6 @@ function App() {
                     {agent.total_resolved}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
                     <div className="flex items-center">
                       <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
                         <div 
@@ -932,34 +1009,6 @@ function App() {
               <button
                 onClick={() => setCurrentPage(Math.min(Math.ceil(agents.length / 10), currentPage + 1))}
                 disabled={currentPage === Math.ceil(agents.length / 10)}
-                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Sonraki
-              </button>
-            </div>
-          </div>
-        </div>
-        
-        {/* Pagination */}
-        <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              Toplam {customers.length} müşteri
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Önceki
-              </button>
-              <span className="px-3 py-1 text-sm">
-                {currentPage} / {Math.ceil(customers.length / 10)}
-              </span>
-              <button
-                onClick={() => setCurrentPage(Math.min(Math.ceil(customers.length / 10), currentPage + 1))}
-                disabled={currentPage === Math.ceil(customers.length / 10)}
                 className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Sonraki
@@ -1061,13 +1110,65 @@ function App() {
                   <Menu className="w-5 h-5" />
                 </button>
                 <div className="ml-4 lg:ml-0">
-                  <div className="relative max-w-md">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Ara..."
-                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                  <div className="hidden md:block flex-1 max-w-md mx-8 relative">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Talepler, müşteriler, temsilciler ara..."
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                        onFocus={() => searchTerm && setShowSearchResults(true)}
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* Search Results Dropdown */}
+                    {showSearchResults && searchResults.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                        {searchResults.map((result, index) => {
+                          const Icon = result.icon;
+                          return (
+                            <button
+                              key={`${result.type}-${result.id}-${index}`}
+                              onClick={() => handleSearchResultClick(result)}
+                              className="w-full flex items-center px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-left border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+                            >
+                              <div className="flex-shrink-0 mr-3">
+                                <Icon className="w-5 h-5 text-gray-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                  {result.title}
+                                </p>
+                                {result.subtitle && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                    {result.subtitle}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex-shrink-0 ml-2">
+                                <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded">
+                                  {result.type === 'page' ? 'Sayfa' : 
+                                   result.type === 'ticket' ? 'Talep' :
+                                   result.type === 'customer' ? 'Müşteri' : 'Temsilci'}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* No Results */}
+                    {showSearchResults && searchResults.length === 0 && searchTerm && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
+                        <div className="px-4 py-3 text-center text-gray-500 dark:text-gray-400">
+                          <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <p className="text-sm">"{searchTerm}" için sonuç bulunamadı</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1117,95 +1218,15 @@ function App() {
         ></div>
       )}
 
-      {/* New Ticket Modal */}
-      {showNewTicketModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Talep Oluştur</h3>
-              <button
-                onClick={() => setShowNewTicketModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Talep Başlığı *
-                </label>
-                <input
-                  type="text"
-                  value={newTicketData.title}
-                  onChange={(e) => setNewTicketData({ ...newTicketData, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Talep başlığını girin..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Açıklama
-                </label>
-                <textarea
-                  value={newTicketData.description}
-                  onChange={(e) => setNewTicketData({ ...newTicketData, description: e.target.value })}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Talep açıklamasını girin..."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Öncelik
-                  </label>
-                  <select
-                    value={newTicketData.priority}
-                    onChange={(e) => setNewTicketData({ ...newTicketData, priority: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="low">Düşük</option>
-                    <option value="medium">Orta</option>
-                    <option value="high">Yüksek</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Kategori
-                  </label>
-                  <select
-                    value={newTicketData.category}
-                    onChange={(e) => setNewTicketData({ ...newTicketData, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="general">Genel</option>
-                    <option value="technical">Teknik</option>
-                    <option value="billing">Faturalama</option>
-                    <option value="support">Destek</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  onClick={() => setShowNewTicketModal(false)}
-                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  İptal
-                </button>
-                <button
-                  onClick={handleCreateTicket}
-                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-                >
-                  Talep Oluştur
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <Toaster position="top-right" />
+
+      {/* Click outside to close search results */}
+      {showSearchResults && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setShowSearchResults(false)}
+        />
+      )}
     </div>
   );
 }
