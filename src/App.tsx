@@ -223,7 +223,7 @@ function App() {
           <StatCard
             title="Aktif Temsilciler"
             value={`${activeAgents}/${totalAgents}`}
-            change=null
+            change={null}
             changeType={null}
             icon={UserCheck}
             color="bg-purple-500"
