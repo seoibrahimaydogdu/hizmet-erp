@@ -22,11 +22,13 @@ import {
   Star,
   TrendingUp,
   Clock,
-  MessageSquare
+  MessageSquare,
+  MessageCircle
 } from 'lucide-react';
 import { useSupabase } from './hooks/useSupabase';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import LiveChat from './components/LiveChat';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -47,6 +49,10 @@ function App() {
   // Selected items for details/edit
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [selectedAgent, setSelectedAgent] = useState<any>(null);
+
+  // Live Chat states
+  const [showLiveChat, setShowLiveChat] = useState(false);
+  const [liveChatMinimized, setLiveChatMinimized] = useState(false);
 
   // Form states
   const [newCustomerForm, setNewCustomerForm] = useState({
@@ -780,10 +786,24 @@ function App() {
                 >
                   <Bell className="w-5 h-5" />
                   {notifications.filter(n => !n.is_read).length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {notifications.filter(n => !n.is_read).length}
+                    </span>
                   )}
                 </button>
               </div>
+
+              {/* Live Chat Toggle */}
+              <button
+                onClick={() => setShowLiveChat(!showLiveChat)}
+                className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title="Canlı Destek"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  3
+                </span>
+              </button>
 
               {/* Profile Dropdown */}
               <div className="relative">
@@ -1478,6 +1498,14 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Live Chat */}
+        <LiveChat
+          isOpen={showLiveChat}
+          onClose={() => setShowLiveChat(false)}
+          onMinimize={() => setLiveChatMinimized(!liveChatMinimized)}
+          isMinimized={liveChatMinimized}
+        />
       </div>
     </div>
   );
