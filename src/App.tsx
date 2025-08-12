@@ -36,6 +36,7 @@ import LiveChat from './components/LiveChat';
 import ReportsPage from './components/ReportsPage';
 import ProfilePage from './components/ProfilePage';
 import SettingsPage from './components/SettingsPage';
+import { toast } from 'react-hot-toast';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -44,6 +45,14 @@ function App() {
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState('');
+  const [newTicketData, setNewTicketData] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    category: 'general',
+    customer_id: '',
+    agent_id: ''
+  });
 
   const {
     loading,
@@ -205,6 +214,18 @@ function App() {
     await bulkUpdateTickets(selectedTickets, updates);
     setSelectedTickets([]);
     setBulkAction('');
+  };
+
+  const handleCreateTicket = async () => {
+    if (!newTicketData.title.trim()) {
+      toast.error('Talep başlığı gerekli');
+      return;
+    }
+    
+    toast.success('Yeni talep oluşturuldu');
+    setShowNewTicketModal(false);
+    setNewTicketData({ title: '', description: '', priority: 'medium', category: 'general', customer_id: '', agent_id: '' });
+    fetchTickets();
   };
 
   const renderDashboard = () => (
@@ -1094,6 +1115,94 @@ function App() {
           className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         ></div>
+      )}
+
+      {/* New Ticket Modal */}
+      {showNewTicketModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Talep Oluştur</h3>
+              <button
+                onClick={() => setShowNewTicketModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Talep Başlığı *
+                </label>
+                <input
+                  type="text"
+                  value={newTicketData.title}
+                  onChange={(e) => setNewTicketData({ ...newTicketData, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Talep başlığını girin..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Açıklama
+                </label>
+                <textarea
+                  value={newTicketData.description}
+                  onChange={(e) => setNewTicketData({ ...newTicketData, description: e.target.value })}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Talep açıklamasını girin..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Öncelik
+                  </label>
+                  <select
+                    value={newTicketData.priority}
+                    onChange={(e) => setNewTicketData({ ...newTicketData, priority: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="low">Düşük</option>
+                    <option value="medium">Orta</option>
+                    <option value="high">Yüksek</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Kategori
+                  </label>
+                  <select
+                    value={newTicketData.category}
+                    onChange={(e) => setNewTicketData({ ...newTicketData, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="general">Genel</option>
+                    <option value="technical">Teknik</option>
+                    <option value="billing">Faturalama</option>
+                    <option value="support">Destek</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setShowNewTicketModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleCreateTicket}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Talep Oluştur
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <Toaster position="top-right" />
