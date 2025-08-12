@@ -25,9 +25,7 @@ import {
   TrendingUp,
   TrendingDown,
   Star,
-  User,
-  CreditCard,
-  TrendingDown
+  User
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -59,6 +57,18 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+  // Global fonksiyonları window objesine ekle
+  useEffect(() => {
+    (window as any).setCurrentPage = setCurrentPage;
+    (window as any).setSelectedCustomerId = setSelectedCustomerId;
+    
+    return () => {
+      delete (window as any).setCurrentPage;
+      delete (window as any).setSelectedCustomerId;
+    };
+  }, []);
 
   const {
     loading,
