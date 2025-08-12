@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, Customer, Agent, Ticket, Notification, SystemLog, Template, Automation } from '../lib/supabase';
+import { supabase, Customer, Agent, Ticket } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 
 export const useSupabase = () => {
@@ -13,24 +13,11 @@ export const useSupabase = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [automations, setAutomations] = useState<Automation[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   // Filtered and paginated data
-  const filteredTickets = tickets.filter(ticket => 
-    ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ticket.customers?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ticket.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const paginatedTickets = filteredTickets.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
+  const paginatedTickets = tickets.slice(0, 10); // Basit pagination
+  const totalPages = Math.ceil(tickets.length / 10);
 
   // Fetch functions
   const fetchCustomers = async () => {
@@ -103,51 +90,6 @@ export const useSupabase = () => {
       setNotifications(data || []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
-    }
-  };
-
-  const fetchSystemLogs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('system_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      
-      if (error) throw error;
-      setSystemLogs(data || []);
-    } catch (error) {
-      console.error('Error fetching system logs:', error);
-    }
-  };
-
-  const fetchTemplates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('templates')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setTemplates(data || []);
-    } catch (error) {
-      toast.error('Şablonlar yüklenirken hata oluştu');
-      console.error('Error fetching templates:', error);
-    }
-  };
-
-  const fetchAutomations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('automations')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setAutomations(data || []);
-    } catch (error) {
-      toast.error('Otomasyonlar yüklenirken hata oluştu');
-      console.error('Error fetching automations:', error);
     }
   };
 
@@ -364,19 +306,12 @@ export const useSupabase = () => {
     customers,
     agents,
     tickets,
-    filteredTickets,
     paginatedTickets,
     notifications,
-    systemLogs,
-    templates,
-    automations,
     fetchCustomers,
     fetchAgents,
     fetchTickets,
     fetchNotifications,
-    fetchSystemLogs,
-    fetchTemplates,
-    fetchAutomations,
     updateTicketStatus,
     assignTicket,
     markNotificationAsRead,

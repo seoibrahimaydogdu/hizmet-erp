@@ -27,26 +27,38 @@ import {
   Star,
   MessageSquare,
   BarChart3,
-  Activity
+  Activity,
+  X
 } from 'lucide-react';
 import { useSupabase } from './hooks/useSupabase';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import LiveChat from './components/LiveChat';
+import ProfilePage from './components/ProfilePage';
+import SettingsPage from './components/SettingsPage';
 
 function App() {
   const [activeView, setActiveView] = useState('dashboard');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
   const [showChatWidget, setShowChatWidget] = useState(false);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
   const [newTicket, setNewTicket] = useState({
     title: '',
     description: '',
     priority: 'medium',
     category: 'general',
     customer_id: ''
+  });
+  const [newCustomer, setNewCustomer] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    plan: 'basic'
   });
 
   const {
@@ -56,6 +68,8 @@ function App() {
     currentPage,
     setCurrentPage,
     totalPages,
+    selectedItems,
+    setSelectedItems,
     customers,
     agents,
     tickets,
@@ -69,7 +83,8 @@ function App() {
     assignTicket,
     createTicket,
     updateAgentStatus,
-    exportData
+    exportData,
+    bulkUpdateTickets
   } = useSupabase();
 
   useEffect(() => {
@@ -80,8 +95,13 @@ function App() {
   }, []);
 
   const filteredTickets = tickets.filter(ticket => {
-    if (statusFilter === 'all') return true;
-    return ticket.status === statusFilter;
+    const matchesSearch = ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         ticket.customers?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         ticket.customers?.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
+    const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter;
+    
+    return matchesSearch && matchesStatus && matchesPriority;
   });
 
   const handleCreateTicket = async () => {
@@ -96,6 +116,87 @@ function App() {
       category: 'general',
       customer_id: ''
     });
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.name || !newCustomer.email) return;
+    
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .insert(newCustomer);
+
+      if (error) throw error;
+      
+      toast.success('Yeni müşteri eklendi');
+      fetchCustomers();
+      setShowNewCustomerModal(false);
+      setNewCustomer({
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        plan: 'basic'
+      });
+    } catch (error) {
+      toast.error('Müşteri eklenirken hata oluştu');
+    }
+  };
+
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (!confirm('Bu talebi silmek istediğinizden emin misiniz?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('tickets')
+        .delete()
+        .eq('id', ticketId);
+
+      if (error) throw error;
+      
+      toast.success('Talep silindi');
+      fetchTickets();
+    } catch (error) {
+      toast.error('Talep silinirken hata oluştu');
+    }
+  };
+
+  const handleDeleteCustomer = async (customerId: string) => {
+    if (!confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerId);
+
+      if (error) throw error;
+      
+      toast.success('Müşteri silindi');
+      fetchCustomers();
+    } catch (error) {
+      toast.error('Müşteri silinirken hata oluştu');
+    }
+  };
+
+  const handleBulkAction = async (action: string) => {
+    if (selectedItems.length === 0) return;
+    
+    switch (action) {
+      case 'resolve':
+        await bulkUpdateTickets(selectedItems, { status: 'resolved' });
+        break;
+      case 'close':
+        await bulkUpdateTickets(selectedItems, { status: 'closed' });
+        break;
+      case 'delete':
+        if (confirm(`${selectedItems.length} talebi silmek istediğinizden emin misiniz?`)) {
+          for (const id of selectedItems) {
+            await handleDeleteTicket(id);
+          }
+        }
+        break;
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -277,23 +378,11 @@ function App() {
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      ticket.status === 'open' ? 'bg-red-100 text-red-800' :
-                      ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {ticket.status === 'open' ? 'Açık' :
-                       ticket.status === 'in_progress' ? 'Orta' :
-                       'Yüksek'}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
+                      {getStatusText(ticket.status)}
                     </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      ticket.priority === 'high' ? 'bg-red-100 text-red-800' :
-                      ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {ticket.priority === 'high' ? 'Yüksek' :
-                       ticket.priority === 'medium' ? 'Orta' :
-                       'Düşük'}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
+                      {getPriorityText(ticket.priority)}
                     </span>
                   </div>
                 </div>
@@ -389,7 +478,38 @@ function App() {
             <option value="in_progress">İşlemde</option>
             <option value="resolved">Çözümlendi</option>
           </select>
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">Tüm Öncelikler</option>
+            <option value="high">Yüksek</option>
+            <option value="medium">Orta</option>
+            <option value="low">Düşük</option>
+          </select>
         </div>
+        
+        {/* Bulk Actions */}
+        {selectedItems.length > 0 && (
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {selectedItems.length} seçili
+            </span>
+            <button
+              onClick={() => handleBulkAction('resolve')}
+              className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+            >
+              Çözümle
+            </button>
+            <button
+              onClick={() => handleBulkAction('delete')}
+              className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+            >
+              Sil
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tickets Table */}
@@ -398,6 +518,20 @@ function App() {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.length === filteredTickets.length && filteredTickets.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedItems(filteredTickets.map(t => t.id));
+                      } else {
+                        setSelectedItems([]);
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Talep
                 </th>
@@ -422,8 +556,22 @@ function App() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {paginatedTickets.map((ticket) => (
+              {filteredTickets.map((ticket) => (
                 <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedItems.includes(ticket.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedItems([...selectedItems, ticket.id]);
+                        } else {
+                          setSelectedItems(selectedItems.filter(id => id !== ticket.id));
+                        }
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -484,13 +632,22 @@ function App() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                      <button 
+                        onClick={() => alert(`Talep detayları: ${ticket.title}`)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300">
+                      <button 
+                        onClick={() => alert(`Talep düzenleme: ${ticket.title}`)}
+                        className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                      <button 
+                        onClick={() => handleDeleteTicket(ticket.id)}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -578,6 +735,13 @@ function App() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Müşteriler</h1>
           <p className="text-gray-600 dark:text-gray-400">Müşteri bilgileri ve istatistikleri</p>
         </div>
+        <button
+          onClick={() => setShowNewCustomerModal(true)}
+          className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Yeni Müşteri
+        </button>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -602,6 +766,9 @@ function App() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Kayıt Tarihi
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  İşlemler
                 </th>
               </tr>
             </thead>
@@ -645,6 +812,28 @@ function App() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {format(new Date(customer.created_at), 'dd.MM.yyyy', { locale: tr })}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <div className="flex items-center justify-end space-x-2">
+                      <button 
+                        onClick={() => alert(`Müşteri detayları: ${customer.name}`)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => alert(`Müşteri düzenleme: ${customer.name}`)}
+                        className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteCustomer(customer.id)}
+                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -755,10 +944,16 @@ function App() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                      <button 
+                        onClick={() => alert(`Temsilci detayları: ${agent.name}`)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300">
+                      <button 
+                        onClick={() => alert(`Temsilci düzenleme: ${agent.name}`)}
+                        className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
                     </div>
@@ -862,20 +1057,35 @@ function App() {
 
               {showProfileDropdown && (
                 <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2">
-                  <button className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left">
+                  <button 
+                    onClick={() => {
+                      setActiveView('profile');
+                      setShowProfileDropdown(false);
+                    }}
+                    className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
+                  >
                     <div className="flex items-center">
                       <User className="w-4 h-4 mr-2" />
                       Profil
                     </div>
                   </button>
-                  <button className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left">
+                  <button 
+                    onClick={() => {
+                      setActiveView('settings');
+                      setShowProfileDropdown(false);
+                    }}
+                    className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
+                  >
                     <div className="flex items-center">
                       <Settings className="w-4 h-4 mr-2" />
                       Ayarlar
                     </div>
                   </button>
                   <button
-                    onClick={() => setShowProfileDropdown(false)}
+                    onClick={() => {
+                      setShowProfileDropdown(false);
+                      alert('Çıkış yapılıyor...');
+                    }}
                     className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left border-t border-gray-200 dark:border-gray-600"
                   >
                     <div className="flex items-center">
@@ -902,6 +1112,8 @@ function App() {
                   {activeView === 'tickets' && 'Talepler'}
                   {activeView === 'customers' && 'Müşteriler'}
                   {activeView === 'agents' && 'Temsilciler'}
+                  {activeView === 'profile' && 'Profil'}
+                  {activeView === 'settings' && 'Ayarlar'}
                 </h2>
               </div>
               <div className="flex items-center space-x-4">
@@ -922,6 +1134,8 @@ function App() {
           {activeView === 'tickets' && renderTickets()}
           {activeView === 'customers' && renderCustomers()}
           {activeView === 'agents' && renderAgents()}
+          {activeView === 'profile' && <ProfilePage />}
+          {activeView === 'settings' && <SettingsPage />}
         </main>
       </div>
 
@@ -929,7 +1143,15 @@ function App() {
       {showNewTicketModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Yeni Talep Oluştur</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Talep Oluştur</h3>
+              <button
+                onClick={() => setShowNewTicketModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1015,6 +1237,98 @@ function App() {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-lg"
               >
                 Oluştur
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Customer Modal */}
+      {showNewCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Müşteri Ekle</h3>
+              <button
+                onClick={() => setShowNewCustomerModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Ad Soyad *
+                </label>
+                <input
+                  type="text"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  E-posta *
+                </label>
+                <input
+                  type="email"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Telefon
+                </label>
+                <input
+                  type="tel"
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Şirket
+                </label>
+                <input
+                  type="text"
+                  value={newCustomer.company}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Plan
+                </label>
+                <select
+                  value={newCustomer.plan}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, plan: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="basic">Temel</option>
+                  <option value="premium">Premium</option>
+                  <option value="enterprise">Kurumsal</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowNewCustomerModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleCreateCustomer}
+                disabled={!newCustomer.name || !newCustomer.email}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-lg"
+              >
+                Ekle
               </button>
             </div>
           </div>
