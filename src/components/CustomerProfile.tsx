@@ -19,7 +19,6 @@ import {
   Users,
   ShoppingCart,
   Award,
-  Award,
   FileText,
   Upload,
   Download,
