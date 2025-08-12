@@ -43,24 +43,89 @@ const ReportsPage: React.FC = () => {
     fetchAgents
   } = useSupabase();
 
-  const [dateRange, setDateRange] = useState('Son 7 Gün');
-  const [reportType, setReportType] = useState('Genel Bakış');
+  const [dateRange, setDateRange] = useState('last7days');
+  const [reportType, setReportType] = useState('overview');
   const [isExporting, setIsExporting] = useState(false);
+  const [filteredTickets, setFilteredTickets] = useState<any[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<any[]>([]);
+  const [filteredAgents, setFilteredAgents] = useState<any[]>([]);
+
+  // Tarih filtreleme fonksiyonu
+  const filterByDateRange = (data: any[], dateField: string = 'created_at') => {
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (dateRange) {
+      case 'last7days':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case 'last30days':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case 'last3months':
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case 'last1year':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(now.getDate() - 7);
+    }
+
+    return data.filter(item => {
+      const itemDate = new Date(item[dateField]);
+      return itemDate >= startDate && itemDate <= now;
+    });
+  };
+
+  // Filtreleri uygula
+  const applyFilters = () => {
+    let newFilteredTickets = filterByDateRange(tickets);
+    let newFilteredCustomers = filterByDateRange(customers);
+    let newFilteredAgents = filterByDateRange(agents);
+
+    // Rapor türüne göre ek filtreler
+    switch (reportType) {
+      case 'agent_performance':
+        newFilteredAgents = newFilteredAgents.filter(agent => agent.total_resolved > 0);
+        break;
+      case 'category_analysis':
+        // Kategori analizi için tüm talepler
+        break;
+      case 'customer_satisfaction':
+        newFilteredCustomers = newFilteredCustomers.filter(customer => customer.satisfaction_score > 0);
+        break;
+      default:
+        // Genel bakış için tüm veriler
+        break;
+    }
+
+    setFilteredTickets(newFilteredTickets);
+    setFilteredCustomers(newFilteredCustomers);
+    setFilteredAgents(newFilteredAgents);
+  };
+
+  // Filtreler değiştiğinde uygula
+  React.useEffect(() => {
+    if (tickets.length > 0 || customers.length > 0 || agents.length > 0) {
+      applyFilters();
+    }
+  }, [dateRange, reportType, tickets, customers, agents]);
 
   // Gerçek verilerden istatistikleri hesapla
   const calculateStats = () => {
-    const totalTickets = tickets.length;
-    const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
-    const openTickets = tickets.filter(t => t.status === 'open').length;
-    const inProgressTickets = tickets.filter(t => t.status === 'in_progress').length;
-    const activeAgents = agents.filter(a => a.status === 'online').length;
+    const totalTickets = filteredTickets.length;
+    const resolvedTickets = filteredTickets.filter(t => t.status === 'resolved').length;
+    const openTickets = filteredTickets.filter(t => t.status === 'open').length;
+    const inProgressTickets = filteredTickets.filter(t => t.status === 'in_progress').length;
+    const activeAgents = filteredAgents.filter(a => a.status === 'online').length;
     
     // Ortalama yanıt süresi hesaplama (örnek)
     const avgResponseTime = totalTickets > 0 ? '2.1 saat' : '0 saat';
     
     // Müşteri memnuniyeti ortalaması
-    const avgSatisfaction = customers.length > 0 
-      ? (customers.reduce((sum, c) => sum + c.satisfaction_score, 0) / customers.length).toFixed(1)
+    const avgSatisfaction = filteredCustomers.length > 0 
+      ? (filteredCustomers.reduce((sum, c) => sum + c.satisfaction_score, 0) / filteredCustomers.length).toFixed(1)
       : '0';
 
     return {
@@ -85,7 +150,7 @@ const ReportsPage: React.FC = () => {
       const date = new Date(now);
       date.setDate(date.getDate() - (6 - index));
       
-      const dayTickets = tickets.filter(ticket => {
+      const dayTickets = filteredTickets.filter(ticket => {
         const ticketDate = new Date(ticket.created_at);
         return ticketDate.toDateString() === date.toDateString();
       });
@@ -113,7 +178,7 @@ const ReportsPage: React.FC = () => {
       'Genel': { count: 0, color: '#6B7280' }
     };
 
-    tickets.forEach(ticket => {
+    filteredTickets.forEach(ticket => {
       const category = ticket.category || 'Genel';
       const categoryName = category === 'technical' ? 'Teknik Destek' :
                           category === 'billing' ? 'Ödeme' :
@@ -142,8 +207,8 @@ const ReportsPage: React.FC = () => {
   const generateAgentPerformance = () => {
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
     
-    return agents.slice(0, 4).map((agent, index) => {
-      const agentTickets = tickets.filter(t => t.agent_id === agent.id);
+    return filteredAgents.slice(0, 4).map((agent, index) => {
+      const agentTickets = filteredTickets.filter(t => t.agent_id === agent.id);
       const solvedTickets = agentTickets.filter(t => t.status === 'resolved').length;
       
       return {
@@ -157,6 +222,26 @@ const ReportsPage: React.FC = () => {
   };
 
   const agentPerformance = generateAgentPerformance();
+
+  const getDateRangeText = (range: string) => {
+    const ranges = {
+      'last7days': 'Son 7 Gün',
+      'last30days': 'Son 30 Gün',
+      'last3months': 'Son 3 Ay',
+      'last1year': 'Son 1 Yıl'
+    };
+    return ranges[range as keyof typeof ranges] || 'Son 7 Gün';
+  };
+
+  const getReportTypeText = (type: string) => {
+    const types = {
+      'overview': 'Genel Bakış',
+      'agent_performance': 'Temsilci Performansı',
+      'category_analysis': 'Kategori Analizi',
+      'customer_satisfaction': 'Müşteri Memnuniyeti'
+    };
+    return types[type as keyof typeof types] || 'Genel Bakış';
+  };
 
   const statsCards = [
     {
@@ -249,8 +334,8 @@ const ReportsPage: React.FC = () => {
       // Rapor verilerini hazırla
       const reportData = {
         date: new Date().toISOString(),
-        dateRange,
-        reportType,
+        dateRange: getDateRangeText(dateRange),
+        reportType: getReportTypeText(reportType),
         stats: statsCards,
         weeklyData,
         categoryData,
@@ -282,7 +367,8 @@ const ReportsPage: React.FC = () => {
   };
 
   const handleFilterChange = () => {
-    toast.success(`Filtre uygulandı: ${dateRange} - ${reportType}`);
+    applyFilters();
+    toast.success(`Filtre uygulandı: ${getDateRangeText(dateRange)} - ${getReportTypeText(reportType)}`);
     // Burada filtreleme mantığı eklenebilir
   };
 
@@ -323,10 +409,10 @@ const ReportsPage: React.FC = () => {
               onChange={(e) => setDateRange(e.target.value)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="Son 7 Gün">Son 7 Gün</option>
-              <option value="Son 30 Gün">Son 30 Gün</option>
-              <option value="Son 3 Ay">Son 3 Ay</option>
-              <option value="Son 1 Yıl">Son 1 Yıl</option>
+              <option value="last7days">Son 7 Gün</option>
+              <option value="last30days">Son 30 Gün</option>
+              <option value="last3months">Son 3 Ay</option>
+              <option value="last1year">Son 1 Yıl</option>
             </select>
           </div>
           <div className="flex items-center gap-2">
@@ -336,10 +422,10 @@ const ReportsPage: React.FC = () => {
               onChange={(e) => setReportType(e.target.value)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="Genel Bakış">Genel Bakış</option>
-              <option value="Temsilci Performansı">Temsilci Performansı</option>
-              <option value="Kategori Analizi">Kategori Analizi</option>
-              <option value="Müşteri Memnuniyeti">Müşteri Memnuniyeti</option>
+              <option value="overview">Genel Bakış</option>
+              <option value="agent_performance">Temsilci Performansı</option>
+              <option value="category_analysis">Kategori Analizi</option>
+              <option value="customer_satisfaction">Müşteri Memnuniyeti</option>
             </select>
           </div>
         </div>
