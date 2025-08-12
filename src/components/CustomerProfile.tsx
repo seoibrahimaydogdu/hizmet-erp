@@ -91,184 +91,487 @@ interface SupportAgent {
 const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Mock data - gerçek uygulamada API'den gelecek
-  const customerData: CustomerData = {
-    id: customerId,
-    name: 'Ahmet Yılmaz',
-    email: 'ahmet@example.com',
-    phone: '+90 555 123 4567',
-    company: 'ABC Teknoloji A.Ş.',
-    plan: 'Pro',
-    status: 'active',
-    created_at: '2024-06-15',
-    last_login: '2025-01-10',
-    total_spent: 2499.99,
-    current_balance: -299.99,
-    satisfaction_score: 4.2,
-    total_tickets: 12,
-    resolved_tickets: 10,
-    pending_tickets: 2,
-    subscription_months: 7,
-    purchase_journey: ['Free Trial', 'Basic Plan', 'Pro Plan'],
-    assigned_agents: ['Ayşe Kaya', 'Mehmet Demir', 'Fatma Şahin']
+  // Müşteri verilerini ID'ye göre getir
+  const getCustomerData = (id: string): CustomerData => {
+    const customerDatabase: Record<string, CustomerData> = {
+      '1': {
+        id: '1',
+        name: 'Ahmet Yılmaz',
+        email: 'ahmet@example.com',
+        phone: '+90 555 123 4567',
+        company: 'ABC Teknoloji A.Ş.',
+        plan: 'Pro',
+        status: 'active',
+        created_at: '2024-06-15',
+        last_login: '2025-01-10',
+        total_spent: 2499.99,
+        current_balance: -299.99,
+        satisfaction_score: 4.2,
+        total_tickets: 12,
+        resolved_tickets: 10,
+        pending_tickets: 2,
+        subscription_months: 7,
+        purchase_journey: ['Free Trial', 'Basic Plan', 'Pro Plan'],
+        assigned_agents: ['Ayşe Kaya', 'Mehmet Demir', 'Fatma Şahin']
+      },
+      '2': {
+        id: '2',
+        name: 'Fatma Kaya',
+        email: 'fatma@example.com',
+        phone: '+90 555 987 6543',
+        company: 'XYZ Yazılım Ltd.',
+        plan: 'Basic',
+        status: 'active',
+        created_at: '2024-08-20',
+        last_login: '2025-01-09',
+        total_spent: 899.99,
+        current_balance: 0,
+        satisfaction_score: 4.7,
+        total_tickets: 8,
+        resolved_tickets: 8,
+        pending_tickets: 0,
+        subscription_months: 5,
+        purchase_journey: ['Free Trial', 'Basic Plan'],
+        assigned_agents: ['Mehmet Demir', 'Fatma Şahin']
+      },
+      '3': {
+        id: '3',
+        name: 'Can Demir',
+        email: 'can@example.com',
+        phone: '+90 555 456 7890',
+        company: 'DEF Danışmanlık',
+        plan: 'Premium',
+        status: 'active',
+        created_at: '2024-03-10',
+        last_login: '2025-01-11',
+        total_spent: 4999.99,
+        current_balance: 199.99,
+        satisfaction_score: 3.8,
+        total_tickets: 18,
+        resolved_tickets: 15,
+        pending_tickets: 3,
+        subscription_months: 10,
+        purchase_journey: ['Free Trial', 'Basic Plan', 'Pro Plan', 'Premium Plan'],
+        assigned_agents: ['Ayşe Kaya', 'Mehmet Demir', 'Fatma Şahin', 'Ali Veli']
+      },
+      '4': {
+        id: '4',
+        name: 'Zeynep Yıldız',
+        email: 'zeynep@example.com',
+        phone: '+90 555 321 9876',
+        company: 'GHI Holding',
+        plan: 'Pro',
+        status: 'inactive',
+        created_at: '2024-09-05',
+        last_login: '2024-12-20',
+        total_spent: 1799.99,
+        current_balance: -99.99,
+        satisfaction_score: 3.2,
+        total_tickets: 6,
+        resolved_tickets: 4,
+        pending_tickets: 2,
+        subscription_months: 4,
+        purchase_journey: ['Free Trial', 'Pro Plan'],
+        assigned_agents: ['Ayşe Kaya', 'Ali Veli']
+      }
+    };
+
+    return customerDatabase[id] || customerDatabase['1']; // Fallback to first customer
   };
 
-  const tickets: Ticket[] = [
-    {
-      id: '1',
-      title: 'Sistem yavaş çalışıyor',
-      status: 'resolved',
-      priority: 'high',
-      created_at: '2025-01-08',
-      resolved_at: '2025-01-09',
-      agent_name: 'Ayşe Kaya',
-      category: 'Teknik'
-    },
-    {
-      id: '2',
-      title: 'Fatura ile ilgili soru',
-      status: 'in_progress',
-      priority: 'medium',
-      created_at: '2025-01-10',
-      agent_name: 'Mehmet Demir',
-      category: 'Faturalama'
-    },
-    {
-      id: '3',
-      title: 'Yeni özellik talebi',
-      status: 'open',
-      priority: 'low',
-      created_at: '2025-01-11',
-      category: 'Özellik'
-    },
-    {
-      id: '4',
-      title: 'Hesap erişim sorunu',
-      status: 'resolved',
-      priority: 'high',
-      created_at: '2024-12-20',
-      resolved_at: '2024-12-20',
-      agent_name: 'Fatma Şahin',
-      category: 'Hesap'
-    },
-    {
-      id: '5',
-      title: 'Entegrasyon desteği',
-      status: 'resolved',
-      priority: 'medium',
-      created_at: '2024-11-15',
-      resolved_at: '2024-11-16',
-      agent_name: 'Ayşe Kaya',
-      category: 'Teknik'
-    }
-  ];
+  const customerData = getCustomerData(customerId);
 
-  const payments: Payment[] = [
-    {
-      id: '1',
-      amount: 299.99,
-      status: 'paid',
-      date: '2024-12-15',
-      invoice_number: 'INV-2024-012',
-      plan: 'Pro Plan'
-    },
-    {
-      id: '2',
-      amount: 299.99,
-      status: 'pending',
-      date: '2025-01-15',
-      invoice_number: 'INV-2025-001',
-      plan: 'Pro Plan'
-    },
-    {
-      id: '3',
-      amount: 199.99,
-      status: 'paid',
-      date: '2024-11-15',
-      invoice_number: 'INV-2024-011',
-      plan: 'Basic Plan'
-    },
-    {
-      id: '4',
-      amount: 199.99,
-      status: 'paid',
-      date: '2024-10-15',
-      invoice_number: 'INV-2024-010',
-      plan: 'Basic Plan'
-    }
-  ];
+  // Müşteriye özel talep verilerini getir
+  const getCustomerTickets = (id: string): Ticket[] => {
+    const ticketDatabase: Record<string, Ticket[]> = {
+      '1': [
+        {
+          id: '1',
+          title: 'Sistem yavaş çalışıyor',
+          status: 'resolved',
+          priority: 'high',
+          created_at: '2025-01-08',
+          resolved_at: '2025-01-09',
+          agent_name: 'Ayşe Kaya',
+          category: 'Teknik'
+        },
+        {
+          id: '2',
+          title: 'Fatura ile ilgili soru',
+          status: 'in_progress',
+          priority: 'medium',
+          created_at: '2025-01-10',
+          agent_name: 'Mehmet Demir',
+          category: 'Faturalama'
+        }
+      ],
+      '2': [
+        {
+          id: '3',
+          title: 'Hesap ayarları sorunu',
+          status: 'resolved',
+          priority: 'medium',
+          created_at: '2025-01-05',
+          resolved_at: '2025-01-06',
+          agent_name: 'Fatma Şahin',
+          category: 'Hesap'
+        },
+        {
+          id: '4',
+          title: 'Rapor indirme hatası',
+          status: 'resolved',
+          priority: 'low',
+          created_at: '2024-12-28',
+          resolved_at: '2024-12-29',
+          agent_name: 'Mehmet Demir',
+          category: 'Teknik'
+        }
+      ],
+      '3': [
+        {
+          id: '5',
+          title: 'API entegrasyonu desteği',
+          status: 'resolved',
+          priority: 'high',
+          created_at: '2025-01-07',
+          resolved_at: '2025-01-08',
+          agent_name: 'Ayşe Kaya',
+          category: 'Teknik'
+        },
+        {
+          id: '6',
+          title: 'Premium özellikler hakkında',
+          status: 'open',
+          priority: 'medium',
+          created_at: '2025-01-11',
+          agent_name: 'Ali Veli',
+          category: 'Genel'
+        },
+        {
+          id: '7',
+          title: 'Faturalama döngüsü değişikliği',
+          status: 'in_progress',
+          priority: 'medium',
+          created_at: '2025-01-09',
+          agent_name: 'Fatma Şahin',
+          category: 'Faturalama'
+        }
+      ],
+      '4': [
+        {
+          id: '8',
+          title: 'Şifre sıfırlama sorunu',
+          status: 'resolved',
+          priority: 'high',
+          created_at: '2024-12-15',
+          resolved_at: '2024-12-15',
+          agent_name: 'Ayşe Kaya',
+          category: 'Hesap'
+        },
+        {
+          id: '9',
+          title: 'Plan downgrade talebi',
+          status: 'open',
+          priority: 'low',
+          created_at: '2024-12-18',
+          category: 'Faturalama'
+        }
+      ]
+    };
 
-  const activityLogs: ActivityLog[] = [
-    {
-      id: '1',
-      action: 'Giriş Yaptı',
-      description: 'Sisteme başarıyla giriş yaptı',
-      timestamp: '2025-01-10T14:30:00Z',
-      type: 'login'
-    },
-    {
-      id: '2',
-      action: 'Ödeme Yapıldı',
-      description: '299.99 TL ödeme gerçekleştirildi',
-      timestamp: '2024-12-15T10:15:00Z',
-      type: 'payment'
-    },
-    {
-      id: '3',
-      action: 'Talep Oluşturuldu',
-      description: 'Yeni destek talebi oluşturuldu',
-      timestamp: '2025-01-08T16:45:00Z',
-      type: 'ticket'
-    },
-    {
-      id: '4',
-      action: 'Plan Yükseltildi',
-      description: 'Basic\'ten Pro plana yükseltildi',
-      timestamp: '2024-09-01T12:00:00Z',
-      type: 'plan_change'
-    },
-    {
-      id: '5',
-      action: 'Özellik Kullanıldı',
-      description: 'Analitik raporları görüntülendi',
-      timestamp: '2025-01-09T09:20:00Z',
-      type: 'feature_usage'
-    }
-  ];
+    return ticketDatabase[id] || [];
+  };
 
-  const supportAgents: SupportAgent[] = [
-    {
-      id: '1',
-      name: 'Ayşe Kaya',
-      avatar: 'AK',
-      tickets_handled: 4,
-      avg_response_time: '2.5 saat'
-    },
-    {
-      id: '2',
-      name: 'Mehmet Demir',
-      avatar: 'MD',
-      tickets_handled: 3,
-      avg_response_time: '1.8 saat'
-    },
-    {
-      id: '3',
-      name: 'Fatma Şahin',
-      avatar: 'FŞ',
-      tickets_handled: 2,
-      avg_response_time: '3.2 saat'
-    }
-  ];
+  // Müşteriye özel ödeme verilerini getir
+  const getCustomerPayments = (id: string): Payment[] => {
+    const paymentDatabase: Record<string, Payment[]> = {
+      '1': [
+        {
+          id: '1',
+          amount: 299.99,
+          status: 'paid',
+          date: '2024-12-15',
+          invoice_number: 'INV-2024-012',
+          plan: 'Pro Plan'
+        },
+        {
+          id: '2',
+          amount: 299.99,
+          status: 'pending',
+          date: '2025-01-15',
+          invoice_number: 'INV-2025-001',
+          plan: 'Pro Plan'
+        }
+      ],
+      '2': [
+        {
+          id: '3',
+          amount: 199.99,
+          status: 'paid',
+          date: '2024-12-20',
+          invoice_number: 'INV-2024-013',
+          plan: 'Basic Plan'
+        },
+        {
+          id: '4',
+          amount: 199.99,
+          status: 'paid',
+          date: '2025-01-20',
+          invoice_number: 'INV-2025-002',
+          plan: 'Basic Plan'
+        }
+      ],
+      '3': [
+        {
+          id: '5',
+          amount: 599.99,
+          status: 'paid',
+          date: '2024-12-10',
+          invoice_number: 'INV-2024-014',
+          plan: 'Premium Plan'
+        },
+        {
+          id: '6',
+          amount: 599.99,
+          status: 'paid',
+          date: '2025-01-10',
+          invoice_number: 'INV-2025-003',
+          plan: 'Premium Plan'
+        }
+      ],
+      '4': [
+        {
+          id: '7',
+          amount: 299.99,
+          status: 'paid',
+          date: '2024-11-05',
+          invoice_number: 'INV-2024-015',
+          plan: 'Pro Plan'
+        },
+        {
+          id: '8',
+          amount: 299.99,
+          status: 'failed',
+          date: '2024-12-05',
+          invoice_number: 'INV-2024-016',
+          plan: 'Pro Plan'
+        }
+      ]
+    };
 
-  // Aylık kullanım verileri
-  const usageData = [
-    { month: 'Tem', logins: 45, tickets: 2, payments: 1, features_used: 12 },
-    { month: 'Ağu', logins: 52, tickets: 1, payments: 1, features_used: 15 },
-    { month: 'Eyl', logins: 38, tickets: 3, payments: 1, features_used: 18 },
-    { month: 'Eki', logins: 41, tickets: 1, payments: 0, features_used: 14 },
-    { month: 'Kas', logins: 35, tickets: 2, payments: 1, features_used: 16 },
-    { month: 'Ara', logins: 48, tickets: 3, payments: 1, features_used: 20 }
-  ];
+    return paymentDatabase[id] || [];
+  };
+
+  // Müşteriye özel aktivite verilerini getir
+  const getCustomerActivity = (id: string): ActivityLog[] => {
+    const activityDatabase: Record<string, ActivityLog[]> = {
+      '1': [
+        {
+          id: '1',
+          action: 'Giriş Yaptı',
+          description: 'Sisteme başarıyla giriş yaptı',
+          timestamp: '2025-01-10T14:30:00Z',
+          type: 'login'
+        },
+        {
+          id: '2',
+          action: 'Ödeme Yapıldı',
+          description: '299.99 TL ödeme gerçekleştirildi',
+          timestamp: '2024-12-15T10:15:00Z',
+          type: 'payment'
+        }
+      ],
+      '2': [
+        {
+          id: '3',
+          action: 'Giriş Yaptı',
+          description: 'Sisteme başarıyla giriş yaptı',
+          timestamp: '2025-01-09T09:15:00Z',
+          type: 'login'
+        },
+        {
+          id: '4',
+          action: 'Talep Çözüldü',
+          description: 'Hesap ayarları sorunu çözüldü',
+          timestamp: '2025-01-06T16:30:00Z',
+          type: 'ticket'
+        }
+      ],
+      '3': [
+        {
+          id: '5',
+          action: 'Plan Yükseltildi',
+          description: 'Pro\'dan Premium plana yükseltildi',
+          timestamp: '2024-11-01T12:00:00Z',
+          type: 'plan_change'
+        },
+        {
+          id: '6',
+          action: 'API Kullanımı',
+          description: 'API entegrasyonu tamamlandı',
+          timestamp: '2025-01-08T14:45:00Z',
+          type: 'feature_usage'
+        }
+      ],
+      '4': [
+        {
+          id: '7',
+          action: 'Son Giriş',
+          description: 'Sisteme son kez giriş yaptı',
+          timestamp: '2024-12-20T11:20:00Z',
+          type: 'login'
+        },
+        {
+          id: '8',
+          action: 'Ödeme Başarısız',
+          description: 'Kredi kartı ödemesi başarısız oldu',
+          timestamp: '2024-12-05T08:30:00Z',
+          type: 'payment'
+        }
+      ]
+    };
+
+    return activityDatabase[id] || [];
+  };
+
+  // Müşteriye özel destek ekibi verilerini getir
+  const getCustomerSupportAgents = (id: string): SupportAgent[] => {
+    const supportDatabase: Record<string, SupportAgent[]> = {
+      '1': [
+        {
+          id: '1',
+          name: 'Ayşe Kaya',
+          avatar: 'AK',
+          tickets_handled: 4,
+          avg_response_time: '2.5 saat'
+        },
+        {
+          id: '2',
+          name: 'Mehmet Demir',
+          avatar: 'MD',
+          tickets_handled: 3,
+          avg_response_time: '1.8 saat'
+        },
+        {
+          id: '3',
+          name: 'Fatma Şahin',
+          avatar: 'FŞ',
+          tickets_handled: 2,
+          avg_response_time: '3.2 saat'
+        }
+      ],
+      '2': [
+        {
+          id: '2',
+          name: 'Mehmet Demir',
+          avatar: 'MD',
+          tickets_handled: 3,
+          avg_response_time: '1.5 saat'
+        },
+        {
+          id: '3',
+          name: 'Fatma Şahin',
+          avatar: 'FŞ',
+          tickets_handled: 5,
+          avg_response_time: '2.1 saat'
+        }
+      ],
+      '3': [
+        {
+          id: '1',
+          name: 'Ayşe Kaya',
+          avatar: 'AK',
+          tickets_handled: 6,
+          avg_response_time: '1.2 saat'
+        },
+        {
+          id: '2',
+          name: 'Mehmet Demir',
+          avatar: 'MD',
+          tickets_handled: 4,
+          avg_response_time: '2.0 saat'
+        },
+        {
+          id: '3',
+          name: 'Fatma Şahin',
+          avatar: 'FŞ',
+          tickets_handled: 3,
+          avg_response_time: '1.8 saat'
+        },
+        {
+          id: '4',
+          name: 'Ali Veli',
+          avatar: 'AV',
+          tickets_handled: 5,
+          avg_response_time: '1.6 saat'
+        }
+      ],
+      '4': [
+        {
+          id: '1',
+          name: 'Ayşe Kaya',
+          avatar: 'AK',
+          tickets_handled: 2,
+          avg_response_time: '4.1 saat'
+        },
+        {
+          id: '4',
+          name: 'Ali Veli',
+          avatar: 'AV',
+          tickets_handled: 4,
+          avg_response_time: '3.5 saat'
+        }
+      ]
+    };
+
+    return supportDatabase[id] || [];
+  };
+
+  const tickets = getCustomerTickets(customerId);
+  const payments = getCustomerPayments(customerId);
+  const activityLogs = getCustomerActivity(customerId);
+  const supportAgents = getCustomerSupportAgents(customerId);
+
+  // Müşteriye özel kullanım verilerini getir
+  const getCustomerUsageData = (id: string) => {
+    const usageDatabase: Record<string, any[]> = {
+      '1': [
+        { month: 'Tem', logins: 45, tickets: 2, payments: 1, features_used: 12 },
+        { month: 'Ağu', logins: 52, tickets: 1, payments: 1, features_used: 15 },
+        { month: 'Eyl', logins: 38, tickets: 3, payments: 1, features_used: 18 },
+        { month: 'Eki', logins: 41, tickets: 1, payments: 0, features_used: 14 },
+        { month: 'Kas', logins: 35, tickets: 2, payments: 1, features_used: 16 },
+        { month: 'Ara', logins: 48, tickets: 3, payments: 1, features_used: 20 }
+      ],
+      '2': [
+        { month: 'Ağu', logins: 32, tickets: 1, payments: 1, features_used: 8 },
+        { month: 'Eyl', logins: 28, tickets: 2, payments: 1, features_used: 10 },
+        { month: 'Eki', logins: 35, tickets: 1, payments: 1, features_used: 12 },
+        { month: 'Kas', logins: 42, tickets: 2, payments: 1, features_used: 14 },
+        { month: 'Ara', logins: 38, tickets: 2, payments: 1, features_used: 16 },
+        { month: 'Oca', logins: 25, tickets: 0, payments: 1, features_used: 11 }
+      ],
+      '3': [
+        { month: 'Ağu', logins: 65, tickets: 3, payments: 1, features_used: 25 },
+        { month: 'Eyl', logins: 72, tickets: 2, payments: 1, features_used: 28 },
+        { month: 'Eki', logins: 58, tickets: 4, payments: 1, features_used: 22 },
+        { month: 'Kas', logins: 68, tickets: 3, payments: 1, features_used: 30 },
+        { month: 'Ara', logins: 75, tickets: 4, payments: 1, features_used: 32 },
+        { month: 'Oca', logins: 45, tickets: 2, payments: 1, features_used: 18 }
+      ],
+      '4': [
+        { month: 'Eyl', logins: 22, tickets: 1, payments: 1, features_used: 6 },
+        { month: 'Eki', logins: 18, tickets: 0, payments: 1, features_used: 4 },
+        { month: 'Kas', logins: 15, tickets: 1, payments: 1, features_used: 3 },
+        { month: 'Ara', logins: 8, tickets: 1, payments: 0, features_used: 2 },
+        { month: 'Oca', logins: 0, tickets: 0, payments: 0, features_used: 0 }
+      ]
+    };
+
+    return usageDatabase[id] || usageDatabase['1'];
+  };
+
+  const usageData = getCustomerUsageData(customerId);
 
   // Talep kategorileri dağılımı
   const ticketCategories = tickets.reduce((acc, ticket) => {
