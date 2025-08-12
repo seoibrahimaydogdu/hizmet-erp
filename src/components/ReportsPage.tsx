@@ -84,9 +84,32 @@ const ReportsPage: React.FC = () => {
     let newFilteredCustomers = filterByDateRange(customers);
     let newFilteredAgents = filterByDateRange(agents);
 
+    // Rapor türüne göre ek filtreler
+    switch (reportType) {
+      case 'agent_performance':
+        newFilteredAgents = newFilteredAgents.filter(agent => agent.total_resolved > 0);
+        newFilteredTickets = newFilteredTickets.filter(t => t.agent_id && newFilteredAgents.some(a => a.id === t.agent_id));
+        break;
+      case 'category_analysis':
+        // Kategori analizi için tüm talepler
+        break;
+      case 'customer_satisfaction':
+        newFilteredCustomers = newFilteredCustomers.filter(customer => customer.satisfaction_score > 0);
+        newFilteredTickets = newFilteredTickets.filter(t => t.customer_id && newFilteredCustomers.some(c => c.id === t.customer_id));
+        break;
+      default:
+        // Genel bakış için tüm veriler
+        break;
+    }
+
     setFilteredTickets(newFilteredTickets);
     setFilteredCustomers(newFilteredCustomers);
     setFilteredAgents(newFilteredAgents);
+
+    // Filtre uygulandı bildirimi
+    const dateText = getDateRangeText(dateRange);
+    const typeText = getReportTypeText(reportType);
+    toast.success(`Filtre uygulandı: ${dateText} - ${typeText}`);
   };
 
   // Filtreler değiştiğinde uygula
@@ -98,40 +121,18 @@ const ReportsPage: React.FC = () => {
 
   // Rapor türüne göre istatistikleri hesapla
   const calculateStats = () => {
-    let displayTickets = filteredTickets;
-    let displayCustomers = filteredCustomers;
-    let displayAgents = filteredAgents;
-
-    // Rapor türüne göre ek filtreler
-    switch (reportType) {
-      case 'agent_performance':
-        displayAgents = filteredAgents.filter(agent => agent.total_resolved > 0);
-        displayTickets = filteredTickets.filter(t => t.agent_id && displayAgents.some(a => a.id === t.agent_id));
-        break;
-      case 'category_analysis':
-        // Kategori analizi için tüm talepler
-        break;
-      case 'customer_satisfaction':
-        displayCustomers = filteredCustomers.filter(customer => customer.satisfaction_score > 0);
-        displayTickets = filteredTickets.filter(t => t.customer_id && displayCustomers.some(c => c.id === t.customer_id));
-        break;
-      default:
-        // Genel bakış için tüm veriler
-        break;
-    }
-
-    const totalTickets = displayTickets.length;
-    const resolvedTickets = displayTickets.filter(t => t.status === 'resolved').length;
-    const openTickets = displayTickets.filter(t => t.status === 'open').length;
-    const inProgressTickets = displayTickets.filter(t => t.status === 'in_progress').length;
-    const activeAgents = displayAgents.filter(a => a.status === 'online').length;
+    const totalTickets = filteredTickets.length;
+    const resolvedTickets = filteredTickets.filter(t => t.status === 'resolved').length;
+    const openTickets = filteredTickets.filter(t => t.status === 'open').length;
+    const inProgressTickets = filteredTickets.filter(t => t.status === 'in_progress').length;
+    const activeAgents = filteredAgents.filter(a => a.status === 'online').length;
     
     // Ortalama yanıt süresi hesaplama (örnek)
     const avgResponseTime = totalTickets > 0 ? '2.1 saat' : '0 saat';
     
     // Müşteri memnuniyeti ortalaması
-    const avgSatisfaction = displayCustomers.length > 0 
-      ? (displayCustomers.reduce((sum, c) => sum + c.satisfaction_score, 0) / displayCustomers.length).toFixed(1)
+    const avgSatisfaction = filteredCustomers.length > 0 
+      ? (filteredCustomers.reduce((sum, c) => sum + c.satisfaction_score, 0) / filteredCustomers.length).toFixed(1)
       : '0';
 
     return {
@@ -141,10 +142,7 @@ const ReportsPage: React.FC = () => {
       inProgressTickets,
       activeAgents,
       avgResponseTime,
-      avgSatisfaction,
-      displayTickets,
-      displayCustomers,
-      displayAgents
+      avgSatisfaction
     };
   };
 
@@ -154,13 +152,12 @@ const ReportsPage: React.FC = () => {
   const generateWeeklyData = () => {
     const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     const now = new Date();
-    const ticketsToUse = stats.displayTickets;
     
     return days.map((day, index) => {
       const date = new Date(now);
       date.setDate(date.getDate() - (6 - index));
       
-      const dayTickets = ticketsToUse.filter(ticket => {
+      const dayTickets = filteredTickets.filter(ticket => {
         const ticketDate = new Date(ticket.created_at);
         return ticketDate.toDateString() === date.toDateString();
       });
@@ -179,8 +176,6 @@ const ReportsPage: React.FC = () => {
 
   // Gerçek verilerden kategori dağılımı oluştur
   const generateCategoryData = () => {
-    const ticketsToUse = stats.displayTickets;
-    
     const categories = {
       'Teknik Destek': { count: 0, color: '#3B82F6' },
       'İade/Değişim': { count: 0, color: '#10B981' },
@@ -190,8 +185,8 @@ const ReportsPage: React.FC = () => {
       'Genel': { count: 0, color: '#6B7280' }
     };
 
-    ticketsToUse.forEach(ticket => {
-      const category = ticket.category || 'Genel';
+    filteredTickets.forEach(ticket => {
+      const category = ticket.category || 'general';
       const categoryName = category === 'technical' ? 'Teknik Destek' :
                           category === 'billing' ? 'Ödeme' :
                           category === 'support' ? 'İade/Değişim' :
@@ -218,18 +213,16 @@ const ReportsPage: React.FC = () => {
   // Gerçek verilerden temsilci performansı oluştur
   const generateAgentPerformance = () => {
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
-    const agentsToUse = stats.displayAgents;
-    const ticketsToUse = stats.displayTickets;
     
-    return agentsToUse.slice(0, 4).map((agent, index) => {
-      const agentTickets = ticketsToUse.filter(t => t.agent_id === agent.id);
+    return filteredAgents.slice(0, 4).map((agent, index) => {
+      const agentTickets = filteredTickets.filter(t => t.agent_id === agent.id);
       const solvedTickets = agentTickets.filter(t => t.status === 'resolved').length;
       
       return {
         name: agent.name,
         avatar: agent.name.split(' ').map(n => n[0]).join(''),
         solved: solvedTickets,
-        rating: (4.5 + Math.random() * 0.5).toFixed(1), // Simulated rating
+        rating: (4.5 + Math.random() * 0.5).toFixed(1),
         color: colors[index % colors.length]
       };
     });
@@ -291,7 +284,7 @@ const ReportsPage: React.FC = () => {
         },
         {
           title: 'Ortalama Çözüm',
-          value: stats.displayAgents.length > 0 ? Math.round(stats.resolvedTickets / stats.displayAgents.length).toString() : '0',
+          value: filteredAgents.length > 0 ? Math.round(stats.resolvedTickets / filteredAgents.length).toString() : '0',
           change: '+2',
           trend: 'up',
           icon: Star,
@@ -311,7 +304,7 @@ const ReportsPage: React.FC = () => {
         },
         {
           title: 'Değerlendiren Müşteri',
-          value: stats.displayCustomers.length.toString(),
+          value: filteredCustomers.length.toString(),
           change: '+5',
           trend: 'up',
           icon: Users,
@@ -419,9 +412,9 @@ const ReportsPage: React.FC = () => {
         weeklyData,
         categoryData,
         agentPerformance,
-        totalTickets: stats.displayTickets.length,
-        totalCustomers: stats.displayCustomers.length,
-        totalAgents: stats.displayAgents.length
+        totalTickets: filteredTickets.length,
+        totalCustomers: filteredCustomers.length,
+        totalAgents: filteredAgents.length
       };
 
       // JSON formatında indir
@@ -429,6 +422,107 @@ const ReportsPage: React.FC = () => {
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
+      link.href = url;
+      link.download = `rapor_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Rapor başarıyla indirildi!');
+    } catch (error) {
+      toast.error('Rapor indirme başarısız');
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Raporlar ve Analitik</h1>
+          <p className="text-gray-600 dark:text-gray-400">Destek sistemi performans raporları</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            disabled={isExporting}
+            className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {isExporting ? 'İndiriliyor...' : 'Rapor İndir'}
+          </button>
+          <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+            <Filter className="w-4 h-4 mr-2" />
+            Filtrele
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="last7days">Son 7 Gün</option>
+              <option value="last30days">Son 30 Gün</option>
+              <option value="last3months">Son 3 Ay</option>
+              <option value="last1year">Son 1 Yıl</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-gray-400" />
+            <select
+              value={reportType}
+              onChange={(e) => setReportType(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="overview">Genel Bakış</option>
+              <option value="agent_performance">Temsilci Performansı</option>
+              <option value="category_analysis">Kategori Analizi</option>
+              <option value="customer_satisfaction">Müşteri Memnuniyeti</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Report Title */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
+        <h2 className="text-xl font-bold mb-2">{getReportTitle()}</h2>
+        <p className="opacity-90">{getDateRangeText(dateRange)} dönemindeki veriler</p>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {statsCards.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`w-12 h-12 ${getStatColor(stat.color)} rounded-lg flex items-center justify-center`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <div className={`flex items-center gap-1 text-sm font-medium ${getTrendColor(stat.trend)}`}>
+                  {getTrendIcon(stat.trend)}
+                  <span>{stat.change}</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{stat.value}</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{stat.title}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -506,7 +600,7 @@ const ReportsPage: React.FC = () => {
                       className="h-2 rounded-full"
                       style={{ 
                         backgroundColor: category.color,
-                        width: `${(category.value / 45) * 100}%`
+                        width: `${Math.min((category.value / Math.max(...categoryData.map(c => c.value))) * 100, 100)}%`
                       }}
                     ></div>
                   </div>
