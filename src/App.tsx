@@ -23,7 +23,9 @@ import {
   TrendingUp,
   Clock,
   MessageSquare,
-  MessageCircle
+  MessageCircle,
+  CheckCircle,
+  Ticket
 } from 'lucide-react';
 import { useSupabase } from './hooks/useSupabase';
 import { format } from 'date-fns';
@@ -35,7 +37,6 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [activeView, setActiveView] = useState('dashboard');
   
   // Modal states
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
@@ -46,11 +47,22 @@ function App() {
   const [showEditAgentModal, setShowEditAgentModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{type: 'customer' | 'agent', id: string} | null>(null);
+  const [showCreateTicketModal, setShowCreateTicketModal] = useState(false);
+  const [showTicketDetailsModal, setShowTicketDetailsModal] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   
+  // Selected items for details/edit
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [selectedAgent, setSelectedAgent] = useState<any>(null);
 
   // Live Chat states
   const [showLiveChat, setShowLiveChat] = useState(false);
   const [liveChatMinimized, setLiveChatMinimized] = useState(false);
+
+  // Search and pagination states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Form states
   const [newCustomerForm, setNewCustomerForm] = useState({
@@ -83,6 +95,14 @@ function App() {
     status: 'online'
   });
 
+  const [ticketForm, setTicketForm] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    category: 'general',
+    customer_id: ''
+  });
+
   const {
     loading,
     customers,
@@ -93,7 +113,9 @@ function App() {
     fetchAgents,
     fetchTickets,
     fetchNotifications,
-    exportData
+    exportData,
+    createTicket,
+    updateTicketStatus
   } = useSupabase();
 
   useEffect(() => {
@@ -102,6 +124,15 @@ function App() {
     fetchTickets();
     fetchNotifications();
   }, []);
+
+  // Filter and paginate tickets
+  const filteredTickets = tickets.filter(ticket =>
+    ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ticket.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredTickets.length / 10);
+  const paginatedTickets = filteredTickets.slice((currentPage - 1) * 10, currentPage * 10);
 
   // Customer actions
   const handleViewCustomer = (customer: any) => {
@@ -269,6 +300,33 @@ function App() {
       toast.error('Güncelleme sırasında hata oluştu');
       console.error('Error updating agent:', error);
     }
+  };
+
+  // Ticket handlers
+  const handleCreateTicket = async () => {
+    try {
+      await createTicket({
+        ...ticketForm,
+        status: 'open',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      setShowCreateTicketModal(false);
+      setTicketForm({
+        title: '',
+        description: '',
+        priority: 'medium',
+        category: 'general',
+        customer_id: ''
+      });
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+    }
+  };
+
+  const handleViewTicket = (ticket: any) => {
+    setSelectedTicket(ticket);
+    setShowTicketDetailsModal(true);
   };
 
   // Delete confirmation
@@ -726,33 +784,505 @@ function App() {
 
   const renderTickets = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Talepler</h1>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => setShowCreateTicketModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Yeni Talep</span>
+          </button>
+          <button
+            onClick={() => exportData('tickets')}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Dışa Aktar</span>
+          </button>
+        </div>
       </div>
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <p className="text-gray-600 dark:text-gray-400">Talepler sayfası geliştiriliyor...</p>
+
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Talep ara..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Tüm Durumlar</option>
+          <option value="open">Açık</option>
+          <option value="in_progress">İşlemde</option>
+          <option value="resolved">Çözüldü</option>
+        </select>
+      </div>
+
+      {/* Tickets Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Talep
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Müşteri
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Durum
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Öncelik
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Tarih
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  İşlemler
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {paginatedTickets.map((ticket) => (
+                <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        {ticket.title}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        #{ticket.id.slice(0, 8)}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                        {ticket.customers?.name?.charAt(0) || 'N'}
+                      </div>
+                      <div className="ml-3">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {ticket.customers?.name || 'Bilinmeyen'}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {ticket.customers?.email}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      ticket.status === 'open' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+                      ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                      'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                    }`}>
+                      {ticket.status === 'open' ? 'Açık' :
+                       ticket.status === 'in_progress' ? 'İşlemde' : 'Çözüldü'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      ticket.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+                      ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                      'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                    }`}>
+                      {ticket.priority === 'high' ? 'Yüksek' :
+                       ticket.priority === 'medium' ? 'Orta' : 'Düşük'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {format(new Date(ticket.created_at), 'dd.MM.yyyy HH:mm', { locale: tr })}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button
+                      onClick={() => handleViewTicket(ticket)}
+                      className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                    >
+                      Görüntüle
+                    </button>
+                    <select
+                      value={ticket.status}
+                      onChange={(e) => updateTicketStatus(ticket.id, e.target.value)}
+                      className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="open">Açık</option>
+                      <option value="in_progress">İşlemde</option>
+                      <option value="resolved">Çözüldü</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-gray-700 dark:text-gray-300">
+          {filteredTickets.length} talepten {((currentPage - 1) * 10) + 1}-{Math.min(currentPage * 10, filteredTickets.length)} arası gösteriliyor
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600"
+          >
+            Önceki
+          </button>
+          <span className="px-3 py-1 text-sm text-gray-700 dark:text-gray-300">
+            {currentPage} / {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600"
+          >
+            Sonraki
+          </button>
+        </div>
       </div>
     </div>
   );
 
   const renderReports = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Raporlar</h1>
+        <div className="flex space-x-3">
+          <select className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="week">Bu Hafta</option>
+            <option value="month">Bu Ay</option>
+            <option value="quarter">Bu Çeyrek</option>
+            <option value="year">Bu Yıl</option>
+          </select>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+            <Download className="w-4 h-4" />
+            <span>Rapor İndir</span>
+          </button>
+        </div>
       </div>
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <p className="text-gray-600 dark:text-gray-400">Raporlar sayfası geliştiriliyor...</p>
+
+      {/* Performance Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Talepler</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">1,247</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+              <Ticket className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center">
+            <span className="text-green-500 text-sm font-medium">+12%</span>
+            <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">önceki aya göre</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Çözülen Talepler</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">1,156</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center">
+            <span className="text-green-500 text-sm font-medium">+8%</span>
+            <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">önceki aya göre</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ortalama Yanıt Süresi</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">2.4h</p>
+            </div>
+            <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
+              <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center">
+            <span className="text-red-500 text-sm font-medium">+0.3h</span>
+            <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">önceki aya göre</span>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Memnuniyet Oranı</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">92%</p>
+            </div>
+            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+              <Star className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center">
+            <span className="text-green-500 text-sm font-medium">+3%</span>
+            <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">önceki aya göre</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Talep Trendi</h3>
+          <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            <BarChart3 className="w-16 h-16 mb-2" />
+          </div>
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400">
+            Grafik yakında eklenecek
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Kategori Dağılımı</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Teknik Destek</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="bg-blue-600 h-2 rounded-full" style={{ width: '45%' }}></div>
+                </div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">45%</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Faturalama</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="bg-green-600 h-2 rounded-full" style={{ width: '30%' }}></div>
+                </div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">30%</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Genel Sorular</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div className="bg-yellow-600 h-2 rounded-full" style={{ width: '25%' }}></div>
+                </div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">25%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Agent Performance */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Temsilci Performansı</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Temsilci
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Çözülen Talepler
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Ortalama Yanıt Süresi
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Memnuniyet Puanı
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {agents.slice(0, 5).map((agent) => (
+                <tr key={agent.id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                        {agent.name.charAt(0)}
+                      </div>
+                      <div className="ml-3">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {agent.name}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {agent.total_resolved}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {Math.floor(Math.random() * 3) + 1}.{Math.floor(Math.random() * 9)}h
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {agent.performance_score}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 
   const renderSettings = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ayarlar</h1>
       </div>
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <p className="text-gray-600 dark:text-gray-400">Ayarlar sayfası geliştiriliyor...</p>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* General Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Genel Ayarlar</h3>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Şirket Adı
+              </label>
+              <input
+                type="text"
+                defaultValue="Destek Merkezi"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Destek E-postası
+              </label>
+              <input
+                type="email"
+                defaultValue="destek@sirket.com"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Çalışma Saatleri
+              </label>
+              <input
+                type="text"
+                defaultValue="09:00 - 18:00"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Notification Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Bildirim Ayarları</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">E-posta Bildirimleri</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" defaultChecked className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">SMS Bildirimleri</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Push Bildirimleri</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" defaultChecked className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Security Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Güvenlik Ayarları</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-700 dark:text-gray-300">İki Faktörlü Doğrulama</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" defaultChecked className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Oturum Zaman Aşımı (dakika)
+              </label>
+              <input
+                type="number"
+                defaultValue="30"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors">
+              Şifreyi Değiştir
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Integration Settings */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Entegrasyonlar</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-gray-900 dark:text-white">Slack</h4>
+              <span className="text-green-500 text-sm">Bağlı</span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              Talep bildirimlerini Slack'e gönder
+            </p>
+            <button className="text-blue-600 hover:text-blue-700 text-sm">Ayarları Düzenle</button>
+          </div>
+          
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-gray-900 dark:text-white">WhatsApp</h4>
+              <span className="text-gray-500 text-sm">Bağlı Değil</span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              WhatsApp üzerinden destek sağla
+            </p>
+            <button className="text-blue-600 hover:text-blue-700 text-sm">Bağla</button>
+          </div>
+          
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-gray-900 dark:text-white">Telegram</h4>
+              <span className="text-gray-500 text-sm">Bağlı Değil</span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              Telegram bot entegrasyonu
+            </p>
+            <button className="text-blue-600 hover:text-blue-700 text-sm">Bağla</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+          Ayarları Kaydet
+        </button>
       </div>
     </div>
   );
@@ -763,58 +1293,46 @@ function App() {
         <Toaster position="top-right" />
         
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Destek Merkezi</h1>
             
             <div className="flex items-center space-x-4">
-              {/* Dark Mode Toggle */}
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-              >
-                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-
+              <span className="text-gray-700 dark:text-gray-300">Hoş geldiniz, Admin</span>
+              
               {/* Notifications */}
               <div className="relative">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors relative"
+                  className="relative p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  title="Bildirimler"
                 >
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-6 h-6" />
                   {notifications.filter(n => !n.is_read).length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                       {notifications.filter(n => !n.is_read).length}
                     </span>
                   )}
                 </button>
               </div>
 
-              {/* Live Chat Toggle */}
+              {/* Dark Mode Toggle */}
               <button
-                onClick={() => setShowLiveChat(!showLiveChat)}
-                className="relative p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                title="Canlı Destek"
+                onClick={() => setDarkMode(!darkMode)}
+                className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                title="Tema Değiştir"
               >
-                <MessageCircle className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  3
-                </span>
+                {darkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
               </button>
 
               {/* Profile Dropdown */}
               <div className="relative">
                 <button
                   onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                  className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-white">AU</span>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">Admin User</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Sistem Yöneticisi</p>
+                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                    A
                   </div>
                 </button>
 
@@ -825,28 +1343,16 @@ function App() {
                         setActiveTab('settings');
                         setShowProfileDropdown(false);
                       }}
-            <div className="flex flex-col">
-              <div className="flex items-center space-x-2">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {activeView === 'dashboard' && 'Dashboard'}
-                  {activeView === 'tickets' && 'Talepler'}
-                  {activeView === 'customers' && 'Müşteriler'}
-                  {activeView === 'agents' && 'Temsilciler'}
-                  {activeView === 'live-chat' && 'Canlı Destek'}
-                  {activeView === 'reports' && 'Raporlar'}
-                  {activeView === 'settings' && 'Ayarlar'}
-                </h1>
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Ayarlar
+                    </button>
+                    <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
+                      Çıkış Yap
+                    </button>
+                  </div>
+                )}
               </div>
-              {activeView === 'dashboard' && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Müşteri destek sistemi genel görünümü
-                </p>
-              )}
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Son güncelleme: {new Date().toLocaleString('tr-TR')}
-              </span>
             </div>
           </div>
         </header>
@@ -865,21 +1371,6 @@ function App() {
               >
                 <BarChart3 className="w-5 h-5" />
                 <span>Dashboard</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('tickets')}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  activeTab === 'tickets'
-                    ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                <FileText className="w-5 h-5" />
-                <span>Talepler</span>
-                <span className="ml-auto bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs px-2 py-1 rounded-full">
-                  2
-                </span>
               </button>
 
               <button
@@ -904,6 +1395,33 @@ function App() {
               >
                 <UserCheck className="w-5 h-5" />
                 <span>Temsilciler</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('live-chat')}
+                className={`flex items-center space-x-3 w-full px-4 py-3 text-left rounded-lg transition-colors ${
+                  activeTab === 'live-chat'
+                    ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span>Canlı Destek</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('tickets')}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'tickets'
+                    ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <FileText className="w-5 h-5" />
+                <span>Talepler</span>
+                <span className="ml-auto bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs px-2 py-1 rounded-full">
+                  2
+                </span>
               </button>
 
               <button
@@ -938,6 +1456,16 @@ function App() {
             {activeTab === 'customers' && renderCustomers()}
             {activeTab === 'agents' && renderAgents()}
             {activeTab === 'tickets' && renderTickets()}
+            {activeTab === 'live-chat' && (
+              <div className="h-full">
+                <LiveChat 
+                  isOpen={true} 
+                  onClose={() => {}} 
+                  onMinimize={() => {}} 
+                  isMinimized={false} 
+                />
+              </div>
+            )}
             {activeTab === 'reports' && renderReports()}
             {activeTab === 'settings' && renderSettings()}
           </main>
@@ -1467,6 +1995,211 @@ function App() {
           </div>
         )}
 
+        {/* Create Ticket Modal */}
+        {showCreateTicketModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Talep Oluştur</h3>
+                <button
+                  onClick={() => setShowCreateTicketModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Başlık
+                  </label>
+                  <input
+                    type="text"
+                    value={ticketForm.title}
+                    onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Açıklama
+                  </label>
+                  <textarea
+                    value={ticketForm.description}
+                    onChange={(e) => setTicketForm({ ...ticketForm, description: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Öncelik
+                  </label>
+                  <select
+                    value={ticketForm.priority}
+                    onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="low">Düşük</option>
+                    <option value="medium">Orta</option>
+                    <option value="high">Yüksek</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Kategori
+                  </label>
+                  <select
+                    value={ticketForm.category}
+                    onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="general">Genel</option>
+                    <option value="technical">Teknik</option>
+                    <option value="billing">Faturalama</option>
+                    <option value="feature">Özellik Talebi</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Müşteri
+                  </label>
+                  <select
+                    value={ticketForm.customer_id}
+                    onChange={(e) => setTicketForm({ ...ticketForm, customer_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Müşteri Seçin</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowCreateTicketModal(false)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleCreateTicket}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  Oluştur
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Ticket Details Modal */}
+        {showTicketDetailsModal && selectedTicket && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Talep Detayları</h3>
+                <button
+                  onClick={() => setShowTicketDetailsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Talep ID
+                    </label>
+                    <p className="text-sm text-gray-900 dark:text-white">#{selectedTicket.id.slice(0, 8)}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Durum
+                    </label>
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      selectedTicket.status === 'open' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+                      selectedTicket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                      'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                    }`}>
+                      {selectedTicket.status === 'open' ? 'Açık' :
+                       selectedTicket.status === 'in_progress' ? 'İşlemde' : 'Çözüldü'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Başlık
+                  </label>
+                  <p className="text-sm text-gray-900 dark:text-white">{selectedTicket.title}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Açıklama
+                  </label>
+                  <p className="text-sm text-gray-900 dark:text-white">{selectedTicket.description || 'Açıklama bulunmuyor'}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Müşteri
+                    </label>
+                    <p className="text-sm text-gray-900 dark:text-white">{selectedTicket.customers?.name || 'Bilinmeyen'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Atanan Temsilci
+                    </label>
+                    <p className="text-sm text-gray-900 dark:text-white">{selectedTicket.agents?.name || 'Atanmamış'}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Oluşturulma Tarihi
+                    </label>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {format(new Date(selectedTicket.created_at), 'dd.MM.yyyy HH:mm', { locale: tr })}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Son Güncelleme
+                    </label>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      {format(new Date(selectedTicket.updated_at), 'dd.MM.yyyy HH:mm', { locale: tr })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowTicketDetailsModal(false)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  Kapat
+                </button>
+                <select
+                  value={selectedTicket.status}
+                  onChange={(e) => {
+                    updateTicketStatus(selectedTicket.id, e.target.value);
+                    setSelectedTicket({ ...selectedTicket, status: e.target.value });
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="open">Açık</option>
+                  <option value="in_progress">İşlemde</option>
+                  <option value="resolved">Çözüldü</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && deleteTarget && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1508,30 +2241,9 @@ function App() {
             </div>
           </div>
         )}
-
-        {/* Live Chat */}
-        <LiveChat
-          isOpen={showLiveChat}
-          onClose={() => setShowLiveChat(false)}
-          onMinimize={() => setLiveChatMinimized(!liveChatMinimized)}
-          isMinimized={liveChatMinimized}
-        />
       </div>
     </div>
-// Ticket CRUD functions
-const handleViewTicket = (ticket: any) => {
-  setSelectedTicket(ticket);
-  setShowTicketDetailModal(true);
-};
   );
-const handleEditTicket = (ticket: any) => {
-  setSelectedTicket(ticket);
-  setShowTicketModal(true);
-};
 }
-const handleDeleteTicket = (ticketId: string) => {
-  setDeleteTarget({ type: 'ticket', id: ticketId });
-  setShowDeleteConfirm(true);
-};
 
 export default App;
