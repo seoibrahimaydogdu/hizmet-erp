@@ -137,6 +137,7 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
   const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [bills, setBills] = useState<any[]>([]);
   const [planHistory] = useState<PlanHistory[]>([
     {
       id: '1',
