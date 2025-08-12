@@ -1338,12 +1338,6 @@ function App() {
       )}
 
       {/* Live Chat Widget */}
-      {showLiveChat && (
-        <LiveChat
-          isOpen={showLiveChat}
-          onClose={() => setShowLiveChat(false)}
-        />
-      )}
       <LiveChat
         isOpen={showChatWidget}
         onClose={() => setShowChatWidget(false)}
