@@ -42,6 +42,8 @@ function App() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [showLiveChat, setShowLiveChat] = useState(false);
+  const [showCustomerDetail, setShowCustomerDetail] = useState<Customer | null>(null);
   const [showChatWidget, setShowChatWidget] = useState(false);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -1336,6 +1338,12 @@ function App() {
       )}
 
       {/* Live Chat Widget */}
+      {showLiveChat && (
+        <LiveChat
+          isOpen={showLiveChat}
+          onClose={() => setShowLiveChat(false)}
+        />
+      )}
       <LiveChat
         isOpen={showChatWidget}
         onClose={() => setShowChatWidget(false)}
