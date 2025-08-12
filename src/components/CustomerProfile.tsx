@@ -19,7 +19,6 @@ import {
   Users,
   ShoppingCart,
   Award,
-  FileText,
   Upload,
   Download,
   AlertTriangle,
