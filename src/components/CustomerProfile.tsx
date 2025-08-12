@@ -444,14 +444,14 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Harcama</p>
-              <p className="text-2xl font-bold text-green-600 mt-2">₺{customerData.total_spent.toLocaleString()}</p>
+              <p className="text-xl lg:text-2xl font-bold text-green-600 mt-2 break-all">₺{customerData.total_spent.toLocaleString()}</p>
             </div>
-            <div className="bg-green-100 dark:bg-green-900/20 p-3 rounded-lg">
+            <div className="bg-green-100 dark:bg-green-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
               <DollarSign className="w-6 h-6 text-green-600" />
             </div>
           </div>
@@ -461,11 +461,11 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Mevcut Bakiye</p>
-              <p className={`text-2xl font-bold mt-2 ${customerData.current_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+              <p className={`text-xl lg:text-2xl font-bold mt-2 break-all ${customerData.current_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
                 ₺{customerData.current_balance.toLocaleString()}
               </p>
             </div>
-            <div className={`p-3 rounded-lg ${customerData.current_balance < 0 ? 'bg-red-100 dark:bg-red-900/20' : 'bg-green-100 dark:bg-green-900/20'}`}>
+            <div className={`p-2 lg:p-3 rounded-lg flex-shrink-0 ${customerData.current_balance < 0 ? 'bg-red-100 dark:bg-red-900/20' : 'bg-green-100 dark:bg-green-900/20'}`}>
               <CreditCard className={`w-6 h-6 ${customerData.current_balance < 0 ? 'text-red-600' : 'text-green-600'}`} />
             </div>
           </div>
@@ -475,9 +475,9 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Talepler</p>
-              <p className="text-2xl font-bold text-blue-600 mt-2">{customerData.total_tickets}</p>
+              <p className="text-xl lg:text-2xl font-bold text-blue-600 mt-2">{customerData.total_tickets}</p>
             </div>
-            <div className="bg-blue-100 dark:bg-blue-900/20 p-3 rounded-lg">
+            <div className="bg-blue-100 dark:bg-blue-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
               <MessageSquare className="w-6 h-6 text-blue-600" />
             </div>
           </div>
@@ -487,11 +487,11 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Çözüm Oranı</p>
-              <p className="text-2xl font-bold text-purple-600 mt-2">
+              <p className="text-xl lg:text-2xl font-bold text-purple-600 mt-2">
                 {Math.round((customerData.resolved_tickets / customerData.total_tickets) * 100)}%
               </p>
             </div>
-            <div className="bg-purple-100 dark:bg-purple-900/20 p-3 rounded-lg">
+            <div className="bg-purple-100 dark:bg-purple-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
               <TrendingUp className="w-6 h-6 text-purple-600" />
             </div>
           </div>
@@ -501,9 +501,9 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Satın Alma Aşaması</p>
-              <p className="text-lg font-bold text-orange-600 mt-2">{customerData.purchase_journey.length} Adım</p>
+              <p className="text-xl lg:text-2xl font-bold text-orange-600 mt-2">{customerData.purchase_journey.length} Adım</p>
             </div>
-            <div className="bg-orange-100 dark:bg-orange-900/20 p-3 rounded-lg">
+            <div className="bg-orange-100 dark:bg-orange-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
               <ShoppingCart className="w-6 h-6 text-orange-600" />
             </div>
           </div>
