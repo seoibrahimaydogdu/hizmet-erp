@@ -103,7 +103,8 @@ const ReportsPage: React.FC = () => {
   // Gerçek verilerden kategori dağılımı oluştur
   const generateCategoryData = () => {
     const categories = {
-      'Teknik Destek': { count: 0, color: '#3B82F6' },
+      'Teknik
+} Destek': { count: 0, color: '#3B82F6' },
       'İade/Değişim': { count: 0, color: '#10B981' },
       'Sipariş': { count: 0, color: '#F59E0B' },
       'Kargo': { count: 0, color: '#EF4444' },
