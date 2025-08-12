@@ -29,6 +29,9 @@ import {
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from './hooks/useSupabase';
+import TicketsPage from './components/TicketsPage';
+import CustomersPage from './components/CustomersPage';
+import AgentsPage from './components/AgentsPage';
 import LiveChat from './components/LiveChat';
 import ReportsPage from './components/ReportsPage';
 import ProfilePage from './components/ProfilePage';
@@ -952,11 +955,11 @@ function App() {
       case 'dashboard':
         return renderDashboard();
       case 'tickets':
-        return renderTickets();
+        return <TicketsPage />;
       case 'customers':
-        return renderCustomers();
+        return <CustomersPage />;
       case 'agents':
-        return renderAgents();
+        return <AgentsPage />;
       case 'live-chat':
         return <LiveChat />;
       case 'reports':

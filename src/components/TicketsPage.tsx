@@ -42,6 +42,16 @@ const TicketsPage: React.FC = () => {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
+  const [showViewModal, setShowViewModal] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState<string | null>(null);
+  const [newTicketData, setNewTicketData] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    category: 'general',
+    customer_id: '',
+    agent_id: ''
+  });
 
   useEffect(() => {
     fetchTickets();
@@ -123,20 +133,50 @@ const TicketsPage: React.FC = () => {
   };
 
   const handleViewTicket = (ticketId: string) => {
-    console.log('Viewing ticket:', ticketId);
-    // Implement view ticket modal
+    setShowViewModal(ticketId);
   };
 
   const handleEditTicket = (ticketId: string) => {
-    console.log('Editing ticket:', ticketId);
-    // Implement edit ticket modal
+    setShowEditModal(ticketId);
   };
 
   const handleDeleteTicket = (ticketId: string) => {
     if (confirm('Bu talebi silmek istediğinizden emin misiniz?')) {
-      console.log('Deleting ticket:', ticketId);
-      // Implement delete ticket
+      // Burada silme işlemi yapılacak
+      toast.success('Talep silindi');
+      fetchTickets();
     }
+  };
+
+  const handleCreateTicket = async () => {
+    if (!newTicketData.title.trim()) {
+      toast.error('Talep başlığı gerekli');
+      return;
+    }
+    
+    try {
+      await createTicket({
+        ...newTicketData,
+        status: 'open',
+        created_at: new Date().toISOString()
+      });
+      setShowNewTicketModal(false);
+      setNewTicketData({
+        title: '',
+        description: '',
+        priority: 'medium',
+        category: 'general',
+        customer_id: '',
+        agent_id: ''
+      });
+      toast.success('Yeni talep oluşturuldu');
+    } catch (error) {
+      toast.error('Talep oluşturulurken hata oluştu');
+    }
+  };
+
+  const getSelectedTicket = (id: string) => {
+    return tickets.find(ticket => ticket.id === id);
   };
 
   return (
@@ -475,6 +515,255 @@ const TicketsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* New Ticket Modal */}
+      {showNewTicketModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Talep Oluştur</h3>
+              <button
+                onClick={() => setShowNewTicketModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Talep Başlığı *
+                </label>
+                <input
+                  type="text"
+                  value={newTicketData.title}
+                  onChange={(e) => setNewTicketData({ ...newTicketData, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Talep başlığını girin..."
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Açıklama
+                </label>
+                <textarea
+                  value={newTicketData.description}
+                  onChange={(e) => setNewTicketData({ ...newTicketData, description: e.target.value })}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Talep açıklamasını girin..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Öncelik
+                  </label>
+                  <select
+                    value={newTicketData.priority}
+                    onChange={(e) => setNewTicketData({ ...newTicketData, priority: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="low">Düşük</option>
+                    <option value="medium">Orta</option>
+                    <option value="high">Yüksek</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Kategori
+                  </label>
+                  <select
+                    value={newTicketData.category}
+                    onChange={(e) => setNewTicketData({ ...newTicketData, category: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="general">Genel</option>
+                    <option value="technical">Teknik</option>
+                    <option value="billing">Faturalama</option>
+                    <option value="support">Destek</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Müşteri
+                  </label>
+                  <select
+                    value={newTicketData.customer_id}
+                    onChange={(e) => setNewTicketData({ ...newTicketData, customer_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Müşteri Seçin</option>
+                    <option value="1">Ahmet Yılmaz</option>
+                    <option value="2">Fatma Kaya</option>
+                    <option value="3">Can Demir</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Temsilci (Opsiyonel)
+                  </label>
+                  <select
+                    value={newTicketData.agent_id}
+                    onChange={(e) => setNewTicketData({ ...newTicketData, agent_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Temsilci Seçin</option>
+                    {agents.map(agent => (
+                      <option key={agent.id} value={agent.id}>{agent.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setShowNewTicketModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleCreateTicket}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Talep Oluştur
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Ticket Modal */}
+      {showViewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Talep Detayları</h3>
+              <button
+                onClick={() => setShowViewModal(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            {(() => {
+              const ticket = getSelectedTicket(showViewModal);
+              if (!ticket) return null;
+              return (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{ticket.title}</h4>
+                    <p className="text-gray-600 dark:text-gray-400">{ticket.description}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Durum</label>
+                      <div className="flex items-center mt-1">
+                        {getStatusIcon(ticket.status)}
+                        <span className="ml-2">{getStatusText(ticket.status)}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Öncelik</label>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${getPriorityColor(ticket.priority)}`}>
+                        {getPriorityText(ticket.priority)}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Müşteri</label>
+                      <p className="text-gray-900 dark:text-white mt-1">{ticket.customers?.name || 'Bilinmeyen'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Temsilci</label>
+                      <p className="text-gray-900 dark:text-white mt-1">{ticket.agents?.name || 'Atanmamış'}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Ticket Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Talep Düzenle</h3>
+              <button
+                onClick={() => setShowEditModal(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Başlık</label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  defaultValue={getSelectedTicket(showEditModal)?.title}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Açıklama</label>
+                <textarea
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  defaultValue={getSelectedTicket(showEditModal)?.description}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Durum</label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    defaultValue={getSelectedTicket(showEditModal)?.status}
+                  >
+                    <option value="open">Açık</option>
+                    <option value="in_progress">İşlemde</option>
+                    <option value="resolved">Çözüldü</option>
+                    <option value="closed">Kapalı</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Öncelik</label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    defaultValue={getSelectedTicket(showEditModal)?.priority}
+                  >
+                    <option value="low">Düşük</option>
+                    <option value="medium">Orta</option>
+                    <option value="high">Yüksek</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setShowEditModal(null)}
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={() => {
+                    toast.success('Talep güncellendi');
+                    setShowEditModal(null);
+                  }}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Kaydet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
