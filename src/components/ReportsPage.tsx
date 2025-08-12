@@ -84,22 +84,6 @@ const ReportsPage: React.FC = () => {
     let newFilteredCustomers = filterByDateRange(customers);
     let newFilteredAgents = filterByDateRange(agents);
 
-    // Rapor türüne göre ek filtreler
-    switch (reportType) {
-      case 'agent_performance':
-        newFilteredAgents = newFilteredAgents.filter(agent => agent.total_resolved > 0);
-        break;
-      case 'category_analysis':
-        // Kategori analizi için tüm talepler
-        break;
-      case 'customer_satisfaction':
-        newFilteredCustomers = newFilteredCustomers.filter(customer => customer.satisfaction_score > 0);
-        break;
-      default:
-        // Genel bakış için tüm veriler
-        break;
-    }
-
     setFilteredTickets(newFilteredTickets);
     setFilteredCustomers(newFilteredCustomers);
     setFilteredAgents(newFilteredAgents);
@@ -112,20 +96,42 @@ const ReportsPage: React.FC = () => {
     }
   }, [dateRange, reportType, tickets, customers, agents]);
 
-  // Gerçek verilerden istatistikleri hesapla
+  // Rapor türüne göre istatistikleri hesapla
   const calculateStats = () => {
-    const totalTickets = filteredTickets.length;
-    const resolvedTickets = filteredTickets.filter(t => t.status === 'resolved').length;
-    const openTickets = filteredTickets.filter(t => t.status === 'open').length;
-    const inProgressTickets = filteredTickets.filter(t => t.status === 'in_progress').length;
-    const activeAgents = filteredAgents.filter(a => a.status === 'online').length;
+    let displayTickets = filteredTickets;
+    let displayCustomers = filteredCustomers;
+    let displayAgents = filteredAgents;
+
+    // Rapor türüne göre ek filtreler
+    switch (reportType) {
+      case 'agent_performance':
+        displayAgents = filteredAgents.filter(agent => agent.total_resolved > 0);
+        displayTickets = filteredTickets.filter(t => t.agent_id && displayAgents.some(a => a.id === t.agent_id));
+        break;
+      case 'category_analysis':
+        // Kategori analizi için tüm talepler
+        break;
+      case 'customer_satisfaction':
+        displayCustomers = filteredCustomers.filter(customer => customer.satisfaction_score > 0);
+        displayTickets = filteredTickets.filter(t => t.customer_id && displayCustomers.some(c => c.id === t.customer_id));
+        break;
+      default:
+        // Genel bakış için tüm veriler
+        break;
+    }
+
+    const totalTickets = displayTickets.length;
+    const resolvedTickets = displayTickets.filter(t => t.status === 'resolved').length;
+    const openTickets = displayTickets.filter(t => t.status === 'open').length;
+    const inProgressTickets = displayTickets.filter(t => t.status === 'in_progress').length;
+    const activeAgents = displayAgents.filter(a => a.status === 'online').length;
     
     // Ortalama yanıt süresi hesaplama (örnek)
     const avgResponseTime = totalTickets > 0 ? '2.1 saat' : '0 saat';
     
     // Müşteri memnuniyeti ortalaması
-    const avgSatisfaction = filteredCustomers.length > 0 
-      ? (filteredCustomers.reduce((sum, c) => sum + c.satisfaction_score, 0) / filteredCustomers.length).toFixed(1)
+    const avgSatisfaction = displayCustomers.length > 0 
+      ? (displayCustomers.reduce((sum, c) => sum + c.satisfaction_score, 0) / displayCustomers.length).toFixed(1)
       : '0';
 
     return {
@@ -135,7 +141,10 @@ const ReportsPage: React.FC = () => {
       inProgressTickets,
       activeAgents,
       avgResponseTime,
-      avgSatisfaction
+      avgSatisfaction,
+      displayTickets,
+      displayCustomers,
+      displayAgents
     };
   };
 
@@ -145,12 +154,13 @@ const ReportsPage: React.FC = () => {
   const generateWeeklyData = () => {
     const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     const now = new Date();
+    const ticketsToUse = stats.displayTickets;
     
     return days.map((day, index) => {
       const date = new Date(now);
       date.setDate(date.getDate() - (6 - index));
       
-      const dayTickets = filteredTickets.filter(ticket => {
+      const dayTickets = ticketsToUse.filter(ticket => {
         const ticketDate = new Date(ticket.created_at);
         return ticketDate.toDateString() === date.toDateString();
       });
@@ -169,6 +179,8 @@ const ReportsPage: React.FC = () => {
 
   // Gerçek verilerden kategori dağılımı oluştur
   const generateCategoryData = () => {
+    const ticketsToUse = stats.displayTickets;
+    
     const categories = {
       'Teknik Destek': { count: 0, color: '#3B82F6' },
       'İade/Değişim': { count: 0, color: '#10B981' },
@@ -178,7 +190,7 @@ const ReportsPage: React.FC = () => {
       'Genel': { count: 0, color: '#6B7280' }
     };
 
-    filteredTickets.forEach(ticket => {
+    ticketsToUse.forEach(ticket => {
       const category = ticket.category || 'Genel';
       const categoryName = category === 'technical' ? 'Teknik Destek' :
                           category === 'billing' ? 'Ödeme' :
@@ -206,9 +218,11 @@ const ReportsPage: React.FC = () => {
   // Gerçek verilerden temsilci performansı oluştur
   const generateAgentPerformance = () => {
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+    const agentsToUse = stats.displayAgents;
+    const ticketsToUse = stats.displayTickets;
     
-    return filteredAgents.slice(0, 4).map((agent, index) => {
-      const agentTickets = filteredTickets.filter(t => t.agent_id === agent.id);
+    return agentsToUse.slice(0, 4).map((agent, index) => {
+      const agentTickets = ticketsToUse.filter(t => t.agent_id === agent.id);
       const solvedTickets = agentTickets.filter(t => t.status === 'resolved').length;
       
       return {
@@ -243,7 +257,208 @@ const ReportsPage: React.FC = () => {
     return types[type as keyof typeof types] || 'Genel Bakış';
   };
 
-  const statsCards = [
+  // Rapor türüne göre farklı stat kartları göster
+  const getStatsCards = () => {
+    const baseCards = [
+      {
+        title: 'Toplam Talepler',
+        value: stats.totalTickets.toString(),
+        change: '+12%',
+        trend: 'up',
+        icon: MessageSquare,
+        color: 'blue'
+      },
+      {
+        title: 'Çözülen Talepler',
+        value: stats.resolvedTickets.toString(),
+        change: '+8%',
+        trend: 'up',
+        icon: CheckCircle,
+        color: 'green'
+      }
+    ];
+
+    if (reportType === 'agent_performance') {
+      return [
+        ...baseCards,
+        {
+          title: 'Aktif Temsilciler',
+          value: stats.activeAgents.toString(),
+          change: '0',
+          trend: 'neutral',
+          icon: UserCheck,
+          color: 'indigo'
+        },
+        {
+          title: 'Ortalama Çözüm',
+          value: stats.displayAgents.length > 0 ? Math.round(stats.resolvedTickets / stats.displayAgents.length).toString() : '0',
+          change: '+2',
+          trend: 'up',
+          icon: Star,
+          color: 'purple'
+        }
+      ];
+    } else if (reportType === 'customer_satisfaction') {
+      return [
+        ...baseCards,
+        {
+          title: 'Müşteri Memnuniyeti',
+          value: stats.avgSatisfaction,
+          change: '+0.3',
+          trend: 'up',
+          icon: Star,
+          color: 'purple'
+        },
+        {
+          title: 'Değerlendiren Müşteri',
+          value: stats.displayCustomers.length.toString(),
+          change: '+5',
+          trend: 'up',
+          icon: Users,
+          color: 'indigo'
+        }
+      ];
+    } else {
+      return [
+        ...baseCards,
+        {
+          title: 'Ortalama Yanıt Süresi',
+          value: stats.avgResponseTime,
+          change: '-15 dk',
+          trend: 'down',
+          icon: Clock,
+          color: 'orange'
+        },
+        {
+          title: 'Müşteri Memnuniyeti',
+          value: stats.avgSatisfaction,
+          change: '+0.3',
+          trend: 'up',
+          icon: Star,
+          color: 'purple'
+        },
+        {
+          title: 'Aktif Temsilciler',
+          value: stats.activeAgents.toString(),
+          change: '0',
+          trend: 'neutral',
+          icon: UserCheck,
+          color: 'indigo'
+        },
+        {
+          title: 'Bekleyen Talepler',
+          value: stats.openTickets.toString(),
+          change: '-5',
+          trend: 'down',
+          icon: AlertCircle,
+          color: 'yellow'
+        }
+      ];
+    }
+  };
+
+  const statsCards = getStatsCards();
+
+  // Rapor başlığını dinamik yap
+  const getReportTitle = () => {
+    switch (reportType) {
+      case 'agent_performance':
+        return 'Temsilci Performans Raporu';
+      case 'category_analysis':
+        return 'Kategori Analiz Raporu';
+      case 'customer_satisfaction':
+        return 'Müşteri Memnuniyet Raporu';
+      default:
+        return 'Genel Bakış Raporu';
+    }
+  };
+
+  React.useEffect(() => {
+    fetchTickets();
+    fetchCustomers();
+    fetchAgents();
+  }, []);
+
+  const getStatColor = (color: string) => {
+    const colors = {
+      blue: 'bg-blue-500',
+      green: 'bg-green-500',
+      orange: 'bg-orange-500',
+      purple: 'bg-purple-500',
+      indigo: 'bg-indigo-500',
+      yellow: 'bg-yellow-500'
+    };
+    return colors[color as keyof typeof colors] || 'bg-gray-500';
+  };
+
+  const getTrendColor = (trend: string) => {
+    switch (trend) {
+      case 'up': return 'text-green-600';
+      case 'down': return 'text-red-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const getTrendIcon = (trend: string) => {
+    switch (trend) {
+      case 'up': return <TrendingUp className="w-4 h-4" />;
+      case 'down': return <TrendingDown className="w-4 h-4" />;
+      default: return null;
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      // Rapor verilerini hazırla
+      const reportData = {
+        date: new Date().toISOString(),
+        dateRange: getDateRangeText(dateRange),
+        reportType: getReportTypeText(reportType),
+        stats: statsCards,
+        weeklyData,
+        categoryData,
+        agentPerformance,
+        totalTickets: stats.displayTickets.length,
+        totalCustomers: stats.displayCustomers.length,
+        totalAgents: stats.displayAgents.length
+      };
+
+      // JSON formatında indir
+      const dataStr = JSON.stringify(reportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${getReportTitle().toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Rapor başarıyla indirildi!');
+    } catch (error) {
+      toast.error('Rapor indirme başarısız!');
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFilterChange = () => {
+    toast.success(`Filtre uygulandı: ${getDateRangeText(dateRange)} - ${getReportTypeText(reportType)}`);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{getReportTitle()}</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            {getDateRangeText(dateRange)} - {stats.totalTickets} talep analizi
+          </p>
+        </div>
     {
       title: 'Toplam Talepler',
       value: stats.totalTickets.toString(),
