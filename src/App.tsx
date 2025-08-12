@@ -35,6 +35,7 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [activeView, setActiveView] = useState('dashboard');
   
   // Modal states
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
@@ -46,9 +47,6 @@ function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{type: 'customer' | 'agent', id: string} | null>(null);
   
-  // Selected items for details/edit
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
-  const [selectedAgent, setSelectedAgent] = useState<any>(null);
 
   // Live Chat states
   const [showLiveChat, setShowLiveChat] = useState(false);
@@ -765,7 +763,7 @@ function App() {
         <Toaster position="top-right" />
         
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 px-6 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Destek Merkezi</h1>
             
@@ -827,16 +825,28 @@ function App() {
                         setActiveTab('settings');
                         setShowProfileDropdown(false);
                       }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    >
-                      Ayarlar
-                    </button>
-                    <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      Çıkış Yap
-                    </button>
-                  </div>
-                )}
+            <div className="flex flex-col">
+              <div className="flex items-center space-x-2">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {activeView === 'dashboard' && 'Dashboard'}
+                  {activeView === 'tickets' && 'Talepler'}
+                  {activeView === 'customers' && 'Müşteriler'}
+                  {activeView === 'agents' && 'Temsilciler'}
+                  {activeView === 'live-chat' && 'Canlı Destek'}
+                  {activeView === 'reports' && 'Raporlar'}
+                  {activeView === 'settings' && 'Ayarlar'}
+                </h1>
               </div>
+              {activeView === 'dashboard' && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Müşteri destek sistemi genel görünümü
+                </p>
+              )}
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Son güncelleme: {new Date().toLocaleString('tr-TR')}
+              </span>
             </div>
           </div>
         </header>
@@ -1508,7 +1518,20 @@ function App() {
         />
       </div>
     </div>
+// Ticket CRUD functions
+const handleViewTicket = (ticket: any) => {
+  setSelectedTicket(ticket);
+  setShowTicketDetailModal(true);
+};
   );
+const handleEditTicket = (ticket: any) => {
+  setSelectedTicket(ticket);
+  setShowTicketModal(true);
+};
 }
+const handleDeleteTicket = (ticketId: string) => {
+  setDeleteTarget({ type: 'ticket', id: ticketId });
+  setShowDeleteConfirm(true);
+};
 
 export default App;
