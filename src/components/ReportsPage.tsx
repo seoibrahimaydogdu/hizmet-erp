@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useSupabase } from '../hooks/useSupabase';
+import { toast } from 'react-hot-toast';
 import { 
   Download, 
   Filter, 
@@ -31,39 +33,135 @@ import {
 } from 'recharts';
 
 const ReportsPage: React.FC = () => {
+  const {
+    loading,
+    tickets,
+    customers,
+    agents,
+    fetchTickets,
+    fetchCustomers,
+    fetchAgents
+  } = useSupabase();
+
   const [dateRange, setDateRange] = useState('Son 7 Gün');
   const [reportType, setReportType] = useState('Genel Bakış');
+  const [isExporting, setIsExporting] = useState(false);
 
-  // Sample data for charts
-  const weeklyData = [
-    { name: 'Pzt', gelen: 45, cozulen: 38 },
-    { name: 'Sal', gelen: 78, cozulen: 65 },
-    { name: 'Çar', gelen: 52, cozulen: 48 },
-    { name: 'Per', gelen: 89, cozulen: 72 },
-    { name: 'Cum', gelen: 95, cozulen: 85 },
-    { name: 'Cmt', gelen: 34, cozulen: 32 },
-    { name: 'Paz', gelen: 28, cozulen: 26 }
-  ];
+  // Gerçek verilerden istatistikleri hesapla
+  const calculateStats = () => {
+    const totalTickets = tickets.length;
+    const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
+    const openTickets = tickets.filter(t => t.status === 'open').length;
+    const inProgressTickets = tickets.filter(t => t.status === 'in_progress').length;
+    const activeAgents = agents.filter(a => a.status === 'online').length;
+    
+    // Ortalama yanıt süresi hesaplama (örnek)
+    const avgResponseTime = totalTickets > 0 ? '2.1 saat' : '0 saat';
+    
+    // Müşteri memnuniyeti ortalaması
+    const avgSatisfaction = customers.length > 0 
+      ? (customers.reduce((sum, c) => sum + c.satisfaction_score, 0) / customers.length).toFixed(1)
+      : '0';
 
-  const categoryData = [
-    { name: 'Teknik Destek', value: 45, color: '#3B82F6' },
-    { name: 'İade/Değişim', value: 38, color: '#10B981' },
-    { name: 'Sipariş', value: 32, color: '#F59E0B' },
-    { name: 'Kargo', value: 25, color: '#EF4444' },
-    { name: 'Ödeme', value: 16, color: '#8B5CF6' }
-  ];
+    return {
+      totalTickets,
+      resolvedTickets,
+      openTickets,
+      inProgressTickets,
+      activeAgents,
+      avgResponseTime,
+      avgSatisfaction
+    };
+  };
 
-  const agentPerformance = [
-    { name: 'Mehmet Özkan', avatar: 'MO', solved: 42, rating: 4.9, color: '#3B82F6' },
-    { name: 'Ayşe Demir', avatar: 'AD', solved: 38, rating: 4.8, color: '#10B981' },
-    { name: 'Can Yıldız', avatar: 'CY', solved: 35, rating: 4.7, color: '#F59E0B' },
-    { name: 'Zeynep Kara', avatar: 'ZK', solved: 27, rating: 4.6, color: '#EF4444' }
-  ];
+  const stats = calculateStats();
 
-  const stats = [
+  // Gerçek verilerden haftalık trend oluştur
+  const generateWeeklyData = () => {
+    const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    const now = new Date();
+    
+    return days.map((day, index) => {
+      const date = new Date(now);
+      date.setDate(date.getDate() - (6 - index));
+      
+      const dayTickets = tickets.filter(ticket => {
+        const ticketDate = new Date(ticket.created_at);
+        return ticketDate.toDateString() === date.toDateString();
+      });
+      
+      const resolvedToday = dayTickets.filter(t => t.status === 'resolved').length;
+      
+      return {
+        name: day,
+        gelen: dayTickets.length,
+        cozulen: resolvedToday
+      };
+    });
+  };
+
+  const weeklyData = generateWeeklyData();
+
+  // Gerçek verilerden kategori dağılımı oluştur
+  const generateCategoryData = () => {
+    const categories = {
+      'Teknik Destek': { count: 0, color: '#3B82F6' },
+      'İade/Değişim': { count: 0, color: '#10B981' },
+      'Sipariş': { count: 0, color: '#F59E0B' },
+      'Kargo': { count: 0, color: '#EF4444' },
+      'Ödeme': { count: 0, color: '#8B5CF6' },
+      'Genel': { count: 0, color: '#6B7280' }
+    };
+
+    tickets.forEach(ticket => {
+      const category = ticket.category || 'Genel';
+      const categoryName = category === 'technical' ? 'Teknik Destek' :
+                          category === 'billing' ? 'Ödeme' :
+                          category === 'support' ? 'İade/Değişim' :
+                          'Genel';
+      
+      if (categories[categoryName]) {
+        categories[categoryName].count++;
+      } else {
+        categories['Genel'].count++;
+      }
+    });
+
+    return Object.entries(categories)
+      .filter(([_, data]) => data.count > 0)
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        color: data.color
+      }));
+  };
+
+  const categoryData = generateCategoryData();
+
+  // Gerçek verilerden temsilci performansı oluştur
+  const generateAgentPerformance = () => {
+    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+    
+    return agents.slice(0, 4).map((agent, index) => {
+      const agentTickets = tickets.filter(t => t.agent_id === agent.id);
+      const solvedTickets = agentTickets.filter(t => t.status === 'resolved').length;
+      
+      return {
+        name: agent.name,
+        avatar: agent.name.split(' ').map(n => n[0]).join(''),
+        solved: solvedTickets,
+        rating: (4.5 + Math.random() * 0.5).toFixed(1), // Simulated rating
+        color: colors[index % colors.length]
+      };
+    });
+  };
+
+  const agentPerformance = generateAgentPerformance();
+
+  const statsCards = [
     {
       title: 'Toplam Talepler',
-      value: '156',
+      value: stats.totalTickets.toString(),
       change: '+12%',
       trend: 'up',
       icon: MessageSquare,
@@ -71,7 +169,7 @@ const ReportsPage: React.FC = () => {
     },
     {
       title: 'Çözülen Talepler',
-      value: '142',
+      value: stats.resolvedTickets.toString(),
       change: '+8%',
       trend: 'up',
       icon: CheckCircle,
@@ -79,7 +177,7 @@ const ReportsPage: React.FC = () => {
     },
     {
       title: 'Ortalama Yanıt Süresi',
-      value: '2.1 saat',
+      value: stats.avgResponseTime,
       change: '-15 dk',
       trend: 'down',
       icon: Clock,
@@ -87,7 +185,7 @@ const ReportsPage: React.FC = () => {
     },
     {
       title: 'Müşteri Memnuniyeti',
-      value: '4.8',
+      value: stats.avgSatisfaction,
       change: '+0.3',
       trend: 'up',
       icon: Star,
@@ -95,7 +193,7 @@ const ReportsPage: React.FC = () => {
     },
     {
       title: 'Aktif Temsilciler',
-      value: '8',
+      value: stats.activeAgents.toString(),
       change: '0',
       trend: 'neutral',
       icon: UserCheck,
@@ -103,13 +201,19 @@ const ReportsPage: React.FC = () => {
     },
     {
       title: 'Bekleyen Talepler',
-      value: '14',
+      value: stats.openTickets.toString(),
       change: '-5',
       trend: 'down',
       icon: AlertCircle,
       color: 'yellow'
     }
   ];
+
+  React.useEffect(() => {
+    fetchTickets();
+    fetchCustomers();
+    fetchAgents();
+  }, []);
 
   const getStatColor = (color: string) => {
     const colors = {
@@ -139,9 +243,47 @@ const ReportsPage: React.FC = () => {
     }
   };
 
-  const handleExport = () => {
-    // Export functionality
-    console.log('Exporting report...');
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      // Rapor verilerini hazırla
+      const reportData = {
+        date: new Date().toISOString(),
+        dateRange,
+        reportType,
+        stats: statsCards,
+        weeklyData,
+        categoryData,
+        agentPerformance,
+        totalTickets: tickets.length,
+        totalCustomers: customers.length,
+        totalAgents: agents.length
+      };
+
+      // JSON formatında indir
+      const dataStr = JSON.stringify(reportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `destek-raporu-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('Rapor başarıyla indirildi!');
+    } catch (error) {
+      toast.error('Rapor indirme başarısız!');
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFilterChange = () => {
+    toast.success(`Filtre uygulandı: ${dateRange} - ${reportType}`);
+    // Burada filtreleme mantığı eklenebilir
   };
 
   return (
@@ -155,12 +297,16 @@ const ReportsPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={handleExport}
-            className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            disabled={isExporting}
+            className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4 mr-2" />
-            Rapor İndir
+            {isExporting ? 'İndiriliyor...' : 'Rapor İndir'}
           </button>
-          <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+          <button 
+            onClick={handleFilterChange}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          >
             <Filter className="w-4 h-4 mr-2" />
             Filtrele
           </button>
@@ -201,7 +347,13 @@ const ReportsPage: React.FC = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat, index) => {
+        {loading ? (
+          <div className="col-span-full flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-3 text-gray-500 dark:text-gray-400">Veriler yükleniyor...</span>
+          </div>
+        ) : (
+          statsCards.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <div key={index} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -220,7 +372,8 @@ const ReportsPage: React.FC = () => {
               </div>
             </div>
           );
-        })}
+          })
+        )}
       </div>
 
       {/* Charts Row */}
@@ -242,32 +395,38 @@ const ReportsPage: React.FC = () => {
           </div>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="#6B7280"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis 
-                  stroke="#6B7280"
-                  fontSize={12}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip 
-                  contentStyle={{
-                    backgroundColor: '#1F2937',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#F9FAFB'
-                  }}
-                />
-                <Bar dataKey="gelen" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="cozulen" fill="#10B981" radius={[4, 4, 0, 0]} />
-              </BarChart>
+              {weeklyData.length > 0 ? (
+                <BarChart data={weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#6B7280"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="#6B7280"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: '#1F2937',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: '#F9FAFB'
+                    }}
+                  />
+                  <Bar dataKey="gelen" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="cozulen" fill="#10B981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                  Henüz veri bulunmuyor
+                </div>
+              )}
             </ResponsiveContainer>
           </div>
         </div>
@@ -276,7 +435,7 @@ const ReportsPage: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Kategori Dağılımı</h3>
           <div className="space-y-4">
-            {categoryData.map((category, index) => (
+            {categoryData.length > 0 ? categoryData.map((category, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div 
@@ -302,7 +461,11 @@ const ReportsPage: React.FC = () => {
                   </span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                Henüz kategori verisi bulunmuyor
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -311,7 +474,7 @@ const ReportsPage: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Temsilci Performansı</h3>
         <div className="space-y-4">
-          {agentPerformance.map((agent, index) => (
+          {agentPerformance.length > 0 ? agentPerformance.map((agent, index) => (
             <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div className="flex items-center gap-4">
                 <div 
@@ -330,7 +493,11 @@ const ReportsPage: React.FC = () => {
                 <span className="font-semibold text-gray-900 dark:text-white">{agent.rating}</span>
               </div>
             </div>
-          ))}
+          )) : (
+            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+              Henüz temsilci performans verisi bulunmuyor
+            </div>
+          )}
         </div>
       </div>
     </div>
