@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Mail, 
@@ -24,6 +24,8 @@ import {
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 interface CustomerProfileProps {
   customerId: string;
@@ -34,544 +36,114 @@ interface CustomerData {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  company: string;
+  phone?: string;
+  company?: string;
   plan: string;
-  status: 'active' | 'inactive' | 'suspended';
-  created_at: string;
-  last_login: string;
-  total_spent: number;
-  current_balance: number;
   satisfaction_score: number;
   total_tickets: number;
-  resolved_tickets: number;
-  pending_tickets: number;
+  created_at: string;
+  updated_at: string;
   avatar_url?: string;
-  subscription_months: number;
-  purchase_journey: string[];
-  assigned_agents: string[];
 }
 
-interface Ticket {
+interface TicketData {
   id: string;
   title: string;
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
-  priority: 'low' | 'medium' | 'high';
-  created_at: string;
-  resolved_at?: string;
-  agent_name?: string;
+  description?: string;
+  status: string;
+  priority: string;
   category: string;
-}
-
-interface Payment {
-  id: string;
-  amount: number;
-  status: 'paid' | 'pending' | 'failed';
-  date: string;
-  invoice_number: string;
-  plan: string;
-}
-
-interface ActivityLog {
-  id: string;
-  action: string;
-  description: string;
-  timestamp: string;
-  type: 'login' | 'payment' | 'ticket' | 'feature_usage' | 'plan_change';
-}
-
-interface SupportAgent {
-  id: string;
-  name: string;
-  avatar: string;
-  tickets_handled: number;
-  avg_response_time: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at?: string;
+  agents?: {
+    name: string;
+    email: string;
+  };
 }
 
 const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+  const [tickets, setTickets] = useState<TicketData[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Müşteri verilerini ID'ye göre getir
-  const getCustomerData = (id: string): CustomerData => {
-    const customerDatabase: Record<string, CustomerData> = {
-      '1': {
-        id: '1',
-        name: 'Ahmet Yılmaz',
-        email: 'ahmet@example.com',
-        phone: '+90 555 123 4567',
-        company: 'ABC Teknoloji A.Ş.',
-        plan: 'Pro',
-        status: 'active',
-        created_at: '2024-06-15',
-        last_login: '2025-01-10',
-        total_spent: 2499.99,
-        current_balance: -299.99,
-        satisfaction_score: 4.2,
-        total_tickets: 12,
-        resolved_tickets: 10,
-        pending_tickets: 2,
-        subscription_months: 7,
-        purchase_journey: ['Free Trial', 'Basic Plan', 'Pro Plan'],
-        assigned_agents: ['Ayşe Kaya', 'Mehmet Demir', 'Fatma Şahin']
-      },
-      '2': {
-        id: '2',
-        name: 'Fatma Kaya',
-        email: 'fatma@example.com',
-        phone: '+90 555 987 6543',
-        company: 'XYZ Yazılım Ltd.',
-        plan: 'Basic',
-        status: 'active',
-        created_at: '2024-08-20',
-        last_login: '2025-01-09',
-        total_spent: 899.99,
-        current_balance: 0,
-        satisfaction_score: 4.7,
-        total_tickets: 8,
-        resolved_tickets: 8,
-        pending_tickets: 0,
-        subscription_months: 5,
-        purchase_journey: ['Free Trial', 'Basic Plan'],
-        assigned_agents: ['Mehmet Demir', 'Fatma Şahin']
-      },
-      '3': {
-        id: '3',
-        name: 'Can Demir',
-        email: 'can@example.com',
-        phone: '+90 555 456 7890',
-        company: 'DEF Danışmanlık',
-        plan: 'Premium',
-        status: 'active',
-        created_at: '2024-03-10',
-        last_login: '2025-01-11',
-        total_spent: 4999.99,
-        current_balance: 199.99,
-        satisfaction_score: 3.8,
-        total_tickets: 18,
-        resolved_tickets: 15,
-        pending_tickets: 3,
-        subscription_months: 10,
-        purchase_journey: ['Free Trial', 'Basic Plan', 'Pro Plan', 'Premium Plan'],
-        assigned_agents: ['Ayşe Kaya', 'Mehmet Demir', 'Fatma Şahin', 'Ali Veli']
-      },
-      '4': {
-        id: '4',
-        name: 'Zeynep Yıldız',
-        email: 'zeynep@example.com',
-        phone: '+90 555 321 9876',
-        company: 'GHI Holding',
-        plan: 'Pro',
-        status: 'inactive',
-        created_at: '2024-09-05',
-        last_login: '2024-12-20',
-        total_spent: 1799.99,
-        current_balance: -99.99,
-        satisfaction_score: 3.2,
-        total_tickets: 6,
-        resolved_tickets: 4,
-        pending_tickets: 2,
-        subscription_months: 4,
-        purchase_journey: ['Free Trial', 'Pro Plan'],
-        assigned_agents: ['Ayşe Kaya', 'Ali Veli']
+  // Müşteri verilerini Supabase'den getir
+  const fetchCustomerData = async () => {
+    try {
+      setLoading(true);
+      
+      // Müşteri bilgilerini getir
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', customerId)
+        .single();
+
+      if (customerError) {
+        console.error('Customer fetch error:', customerError);
+        toast.error('Müşteri bilgileri alınamadı');
+        return;
       }
-    };
 
-    return customerDatabase[id] || customerDatabase['1']; // Fallback to first customer
+      setCustomerData(customer);
+
+      // Müşterinin taleplerini getir
+      const { data: customerTickets, error: ticketsError } = await supabase
+        .from('tickets')
+        .select(`
+          *,
+          agents!tickets_agent_id_fkey (name, email)
+        `)
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false });
+
+      if (ticketsError) {
+        console.error('Tickets fetch error:', ticketsError);
+        toast.error('Talep bilgileri alınamadı');
+      } else {
+        setTickets(customerTickets || []);
+      }
+
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+      toast.error('Veri yüklenirken hata oluştu');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const customerData = getCustomerData(customerId);
+  useEffect(() => {
+    if (customerId) {
+      fetchCustomerData();
+    }
+  }, [customerId]);
 
-  // Müşteriye özel talep verilerini getir
-  const getCustomerTickets = (id: string): Ticket[] => {
-    const ticketDatabase: Record<string, Ticket[]> = {
-      '1': [
-        {
-          id: '1',
-          title: 'Sistem yavaş çalışıyor',
-          status: 'resolved',
-          priority: 'high',
-          created_at: '2025-01-08',
-          resolved_at: '2025-01-09',
-          agent_name: 'Ayşe Kaya',
-          category: 'Teknik'
-        },
-        {
-          id: '2',
-          title: 'Fatura ile ilgili soru',
-          status: 'in_progress',
-          priority: 'medium',
-          created_at: '2025-01-10',
-          agent_name: 'Mehmet Demir',
-          category: 'Faturalama'
-        }
-      ],
-      '2': [
-        {
-          id: '3',
-          title: 'Hesap ayarları sorunu',
-          status: 'resolved',
-          priority: 'medium',
-          created_at: '2025-01-05',
-          resolved_at: '2025-01-06',
-          agent_name: 'Fatma Şahin',
-          category: 'Hesap'
-        },
-        {
-          id: '4',
-          title: 'Rapor indirme hatası',
-          status: 'resolved',
-          priority: 'low',
-          created_at: '2024-12-28',
-          resolved_at: '2024-12-29',
-          agent_name: 'Mehmet Demir',
-          category: 'Teknik'
-        }
-      ],
-      '3': [
-        {
-          id: '5',
-          title: 'API entegrasyonu desteği',
-          status: 'resolved',
-          priority: 'high',
-          created_at: '2025-01-07',
-          resolved_at: '2025-01-08',
-          agent_name: 'Ayşe Kaya',
-          category: 'Teknik'
-        },
-        {
-          id: '6',
-          title: 'Premium özellikler hakkında',
-          status: 'open',
-          priority: 'medium',
-          created_at: '2025-01-11',
-          agent_name: 'Ali Veli',
-          category: 'Genel'
-        },
-        {
-          id: '7',
-          title: 'Faturalama döngüsü değişikliği',
-          status: 'in_progress',
-          priority: 'medium',
-          created_at: '2025-01-09',
-          agent_name: 'Fatma Şahin',
-          category: 'Faturalama'
-        }
-      ],
-      '4': [
-        {
-          id: '8',
-          title: 'Şifre sıfırlama sorunu',
-          status: 'resolved',
-          priority: 'high',
-          created_at: '2024-12-15',
-          resolved_at: '2024-12-15',
-          agent_name: 'Ayşe Kaya',
-          category: 'Hesap'
-        },
-        {
-          id: '9',
-          title: 'Plan downgrade talebi',
-          status: 'open',
-          priority: 'low',
-          created_at: '2024-12-18',
-          category: 'Faturalama'
-        }
-      ]
-    };
+  // Müşteri bulunamazsa fallback
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <span className="ml-3 text-gray-500">Müşteri bilgileri yükleniyor...</span>
+      </div>
+    );
+  }
 
-    return ticketDatabase[id] || [];
-  };
-
-  // Müşteriye özel ödeme verilerini getir
-  const getCustomerPayments = (id: string): Payment[] => {
-    const paymentDatabase: Record<string, Payment[]> = {
-      '1': [
-        {
-          id: '1',
-          amount: 299.99,
-          status: 'paid',
-          date: '2024-12-15',
-          invoice_number: 'INV-2024-012',
-          plan: 'Pro Plan'
-        },
-        {
-          id: '2',
-          amount: 299.99,
-          status: 'pending',
-          date: '2025-01-15',
-          invoice_number: 'INV-2025-001',
-          plan: 'Pro Plan'
-        }
-      ],
-      '2': [
-        {
-          id: '3',
-          amount: 199.99,
-          status: 'paid',
-          date: '2024-12-20',
-          invoice_number: 'INV-2024-013',
-          plan: 'Basic Plan'
-        },
-        {
-          id: '4',
-          amount: 199.99,
-          status: 'paid',
-          date: '2025-01-20',
-          invoice_number: 'INV-2025-002',
-          plan: 'Basic Plan'
-        }
-      ],
-      '3': [
-        {
-          id: '5',
-          amount: 599.99,
-          status: 'paid',
-          date: '2024-12-10',
-          invoice_number: 'INV-2024-014',
-          plan: 'Premium Plan'
-        },
-        {
-          id: '6',
-          amount: 599.99,
-          status: 'paid',
-          date: '2025-01-10',
-          invoice_number: 'INV-2025-003',
-          plan: 'Premium Plan'
-        }
-      ],
-      '4': [
-        {
-          id: '7',
-          amount: 299.99,
-          status: 'paid',
-          date: '2024-11-05',
-          invoice_number: 'INV-2024-015',
-          plan: 'Pro Plan'
-        },
-        {
-          id: '8',
-          amount: 299.99,
-          status: 'failed',
-          date: '2024-12-05',
-          invoice_number: 'INV-2024-016',
-          plan: 'Pro Plan'
-        }
-      ]
-    };
-
-    return paymentDatabase[id] || [];
-  };
-
-  // Müşteriye özel aktivite verilerini getir
-  const getCustomerActivity = (id: string): ActivityLog[] => {
-    const activityDatabase: Record<string, ActivityLog[]> = {
-      '1': [
-        {
-          id: '1',
-          action: 'Giriş Yaptı',
-          description: 'Sisteme başarıyla giriş yaptı',
-          timestamp: '2025-01-10T14:30:00Z',
-          type: 'login'
-        },
-        {
-          id: '2',
-          action: 'Ödeme Yapıldı',
-          description: '299.99 TL ödeme gerçekleştirildi',
-          timestamp: '2024-12-15T10:15:00Z',
-          type: 'payment'
-        }
-      ],
-      '2': [
-        {
-          id: '3',
-          action: 'Giriş Yaptı',
-          description: 'Sisteme başarıyla giriş yaptı',
-          timestamp: '2025-01-09T09:15:00Z',
-          type: 'login'
-        },
-        {
-          id: '4',
-          action: 'Talep Çözüldü',
-          description: 'Hesap ayarları sorunu çözüldü',
-          timestamp: '2025-01-06T16:30:00Z',
-          type: 'ticket'
-        }
-      ],
-      '3': [
-        {
-          id: '5',
-          action: 'Plan Yükseltildi',
-          description: 'Pro\'dan Premium plana yükseltildi',
-          timestamp: '2024-11-01T12:00:00Z',
-          type: 'plan_change'
-        },
-        {
-          id: '6',
-          action: 'API Kullanımı',
-          description: 'API entegrasyonu tamamlandı',
-          timestamp: '2025-01-08T14:45:00Z',
-          type: 'feature_usage'
-        }
-      ],
-      '4': [
-        {
-          id: '7',
-          action: 'Son Giriş',
-          description: 'Sisteme son kez giriş yaptı',
-          timestamp: '2024-12-20T11:20:00Z',
-          type: 'login'
-        },
-        {
-          id: '8',
-          action: 'Ödeme Başarısız',
-          description: 'Kredi kartı ödemesi başarısız oldu',
-          timestamp: '2024-12-05T08:30:00Z',
-          type: 'payment'
-        }
-      ]
-    };
-
-    return activityDatabase[id] || [];
-  };
-
-  // Müşteriye özel destek ekibi verilerini getir
-  const getCustomerSupportAgents = (id: string): SupportAgent[] => {
-    const supportDatabase: Record<string, SupportAgent[]> = {
-      '1': [
-        {
-          id: '1',
-          name: 'Ayşe Kaya',
-          avatar: 'AK',
-          tickets_handled: 4,
-          avg_response_time: '2.5 saat'
-        },
-        {
-          id: '2',
-          name: 'Mehmet Demir',
-          avatar: 'MD',
-          tickets_handled: 3,
-          avg_response_time: '1.8 saat'
-        },
-        {
-          id: '3',
-          name: 'Fatma Şahin',
-          avatar: 'FŞ',
-          tickets_handled: 2,
-          avg_response_time: '3.2 saat'
-        }
-      ],
-      '2': [
-        {
-          id: '2',
-          name: 'Mehmet Demir',
-          avatar: 'MD',
-          tickets_handled: 3,
-          avg_response_time: '1.5 saat'
-        },
-        {
-          id: '3',
-          name: 'Fatma Şahin',
-          avatar: 'FŞ',
-          tickets_handled: 5,
-          avg_response_time: '2.1 saat'
-        }
-      ],
-      '3': [
-        {
-          id: '1',
-          name: 'Ayşe Kaya',
-          avatar: 'AK',
-          tickets_handled: 6,
-          avg_response_time: '1.2 saat'
-        },
-        {
-          id: '2',
-          name: 'Mehmet Demir',
-          avatar: 'MD',
-          tickets_handled: 4,
-          avg_response_time: '2.0 saat'
-        },
-        {
-          id: '3',
-          name: 'Fatma Şahin',
-          avatar: 'FŞ',
-          tickets_handled: 3,
-          avg_response_time: '1.8 saat'
-        },
-        {
-          id: '4',
-          name: 'Ali Veli',
-          avatar: 'AV',
-          tickets_handled: 5,
-          avg_response_time: '1.6 saat'
-        }
-      ],
-      '4': [
-        {
-          id: '1',
-          name: 'Ayşe Kaya',
-          avatar: 'AK',
-          tickets_handled: 2,
-          avg_response_time: '4.1 saat'
-        },
-        {
-          id: '4',
-          name: 'Ali Veli',
-          avatar: 'AV',
-          tickets_handled: 4,
-          avg_response_time: '3.5 saat'
-        }
-      ]
-    };
-
-    return supportDatabase[id] || [];
-  };
-
-  const tickets = getCustomerTickets(customerId);
-  const payments = getCustomerPayments(customerId);
-  const activityLogs = getCustomerActivity(customerId);
-  const supportAgents = getCustomerSupportAgents(customerId);
-
-  // Müşteriye özel kullanım verilerini getir
-  const getCustomerUsageData = (id: string) => {
-    const usageDatabase: Record<string, any[]> = {
-      '1': [
-        { month: 'Tem', logins: 45, tickets: 2, payments: 1, features_used: 12 },
-        { month: 'Ağu', logins: 52, tickets: 1, payments: 1, features_used: 15 },
-        { month: 'Eyl', logins: 38, tickets: 3, payments: 1, features_used: 18 },
-        { month: 'Eki', logins: 41, tickets: 1, payments: 0, features_used: 14 },
-        { month: 'Kas', logins: 35, tickets: 2, payments: 1, features_used: 16 },
-        { month: 'Ara', logins: 48, tickets: 3, payments: 1, features_used: 20 }
-      ],
-      '2': [
-        { month: 'Ağu', logins: 32, tickets: 1, payments: 1, features_used: 8 },
-        { month: 'Eyl', logins: 28, tickets: 2, payments: 1, features_used: 10 },
-        { month: 'Eki', logins: 35, tickets: 1, payments: 1, features_used: 12 },
-        { month: 'Kas', logins: 42, tickets: 2, payments: 1, features_used: 14 },
-        { month: 'Ara', logins: 38, tickets: 2, payments: 1, features_used: 16 },
-        { month: 'Oca', logins: 25, tickets: 0, payments: 1, features_used: 11 }
-      ],
-      '3': [
-        { month: 'Ağu', logins: 65, tickets: 3, payments: 1, features_used: 25 },
-        { month: 'Eyl', logins: 72, tickets: 2, payments: 1, features_used: 28 },
-        { month: 'Eki', logins: 58, tickets: 4, payments: 1, features_used: 22 },
-        { month: 'Kas', logins: 68, tickets: 3, payments: 1, features_used: 30 },
-        { month: 'Ara', logins: 75, tickets: 4, payments: 1, features_used: 32 },
-        { month: 'Oca', logins: 45, tickets: 2, payments: 1, features_used: 18 }
-      ],
-      '4': [
-        { month: 'Eyl', logins: 22, tickets: 1, payments: 1, features_used: 6 },
-        { month: 'Eki', logins: 18, tickets: 0, payments: 1, features_used: 4 },
-        { month: 'Kas', logins: 15, tickets: 1, payments: 1, features_used: 3 },
-        { month: 'Ara', logins: 8, tickets: 1, payments: 0, features_used: 2 },
-        { month: 'Oca', logins: 0, tickets: 0, payments: 0, features_used: 0 }
-      ]
-    };
-
-    return usageDatabase[id] || usageDatabase['1'];
-  };
-
-  const usageData = getCustomerUsageData(customerId);
+  if (!customerData) {
+    return (
+      <div className="text-center py-12">
+        <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Müşteri Bulunamadı</h3>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">Bu müşteri ID'si ile kayıt bulunamadı.</p>
+        <button
+          onClick={onBack}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+        >
+          Müşteriler Listesine Dön
+        </button>
+      </div>
+    );
+  }
 
   // Talep kategorileri dağılımı
   const ticketCategories = tickets.reduce((acc, ticket) => {
@@ -579,18 +151,47 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
     return acc;
   }, {} as Record<string, number>);
 
-  const ticketCategoryData = Object.entries(ticketCategories).map(([category, count]) => ({
+  const ticketCategoryData = Object.entries(ticketCategories).map(([category, count], index) => ({
     name: category,
     value: count,
-    color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][Math.floor(Math.random() * 5)]
+    color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]
   }));
+
+  // Talep durumları
+  const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
+  const pendingTickets = tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length;
+  const resolutionRate = tickets.length > 0 ? Math.round((resolvedTickets / tickets.length) * 100) : 0;
+
+  // Müşteri kayıt tarihinden bu yana geçen ay sayısı
+  const subscriptionMonths = Math.floor(
+    (new Date().getTime() - new Date(customerData.created_at).getTime()) / (1000 * 60 * 60 * 24 * 30)
+  );
+
+  // Destek veren temsilciler
+  const supportAgents = tickets
+    .filter(t => t.agents?.name)
+    .reduce((acc, ticket) => {
+      const agentName = ticket.agents!.name;
+      if (!acc[agentName]) {
+        acc[agentName] = {
+          name: agentName,
+          email: ticket.agents!.email,
+          tickets_handled: 0,
+          avatar: agentName.split(' ').map(n => n[0]).join('')
+        };
+      }
+      acc[agentName].tickets_handled++;
+      return acc;
+    }, {} as Record<string, any>);
+
+  const supportAgentsList = Object.values(supportAgents);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'active': return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'inactive': return <XCircle className="w-4 h-4 text-gray-500" />;
       case 'suspended': return <AlertCircle className="w-4 h-4 text-red-500" />;
-      default: return <AlertCircle className="w-4 h-4 text-gray-400" />;
+      default: return <CheckCircle className="w-4 h-4 text-green-500" />;
     }
   };
 
@@ -599,7 +200,7 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
       case 'active': return 'Aktif';
       case 'inactive': return 'Pasif';
       case 'suspended': return 'Askıya Alınmış';
-      default: return 'Bilinmeyen';
+      default: return 'Aktif';
     }
   };
 
@@ -608,7 +209,7 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
       case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
       case 'inactive': return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
       case 'suspended': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+      default: return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
     }
   };
 
@@ -622,12 +223,13 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
     }
   };
 
-  const getPaymentStatusIcon = (status: string) => {
+  const getTicketStatusText = (status: string) => {
     switch (status) {
-      case 'paid': return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'pending': return <Clock className="w-4 h-4 text-yellow-500" />;
-      case 'failed': return <XCircle className="w-4 h-4 text-red-500" />;
-      default: return <AlertCircle className="w-4 h-4 text-gray-400" />;
+      case 'resolved': return 'Çözüldü';
+      case 'in_progress': return 'İşlemde';
+      case 'open': return 'Açık';
+      case 'closed': return 'Kapalı';
+      default: return 'Bilinmeyen';
     }
   };
 
@@ -640,10 +242,18 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
     }
   };
 
+  const getPriorityText = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'Yüksek';
+      case 'medium': return 'Orta';
+      case 'low': return 'Düşük';
+      default: return 'Normal';
+    }
+  };
+
   const tabs = [
     { id: 'overview', name: 'Genel Bakış', icon: User },
     { id: 'tickets', name: 'Talepler', icon: MessageSquare },
-    { id: 'payments', name: 'Ödemeler', icon: CreditCard },
     { id: 'activity', name: 'Aktivite', icon: Activity },
     { id: 'support-team', name: 'Destek Ekibi', icon: Users }
   ];
@@ -685,11 +295,11 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                 {customerData.name}
               </h2>
-              <p className="text-gray-600 dark:text-gray-400">{customerData.company}</p>
+              <p className="text-gray-600 dark:text-gray-400">{customerData.company || 'Şirket belirtilmemiş'}</p>
               <div className="flex items-center mt-2">
-                {getStatusIcon(customerData.status)}
-                <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(customerData.status)}`}>
-                  {getStatusText(customerData.status)}
+                {getStatusIcon('active')}
+                <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor('active')}`}>
+                  {getStatusText('active')}
                 </span>
               </div>
             </div>
@@ -703,20 +313,20 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
               <Mail className="w-4 h-4 text-gray-400 mr-2" />
               <span className="text-sm text-gray-600 dark:text-gray-400">E-posta</span>
             </div>
-            <p className="text-sm font-medium text-gray-900 dark:text-white">{customerData.email}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white break-all">{customerData.email}</p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
               <Phone className="w-4 h-4 text-gray-400 mr-2" />
               <span className="text-sm text-gray-600 dark:text-gray-400">Telefon</span>
             </div>
-            <p className="text-sm font-medium text-gray-900 dark:text-white">{customerData.phone}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{customerData.phone || 'Belirtilmemiş'}</p>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
@@ -725,15 +335,6 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
             </div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">
               {format(new Date(customerData.created_at), 'dd MMM yyyy', { locale: tr })}
-            </p>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-2">
-              <Clock className="w-4 h-4 text-gray-400 mr-2" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">Kullanım Süresi</span>
-            </div>
-            <p className="text-sm font-medium text-gray-900 dark:text-white">
-              {customerData.subscription_months} ay
             </p>
           </div>
           <div className="text-center">
@@ -747,33 +348,7 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Harcama</p>
-              <p className="text-xl lg:text-2xl font-bold text-green-600 mt-2 break-all">₺{customerData.total_spent.toLocaleString()}</p>
-            </div>
-            <div className="bg-green-100 dark:bg-green-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
-              <DollarSign className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Mevcut Bakiye</p>
-              <p className={`text-xl lg:text-2xl font-bold mt-2 break-all ${customerData.current_balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                ₺{customerData.current_balance.toLocaleString()}
-              </p>
-            </div>
-            <div className={`p-2 lg:p-3 rounded-lg flex-shrink-0 ${customerData.current_balance < 0 ? 'bg-red-100 dark:bg-red-900/20' : 'bg-green-100 dark:bg-green-900/20'}`}>
-              <CreditCard className={`w-6 h-6 ${customerData.current_balance < 0 ? 'text-red-600' : 'text-green-600'}`} />
-            </div>
-          </div>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
@@ -789,10 +364,20 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Çözülen Talepler</p>
+              <p className="text-xl lg:text-2xl font-bold text-green-600 mt-2">{resolvedTickets}</p>
+            </div>
+            <div className="bg-green-100 dark:bg-green-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Çözüm Oranı</p>
-              <p className="text-xl lg:text-2xl font-bold text-purple-600 mt-2">
-                {Math.round((customerData.resolved_tickets / customerData.total_tickets) * 100)}%
-              </p>
+              <p className="text-xl lg:text-2xl font-bold text-purple-600 mt-2">{resolutionRate}%</p>
             </div>
             <div className="bg-purple-100 dark:bg-purple-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
               <TrendingUp className="w-6 h-6 text-purple-600" />
@@ -803,11 +388,11 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Satın Alma Aşaması</p>
-              <p className="text-xl lg:text-2xl font-bold text-orange-600 mt-2">{customerData.purchase_journey.length} Adım</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Müşteri Süresi</p>
+              <p className="text-xl lg:text-2xl font-bold text-orange-600 mt-2">{subscriptionMonths} ay</p>
             </div>
             <div className="bg-orange-100 dark:bg-orange-900/20 p-2 lg:p-3 rounded-lg flex-shrink-0">
-              <ShoppingCart className="w-6 h-6 text-orange-600" />
+              <Clock className="w-6 h-6 text-orange-600" />
             </div>
           </div>
         </div>
@@ -840,65 +425,22 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
         <div className="p-6">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Usage Chart */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Son 6 Aylık Kullanım Trendi
-                </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={usageData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="logins" stroke="#3b82f6" name="Giriş Sayısı" />
-                    <Line type="monotone" dataKey="tickets" stroke="#ef4444" name="Talep Sayısı" />
-                    <Line type="monotone" dataKey="features_used" stroke="#10b981" name="Kullanılan Özellik" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Ticket Categories */}
+              {/* Customer Summary */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Talep Kategorileri
+                    Müşteri Özeti
                   </h3>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie
-                        data={ticketCategoryData}
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={80}
-                        dataKey="value"
-                        label={({ name, value }) => `${name}: ${value}`}
-                      >
-                        {ticketCategoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Özet İstatistikler</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Ortalama Yanıt Süresi</h4>
-                      <p className="text-2xl font-bold text-blue-600">2.1 saat</p>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Bekleyen Talepler</h4>
-                      <p className="text-2xl font-bold text-orange-600">{customerData.pending_tickets}</p>
-                    </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Son Giriş</h4>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        {format(new Date(customerData.last_login), 'dd MMM yyyy', { locale: tr })}
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Kayıt Tarihi</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {format(new Date(customerData.created_at), 'dd MMMM yyyy', { locale: tr })}
                       </p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Müşteri Süresi</h4>
+                      <p className="text-lg font-bold text-blue-600">{subscriptionMonths} ay</p>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                       <h4 className="font-medium text-gray-900 dark:text-white mb-2">Aktif Plan</h4>
@@ -906,6 +448,32 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
                     </div>
                   </div>
                 </div>
+
+                {/* Ticket Categories Chart */}
+                {ticketCategoryData.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Talep Kategorileri
+                    </h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={ticketCategoryData}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, value }) => `${name}: ${value}`}
+                        >
+                          {ticketCategoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -918,114 +486,85 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
                   Toplam {tickets.length} talep
                 </div>
               </div>
-              <div className="space-y-3">
-                {tickets.map((ticket) => (
-                  <div key={ticket.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center">
-                        {getTicketStatusIcon(ticket.status)}
-                        <div className="ml-3">
-                          <h4 className="font-medium text-gray-900 dark:text-white">{ticket.title}</h4>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}
-                            {ticket.agent_name && ` • ${ticket.agent_name}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
-                          {ticket.priority === 'high' ? 'Yüksek' : ticket.priority === 'medium' ? 'Orta' : 'Düşük'}
-                        </span>
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                          {ticket.category}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Durum: <span className="font-medium">
-                        {ticket.status === 'open' ? 'Açık' : 
-                         ticket.status === 'in_progress' ? 'İşlemde' :
-                         ticket.status === 'resolved' ? 'Çözüldü' : 'Kapalı'}
-                      </span>
-                      {ticket.resolved_at && (
-                        <span className="ml-4">
-                          Çözüm Tarihi: {format(new Date(ticket.resolved_at), 'dd MMM yyyy', { locale: tr })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'payments' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Ödeme Geçmişi</h3>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Toplam {payments.length} ödeme
+              {tickets.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">Bu müşterinin henüz talebi bulunmuyor.</p>
                 </div>
-              </div>
-              <div className="space-y-3">
-                {payments.map((payment) => (
-                  <div key={payment.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        {getPaymentStatusIcon(payment.status)}
-                        <div className="ml-3">
-                          <h4 className="font-medium text-gray-900 dark:text-white">
-                            {payment.invoice_number}
-                          </h4>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {format(new Date(payment.date), 'dd MMM yyyy', { locale: tr })} • {payment.plan}
-                          </p>
+              ) : (
+                <div className="space-y-3">
+                  {tickets.map((ticket) => (
+                    <div key={ticket.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center">
+                          {getTicketStatusIcon(ticket.status)}
+                          <div className="ml-3">
+                            <h4 className="font-medium text-gray-900 dark:text-white">{ticket.title}</h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}
+                              {ticket.agents?.name && ` • ${ticket.agents.name}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
+                            {getPriorityText(ticket.priority)}
+                          </span>
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                            {ticket.category}
+                          </span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gray-900 dark:text-white">
-                          ₺{payment.amount.toLocaleString()}
-                        </p>
-                        <p className={`text-sm ${
-                          payment.status === 'paid' ? 'text-green-600' :
-                          payment.status === 'pending' ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {payment.status === 'paid' ? 'Ödendi' :
-                           payment.status === 'pending' ? 'Beklemede' : 'Başarısız'}
-                        </p>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        <p className="mb-2">{ticket.description}</p>
+                        <div className="flex items-center justify-between">
+                          <span>
+                            Durum: <span className="font-medium">{getTicketStatusText(ticket.status)}</span>
+                          </span>
+                          {ticket.resolved_at && (
+                            <span className="text-green-600">
+                              Çözüm: {format(new Date(ticket.resolved_at), 'dd MMM yyyy', { locale: tr })}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'activity' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Aktivite Geçmişi</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Son Aktiviteler</h3>
               <div className="space-y-3">
-                {activityLogs.map((log) => (
-                  <div key={log.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <div className="bg-blue-100 dark:bg-blue-900/20 p-2 rounded-full mr-3">
+                      <User className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900 dark:text-white">Müşteri Kaydı Oluşturuldu</h4>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Sisteme yeni müşteri olarak kaydoldu</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        {format(new Date(customerData.created_at), 'dd MMM yyyy HH:mm', { locale: tr })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {tickets.slice(0, 5).map((ticket) => (
+                  <div key={ticket.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                     <div className="flex items-start">
-                      <div className={`p-2 rounded-full mr-3 ${
-                        log.type === 'login' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                        log.type === 'payment' ? 'bg-green-100 dark:bg-green-900/20' :
-                        log.type === 'ticket' ? 'bg-orange-100 dark:bg-orange-900/20' :
-                        log.type === 'plan_change' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                        'bg-gray-100 dark:bg-gray-900/20'
-                      }`}>
-                        {log.type === 'login' ? <User className="w-4 h-4 text-blue-600" /> :
-                         log.type === 'payment' ? <DollarSign className="w-4 h-4 text-green-600" /> :
-                         log.type === 'ticket' ? <MessageSquare className="w-4 h-4 text-orange-600" /> :
-                         log.type === 'plan_change' ? <Award className="w-4 h-4 text-purple-600" /> :
-                         <Activity className="w-4 h-4 text-gray-600" />}
+                      <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-full mr-3">
+                        <MessageSquare className="w-4 h-4 text-orange-600" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-900 dark:text-white">{log.action}</h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{log.description}</p>
+                        <h4 className="font-medium text-gray-900 dark:text-white">Yeni Talep: {ticket.title}</h4>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{ticket.description}</p>
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                          {format(new Date(log.timestamp), 'dd MMM yyyy HH:mm', { locale: tr })}
+                          {format(new Date(ticket.created_at), 'dd MMM yyyy HH:mm', { locale: tr })}
                         </p>
                       </div>
                     </div>
@@ -1037,32 +576,39 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
 
           {activeTab === 'support-team' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Destek Veren Ekip</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {supportAgents.map((agent) => (
-                  <div key={agent.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                    <div className="flex items-center mb-3">
-                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                        {agent.avatar}
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Bu Müşteriye Destek Veren Ekip</h3>
+              {supportAgentsList.length === 0 ? (
+                <div className="text-center py-8">
+                  <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">Bu müşteriye henüz destek veren temsilci bulunmuyor.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {supportAgentsList.map((agent, index) => (
+                    <div key={index} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                      <div className="flex items-center mb-3">
+                        <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                          {agent.avatar}
+                        </div>
+                        <div className="ml-3">
+                          <h4 className="font-medium text-gray-900 dark:text-white">{agent.name}</h4>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Destek Temsilcisi</p>
+                        </div>
                       </div>
-                      <div className="ml-3">
-                        <h4 className="font-medium text-gray-900 dark:text-white">{agent.name}</h4>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Destek Temsilcisi</p>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Bu Müşteri İçin:</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{agent.tickets_handled} talep</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">E-posta:</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{agent.email}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Çözülen Talepler:</span>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{agent.tickets_handled}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600 dark:text-gray-400">Ort. Yanıt Süresi:</span>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{agent.avg_response_time}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
