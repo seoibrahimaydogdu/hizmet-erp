@@ -44,6 +44,12 @@ const AgentsPage: React.FC = () => {
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [showViewModal, setShowViewModal] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState<string | null>(null);
+  const [newAgentData, setNewAgentData] = useState({
+    name: '',
+    email: '',
+    role: 'agent',
+    status: 'offline'
+  });
 
   useEffect(() => {
     fetchAgents();
@@ -116,6 +122,32 @@ const AgentsPage: React.FC = () => {
   const handleViewPerformance = (agentId: string) => {
     toast.success('Performans raporu görüntüleniyor...');
     setShowActionMenu(null);
+  };
+
+  const handleCreateAgent = async () => {
+    if (!newAgentData.name.trim()) {
+      toast.error('Temsilci adı gerekli');
+      return;
+    }
+    if (!newAgentData.email.trim()) {
+      toast.error('E-posta adresi gerekli');
+      return;
+    }
+    
+    try {
+      // Burada Supabase create işlemi yapılacak
+      toast.success('Yeni temsilci oluşturuldu');
+      setShowNewAgentModal(false);
+      setNewAgentData({
+        name: '',
+        email: '',
+        role: 'agent',
+        status: 'offline'
+      });
+      fetchAgents();
+    } catch (error) {
+      toast.error('Temsilci oluşturulurken hata oluştu');
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -514,6 +546,94 @@ const AgentsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* New Agent Modal */}
+      {showNewAgentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Temsilci Ekle</h3>
+              <button
+                onClick={() => setShowNewAgentModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Ad Soyad *
+                  </label>
+                  <input
+                    type="text"
+                    value={newAgentData.name}
+                    onChange={(e) => setNewAgentData({ ...newAgentData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Temsilci adını girin..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    E-posta *
+                  </label>
+                  <input
+                    type="email"
+                    value={newAgentData.email}
+                    onChange={(e) => setNewAgentData({ ...newAgentData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="E-posta adresini girin..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Rol
+                  </label>
+                  <select
+                    value={newAgentData.role}
+                    onChange={(e) => setNewAgentData({ ...newAgentData, role: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="agent">Temsilci</option>
+                    <option value="supervisor">Süpervizör</option>
+                    <option value="admin">Yönetici</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Başlangıç Durumu
+                  </label>
+                  <select
+                    value={newAgentData.status}
+                    onChange={(e) => setNewAgentData({ ...newAgentData, status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="offline">Çevrimdışı</option>
+                    <option value="online">Çevrimiçi</option>
+                    <option value="away">Uzakta</option>
+                    <option value="busy">Meşgul</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setShowNewAgentModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleCreateAgent}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Temsilci Ekle
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View Agent Modal */}
       {showViewModal && (
