@@ -5,9 +5,14 @@ import {
   Ticket, 
   Users, 
   UserCheck, 
-  Settings, 
-  Bell, 
+  MessageSquare, 
+  BarChart3, 
+  MessageCircle, 
+  Settings,
+  Bell,
   Search,
+  Menu,
+  X,
   Plus,
   Filter,
   Download,
@@ -19,49 +24,23 @@ import {
   AlertCircle,
   TrendingUp,
   TrendingDown,
-  User,
-  Mail,
-  Phone,
-  Building,
-  Calendar,
-  Star,
-  MessageSquare,
-  BarChart3,
-  Activity,
-  X
+  Star
 } from 'lucide-react';
-import { useSupabase } from './hooks/useSupabase';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { useSupabase } from './hooks/useSupabase';
 import LiveChat from './components/LiveChat';
+import ReportsPage from './components/ReportsPage';
 import ProfilePage from './components/ProfilePage';
 import SettingsPage from './components/SettingsPage';
 
 function App() {
-  const [activeView, setActiveView] = useState('dashboard');
-  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
-  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
-  const [showLiveChat, setShowLiveChat] = useState(false);
-  const [showCustomerDetail, setShowCustomerDetail] = useState<Customer | null>(null);
-  const [showChatWidget, setShowChatWidget] = useState(false);
-  const [isChatMinimized, setIsChatMinimized] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
-  const [newTicket, setNewTicket] = useState({
-    title: '',
-    description: '',
-    priority: 'medium',
-    category: 'general',
-    customer_id: ''
-  });
-  const [newCustomer, setNewCustomer] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    company: '',
-    plan: 'basic'
-  });
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState('');
 
   const {
     loading,
@@ -83,10 +62,11 @@ function App() {
     fetchNotifications,
     updateTicketStatus,
     assignTicket,
+    markNotificationAsRead,
     createTicket,
     updateAgentStatus,
-    exportData,
-    bulkUpdateTickets
+    bulkUpdateTickets,
+    exportData
   } = useSupabase();
 
   useEffect(() => {
@@ -96,353 +76,274 @@ function App() {
     fetchNotifications();
   }, []);
 
-  const filteredTickets = tickets.filter(ticket => {
-    const matchesSearch = ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.customers?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         ticket.customers?.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
-    const matchesPriority = priorityFilter === 'all' || ticket.priority === priorityFilter;
-    
-    return matchesSearch && matchesStatus && matchesPriority;
-  });
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
-  const handleCreateTicket = async () => {
-    if (!newTicket.title || !newTicket.customer_id) return;
-    
-    await createTicket(newTicket);
-    setShowNewTicketModal(false);
-    setNewTicket({
-      title: '',
-      description: '',
-      priority: 'medium',
-      category: 'general',
-      customer_id: ''
-    });
+  const menuItems = [
+    { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+    { id: 'tickets', name: 'Talepler', icon: Ticket, badge: tickets.filter(t => t.status === 'open').length },
+    { id: 'customers', name: 'Müşteriler', icon: Users },
+    { id: 'agents', name: 'Temsilciler', icon: UserCheck },
+    { id: 'live-chat', name: 'Canlı Destek', icon: MessageSquare, badge: 3 },
+    { id: 'reports', name: 'Raporlar', icon: BarChart3 },
+    { id: 'contact', name: 'İletişim', icon: MessageCircle },
+    { id: 'settings', name: 'Ayarlar', icon: Settings }
+  ];
+
+  const stats = [
+    {
+      title: 'Toplam Talepler',
+      value: tickets.length.toString(),
+      change: '+12%',
+      trend: 'up',
+      icon: Ticket,
+      color: 'blue'
+    },
+    {
+      title: 'Açık Talepler',
+      value: tickets.filter(t => t.status === 'open').length.toString(),
+      change: '+5%',
+      trend: 'up',
+      icon: AlertCircle,
+      color: 'orange'
+    },
+    {
+      title: 'Çözülen Talepler',
+      value: tickets.filter(t => t.status === 'resolved').length.toString(),
+      change: '+8%',
+      trend: 'up',
+      icon: CheckCircle,
+      color: 'green'
+    },
+    {
+      title: 'Aktif Temsilciler',
+      value: agents.filter(a => a.status === 'online').length.toString(),
+      change: '0%',
+      trend: 'neutral',
+      icon: UserCheck,
+      color: 'purple'
+    }
+  ];
+
+  const getStatColor = (color: string) => {
+    const colors = {
+      blue: 'bg-blue-500',
+      green: 'bg-green-500',
+      orange: 'bg-orange-500',
+      purple: 'bg-purple-500',
+      red: 'bg-red-500'
+    };
+    return colors[color as keyof typeof colors] || 'bg-gray-500';
   };
 
-  const handleCreateCustomer = async () => {
-    if (!newCustomer.name || !newCustomer.email) return;
-    
-    try {
-      const { error } = await supabase
-        .from('customers')
-        .insert(newCustomer);
-
-      if (error) throw error;
-      
-      toast.success('Yeni müşteri eklendi');
-      fetchCustomers();
-      setShowNewCustomerModal(false);
-      setNewCustomer({
-        name: '',
-        email: '',
-        phone: '',
-        company: '',
-        plan: 'basic'
-      });
-    } catch (error) {
-      toast.error('Müşteri eklenirken hata oluştu');
+  const getTrendColor = (trend: string) => {
+    switch (trend) {
+      case 'up': return 'text-green-600';
+      case 'down': return 'text-red-600';
+      default: return 'text-gray-600';
     }
   };
 
-  const handleDeleteTicket = async (ticketId: string) => {
-    if (!confirm('Bu talebi silmek istediğinizden emin misiniz?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('tickets')
-        .delete()
-        .eq('id', ticketId);
-
-      if (error) throw error;
-      
-      toast.success('Talep silindi');
-      fetchTickets();
-    } catch (error) {
-      toast.error('Talep silinirken hata oluştu');
-    }
-  };
-
-  const handleDeleteCustomer = async (customerId: string) => {
-    if (!confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('customers')
-        .delete()
-        .eq('id', customerId);
-
-      if (error) throw error;
-      
-      toast.success('Müşteri silindi');
-      fetchCustomers();
-    } catch (error) {
-      toast.error('Müşteri silinirken hata oluştu');
-    }
-  };
-
-  const handleBulkAction = async (action: string) => {
-    if (selectedItems.length === 0) return;
-    
-    switch (action) {
-      case 'resolve':
-        await bulkUpdateTickets(selectedItems, { status: 'resolved' });
-        break;
-      case 'close':
-        await bulkUpdateTickets(selectedItems, { status: 'closed' });
-        break;
-      case 'delete':
-        if (confirm(`${selectedItems.length} talebi silmek istediğinizden emin misiniz?`)) {
-          for (const id of selectedItems) {
-            await handleDeleteTicket(id);
-          }
-        }
-        break;
+  const getTrendIcon = (trend: string) => {
+    switch (trend) {
+      case 'up': return <TrendingUp className="w-4 h-4" />;
+      case 'down': return <TrendingDown className="w-4 h-4" />;
+      default: return null;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-      case 'in_progress': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
-      case 'resolved': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+      case 'open': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+      case 'resolved': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+      case 'closed': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
-      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
-      case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+      case 'high': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
+      case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'open': return 'Açık';
-      case 'in_progress': return 'İşlemde';
-      case 'resolved': return 'Çözümlendi';
-      default: return status;
+  const handleBulkAction = async () => {
+    if (!bulkAction || selectedTickets.length === 0) return;
+
+    const updates: any = {};
+    switch (bulkAction) {
+      case 'resolve':
+        updates.status = 'resolved';
+        updates.resolved_at = new Date().toISOString();
+        break;
+      case 'close':
+        updates.status = 'closed';
+        break;
+      case 'high':
+        updates.priority = 'high';
+        break;
+      case 'medium':
+        updates.priority = 'medium';
+        break;
+      case 'low':
+        updates.priority = 'low';
+        break;
     }
+
+    await bulkUpdateTickets(selectedTickets, updates);
+    setSelectedTickets([]);
+    setBulkAction('');
   };
 
-  const getPriorityText = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'Yüksek';
-      case 'medium': return 'Orta';
-      case 'low': return 'Düşük';
-      default: return priority;
-    }
-  };
-
-  const StatCard = ({ title, value, change, changeType, icon: Icon, color }: any) => (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{value}</p>
-          {change && (
-            <div className={`flex items-center text-sm ${
-              changeType === 'increase' ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {changeType === 'increase' ? (
-                <TrendingUp className="w-4 h-4 mr-1" />
-              ) : (
-                <TrendingDown className="w-4 h-4 mr-1" />
-              )}
-              {change}
-            </div>
-          )}
+  const renderDashboard = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400">Destek sistemi genel bakış</p>
         </div>
-        <div className={`p-3 rounded-lg ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowNewTicketModal(true)}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Yeni Talep
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`w-12 h-12 ${getStatColor(stat.color)} rounded-lg flex items-center justify-center`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <div className={`flex items-center gap-1 text-sm font-medium ${getTrendColor(stat.trend)}`}>
+                  {getTrendIcon(stat.trend)}
+                  <span>{stat.change}</span>
+                </div>
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{stat.value}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{stat.title}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Recent Tickets */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Son Talepler</h2>
+            <button
+              onClick={() => setActiveTab('tickets')}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+            >
+              Tümünü Gör
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Müşteri
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Konu
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Durum
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Öncelik
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Tarih
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {paginatedTickets.slice(0, 5).map((ticket) => (
+                <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                        {ticket.customers?.name?.split(' ').map(n => n[0]).join('') || 'N/A'}
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {ticket.customers?.name || 'Bilinmeyen'}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {ticket.customers?.email || ''}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {ticket.title}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {ticket.category}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(ticket.status)}`}>
+                      {ticket.status === 'open' ? 'Açık' : 
+                       ticket.status === 'in_progress' ? 'İşlemde' :
+                       ticket.status === 'resolved' ? 'Çözüldü' : 'Kapalı'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(ticket.priority)}`}>
+                      {ticket.priority === 'high' ? 'Yüksek' :
+                       ticket.priority === 'medium' ? 'Orta' : 'Düşük'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 
-  const renderDashboard = () => {
-    const totalTickets = tickets.length;
-    const openTickets = tickets.filter(t => t.status === 'open').length;
-    const inProgressTickets = tickets.filter(t => t.status === 'in_progress').length;
-    const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
-    const activeAgents = agents.filter(a => a.status === 'online').length;
-    const totalAgents = agents.length;
-
-    return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-              <p className="text-gray-600 dark:text-gray-400">Müşteri destek sistemi genel görünümü</p>
-            </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Son güncelleme: {format(new Date(), 'dd.MM.yyyy HH:mm:ss', { locale: tr })}
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            title="Toplam Talepler"
-            value={totalTickets}
-            change="+12%"
-            changeType="increase"
-            icon={Ticket}
-            color="bg-blue-500"
-          />
-          <StatCard
-            title="Açık Talepler"
-            value={openTickets}
-            change="-5%"
-            changeType="decrease"
-            icon={Clock}
-            color="bg-orange-500"
-          />
-          <StatCard
-            title="İşlemde"
-            value={inProgressTickets}
-            change="+8%"
-            changeType="increase"
-            icon={AlertCircle}
-            color="bg-yellow-500"
-          />
-          <StatCard
-            title="Çözümlenen"
-            value={resolvedTickets}
-            change="+15%"
-            changeType="increase"
-            icon={CheckCircle}
-            color="bg-green-500"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            title="Aktif Temsilciler"
-            value={`${activeAgents}/${totalAgents}`}
-            change={null}
-            changeType={null}
-            icon={UserCheck}
-            color="bg-purple-500"
-          />
-          <StatCard
-            title="Ortalama Yanıt Süresi"
-            value="2.5 saat"
-            change="-20 dk"
-            changeType="decrease"
-            icon={MessageSquare}
-            color="bg-indigo-500"
-          />
-          <StatCard
-            title="Müşteri Memnuniyeti"
-            value="4.8"
-            change="+0.2"
-            changeType="increase"
-            icon={Star}
-            color="bg-yellow-500"
-          />
-          <StatCard
-            title="Günlük Artış"
-            value="+24"
-            change="+18%"
-            changeType="increase"
-            icon={TrendingUp}
-            color="bg-green-500"
-          />
-        </div>
-
-        {/* Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Son Talepler */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Son Talepler</h3>
-              <button
-                onClick={() => setActiveView('tickets')}
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-              >
-                Tümünü Gör
-              </button>
-            </div>
-            <div className="space-y-3">
-              {tickets.slice(0, 3).map((ticket) => (
-                <div key={ticket.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900 dark:text-white">{ticket.title}</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {ticket.customers?.name} • {format(new Date(ticket.created_at), 'dd.MM.yyyy', { locale: tr })}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
-                      {getStatusText(ticket.status)}
-                    </span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
-                      {getPriorityText(ticket.priority)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Destek Ekibi */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Destek Ekibi</h3>
-              <div className="flex items-center text-sm text-green-600">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                {activeAgents} aktif
-              </div>
-            </div>
-            <div className="space-y-3">
-              {agents.slice(0, 3).map((agent) => (
-                <div key={agent.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                        {agent.name.split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ${
-                        agent.status === 'online' ? 'bg-green-500' :
-                        agent.status === 'away' ? 'bg-yellow-500' :
-                        agent.status === 'busy' ? 'bg-red-500' :
-                        'bg-gray-400'
-                      }`}></div>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{agent.name}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{agent.role}</p>
-                    </div>
-                  </div>
-                  <span className="text-sm text-green-600 font-medium">Çevrimiçi</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderTickets = () => (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Talepler</h1>
-          <p className="text-gray-600 dark:text-gray-400">Müşteri talepleri ve destek biletleri</p>
+          <p className="text-gray-600 dark:text-gray-400">Müşteri destek talepleri</p>
         </div>
-        <div className="mt-4 sm:mt-0 flex items-center space-x-3">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => exportData('tickets')}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             <Download className="w-4 h-4 mr-2" />
             Dışa Aktar
@@ -457,88 +358,91 @@ function App() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Talep ara..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+      {/* Filters and Search */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Talep ara..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tüm Durumlar</option>
-            <option value="open">Açık</option>
-            <option value="in_progress">İşlemde</option>
-            <option value="resolved">Çözümlendi</option>
-          </select>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tüm Öncelikler</option>
-            <option value="high">Yüksek</option>
-            <option value="medium">Orta</option>
-            <option value="low">Düşük</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <select className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Tüm Durumlar</option>
+              <option value="open">Açık</option>
+              <option value="in_progress">İşlemde</option>
+              <option value="resolved">Çözüldü</option>
+              <option value="closed">Kapalı</option>
+            </select>
+          </div>
         </div>
-        
+
         {/* Bulk Actions */}
-        {selectedItems.length > 0 && (
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {selectedItems.length} seçili
-            </span>
-            <button
-              onClick={() => handleBulkAction('resolve')}
-              className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-            >
-              Çözümle
-            </button>
-            <button
-              onClick={() => handleBulkAction('delete')}
-              className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-            >
-              Sil
-            </button>
+        {selectedTickets.length > 0 && (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                {selectedTickets.length} talep seçildi
+              </span>
+              <div className="flex items-center gap-2">
+                <select
+                  value={bulkAction}
+                  onChange={(e) => setBulkAction(e.target.value)}
+                  className="px-3 py-1 text-sm border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="">Toplu İşlem Seç</option>
+                  <option value="resolve">Çözüldü Olarak İşaretle</option>
+                  <option value="close">Kapat</option>
+                  <option value="high">Yüksek Öncelik</option>
+                  <option value="medium">Orta Öncelik</option>
+                  <option value="low">Düşük Öncelik</option>
+                </select>
+                <button
+                  onClick={handleBulkAction}
+                  disabled={!bulkAction}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm rounded"
+                >
+                  Uygula
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
       {/* Tickets Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left">
                   <input
                     type="checkbox"
-                    checked={selectedItems.length === filteredTickets.length && filteredTickets.length > 0}
+                    checked={selectedTickets.length === paginatedTickets.length}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedItems(filteredTickets.map(t => t.id));
+                        setSelectedTickets(paginatedTickets.map(t => t.id));
                       } else {
-                        setSelectedItems([]);
+                        setSelectedTickets([]);
                       }
                     }}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Talep
+                  Müşteri
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Müşteri
+                  Konu
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Durum
@@ -552,44 +456,34 @@ function App() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Tarih
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   İşlemler
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredTickets.map((ticket) => (
+              {paginatedTickets.map((ticket) => (
                 <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
                       type="checkbox"
-                      checked={selectedItems.includes(ticket.id)}
+                      checked={selectedTickets.includes(ticket.id)}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedItems([...selectedItems, ticket.id]);
+                          setSelectedTickets([...selectedTickets, ticket.id]);
                         } else {
-                          setSelectedItems(selectedItems.filter(id => id !== ticket.id));
+                          setSelectedTickets(selectedTickets.filter(id => id !== ticket.id));
                         }
                       }}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {ticket.title}
-                      </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        #{ticket.id.slice(0, 8)}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
                         {ticket.customers?.name?.split(' ').map(n => n[0]).join('') || 'N/A'}
                       </div>
-                      <div className="ml-3">
+                      <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
                           {ticket.customers?.name || 'Bilinmeyen'}
                         </div>
@@ -599,57 +493,68 @@ function App() {
                       </div>
                     </div>
                   </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      {ticket.title}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {ticket.category}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
                       value={ticket.status}
                       onChange={(e) => updateTicketStatus(ticket.id, e.target.value)}
-                      className={`px-2 py-1 rounded-full text-xs font-medium border-0 focus:ring-2 focus:ring-blue-500 ${getStatusColor(ticket.status)}`}
+                      className={`text-xs font-semibold rounded-full px-2 py-1 border-0 ${getStatusColor(ticket.status)}`}
                     >
                       <option value="open">Açık</option>
                       <option value="in_progress">İşlemde</option>
-                      <option value="resolved">Çözümlendi</option>
+                      <option value="resolved">Çözüldü</option>
+                      <option value="closed">Kapalı</option>
                     </select>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
-                      {getPriorityText(ticket.priority)}
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(ticket.priority)}`}>
+                      {ticket.priority === 'high' ? 'Yüksek' :
+                       ticket.priority === 'medium' ? 'Orta' : 'Düşük'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <select
-                      value={ticket.agent_id || ''}
-                      onChange={(e) => assignTicket(ticket.id, e.target.value)}
-                      className="text-sm text-gray-900 dark:text-white bg-transparent border-0 focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Atanmamış</option>
-                      {agents.map((agent) => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.name}
-                        </option>
-                      ))}
-                    </select>
+                    {ticket.agents ? (
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white font-semibold text-xs">
+                          {ticket.agents.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <span className="ml-2 text-sm text-gray-900 dark:text-white">
+                          {ticket.agents.name}
+                        </span>
+                      </div>
+                    ) : (
+                      <select
+                        onChange={(e) => assignTicket(ticket.id, e.target.value)}
+                        className="text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      >
+                        <option value="">Temsilci Ata</option>
+                        {agents.map(agent => (
+                          <option key={agent.id} value={agent.id}>
+                            {agent.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {format(new Date(ticket.created_at), 'dd.MM.yyyy', { locale: tr })}
+                    {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button 
-                        onClick={() => alert(`Talep detayları: ${ticket.title}`)}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button 
-                        onClick={() => alert(`Talep düzenleme: ${ticket.title}`)}
-                        className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                      >
+                      <button className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button 
-                        onClick={() => handleDeleteTicket(ticket.id)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      >
+                      <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -661,71 +566,32 @@ function App() {
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Önceki
-                </button>
-                <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Sonraki
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    <span className="font-medium">{((currentPage - 1) * 10) + 1}</span>
-                    {' - '}
-                    <span className="font-medium">{Math.min(currentPage * 10, filteredTickets.length)}</span>
-                    {' / '}
-                    <span className="font-medium">{filteredTickets.length}</span>
-                    {' sonuç gösteriliyor'}
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-                    >
-                      Önceki
-                    </button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          page === currentPage
-                            ? 'z-10 bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400'
-                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-                    >
-                      Sonraki
-                    </button>
-                  </nav>
-                </div>
-              </div>
+        <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              Toplam {tickets.length} talep
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Önceki
+              </button>
+              <span className="px-3 py-1 text-sm">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Sonraki
+              </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -737,25 +603,22 @@ function App() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Müşteriler</h1>
           <p className="text-gray-600 dark:text-gray-400">Müşteri bilgileri ve istatistikleri</p>
         </div>
-        <button
-          onClick={() => setShowNewCustomerModal(true)}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
-        >
+        <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
           <Plus className="w-4 h-4 mr-2" />
           Yeni Müşteri
         </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Müşteri
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  İletişim
+                  Şirket
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Plan
@@ -769,9 +632,6 @@ function App() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Kayıt Tarihi
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  İşlemler
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -779,7 +639,7 @@ function App() {
                 <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
                         {customer.name.split(' ').map(n => n[0]).join('')}
                       </div>
                       <div className="ml-4">
@@ -787,17 +647,16 @@ function App() {
                           {customer.name}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {customer.company || 'Bireysel'}
+                          {customer.email}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900 dark:text-white">{customer.email}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">{customer.phone || 'Telefon yok'}</div>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {customer.company || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
+                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
                       {customer.plan}
                     </span>
                   </td>
@@ -806,36 +665,14 @@ function App() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                      <span className="text-sm text-gray-900 dark:text-white">
+                      <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                      <span className="ml-1 text-sm text-gray-900 dark:text-white">
                         {customer.satisfaction_score}/5
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {format(new Date(customer.created_at), 'dd.MM.yyyy', { locale: tr })}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button 
-                        onClick={() => alert(`Müşteri detayları: ${customer.name}`)}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => alert(`Müşteri düzenleme: ${customer.name}`)}
-                        className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteCustomer(customer.id)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {format(new Date(customer.created_at), 'dd MMM yyyy', { locale: tr })}
                   </td>
                 </tr>
               ))}
@@ -851,14 +688,18 @@ function App() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Temsilciler</h1>
-          <p className="text-gray-600 dark:text-gray-400">Destek ekibi üyeleri ve performans</p>
+          <p className="text-gray-600 dark:text-gray-400">Destek temsilcileri ve performans</p>
         </div>
+        <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">
+          <Plus className="w-4 h-4 mr-2" />
+          Yeni Temsilci
+        </button>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Temsilci
@@ -870,7 +711,7 @@ function App() {
                   Durum
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Çözülen Talepler
+                  Çözülen
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Performans
@@ -885,16 +726,8 @@ function App() {
                 <tr key={agent.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="relative">
-                        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                          {agent.name.split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-gray-800 ${
-                          agent.status === 'online' ? 'bg-green-500' :
-                          agent.status === 'away' ? 'bg-yellow-500' :
-                          agent.status === 'busy' ? 'bg-red-500' :
-                          'bg-gray-400'
-                        }`}></div>
+                      <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                        {agent.name.split(' ').map(n => n[0]).join('')}
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -906,24 +739,20 @@ function App() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400">
-                      {agent.role}
-                    </span>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {agent.role}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
                       value={agent.status}
                       onChange={(e) => updateAgentStatus(agent.id, e.target.value)}
-                      className={`px-2 py-1 rounded-full text-xs font-medium border-0 focus:ring-2 focus:ring-blue-500 ${
-                        agent.status === 'online' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                        agent.status === 'away' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                        agent.status === 'busy' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
-                        'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                      className={`text-xs font-semibold rounded-full px-2 py-1 border-0 ${
+                        agent.status === 'online' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                        agent.status === 'busy' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
                       }`}
                     >
                       <option value="online">Çevrimiçi</option>
-                      <option value="away">Uzakta</option>
                       <option value="busy">Meşgul</option>
                       <option value="offline">Çevrimdışı</option>
                     </select>
@@ -944,18 +773,12 @@ function App() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
-                      <button 
-                        onClick={() => alert(`Temsilci detayları: ${agent.name}`)}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                      >
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button 
-                        onClick={() => alert(`Temsilci düzenleme: ${agent.name}`)}
-                        className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                      >
+                      <button className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300">
                         <Edit className="w-4 h-4" />
                       </button>
                     </div>
@@ -969,381 +792,153 @@ function App() {
     </div>
   );
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return renderDashboard();
+      case 'tickets':
+        return renderTickets();
+      case 'customers':
+        return renderCustomers();
+      case 'agents':
+        return renderAgents();
+      case 'live-chat':
+        return <LiveChat />;
+      case 'reports':
+        return <ReportsPage />;
+      case 'contact':
+        return <ProfilePage />;
+      case 'settings':
+        return <SettingsPage />;
+      default:
+        return renderDashboard();
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Toaster position="top-right" />
-      
-      {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-lg">
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Destek Merkezi</h1>
+    <div className={`min-h-screen ${darkMode ? 'dark' : ''}`}>
+      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+        {/* Sidebar */}
+        <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+          <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-white" />
+              </div>
+              <div className="ml-3">
+                <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Destek Merkezi</h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Müşteri Hizmetleri</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden p-1 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
-            <button
-              onClick={() => setActiveView('dashboard')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeView === 'dashboard'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <LayoutDashboard className="w-5 h-5 mr-3" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveView('tickets')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeView === 'tickets'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <Ticket className="w-5 h-5 mr-3" />
-              Talepler
-              {tickets.filter(t => t.status === 'open').length > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                  {tickets.filter(t => t.status === 'open').length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveView('customers')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeView === 'customers'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <Users className="w-5 h-5 mr-3" />
-              Müşteriler
-            </button>
-            <button
-              onClick={() => setActiveView('agents')}
-              className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                activeView === 'agents'
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              <UserCheck className="w-5 h-5 mr-3" />
-              Temsilciler
-            </button>
-            <button
-              onClick={() => setShowChatWidget(true)}
-              className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <MessageSquare className="w-5 h-5 mr-3" />
-              Canlı Destek
-            </button>
-          </nav>
-
-          {/* User Profile */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="relative">
-              <button
-                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3">
-                  AD
-                </div>
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-medium">Admin User</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">admin@example.com</div>
-                </div>
-              </button>
-
-              {showProfileDropdown && (
-                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2">
-                  <button 
-                    onClick={() => {
-                      setActiveView('profile');
-                      setShowProfileDropdown(false);
-                    }}
-                    className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
-                  >
-                    <div className="flex items-center">
-                      <User className="w-4 h-4 mr-2" />
-                      Profil
-                    </div>
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setActiveView('settings');
-                      setShowProfileDropdown(false);
-                    }}
-                    className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left"
-                  >
-                    <div className="flex items-center">
-                      <Settings className="w-4 h-4 mr-2" />
-                      Ayarlar
-                    </div>
-                  </button>
+          <nav className="mt-6 px-3">
+            <div className="space-y-1">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                return (
                   <button
+                    key={item.id}
                     onClick={() => {
-                      setShowProfileDropdown(false);
-                      alert('Çıkış yapılıyor...');
+                      setActiveTab(item.id);
+                      setSidebarOpen(false);
                     }}
-                    className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-left border-t border-gray-200 dark:border-gray-600"
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      activeTab === item.id
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
                   >
-                    <div className="flex items-center">
-                      <Settings className="w-4 h-4 mr-2" />
-                      Çıkış Yap
-                    </div>
+                    <Icon className="w-5 h-5 mr-3" />
+                    {item.name}
+                    {item.badge && (
+                      <span className="ml-auto inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between h-16 px-6">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                <div className="ml-4 lg:ml-0">
+                  <div className="relative max-w-md">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Ara..."
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className="p-2 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {darkMode ? '🌞' : '🌙'}
+                </button>
+                
+                <div className="relative">
+                  <button className="p-2 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 relative">
+                    <Bell className="w-5 h-5" />
+                    {notifications.filter(n => !n.is_read).length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+                    )}
                   </button>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="ml-64">
-        {/* Header */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-          <div className="px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {activeView === 'dashboard' && 'Dashboard'}
-                  {activeView === 'tickets' && 'Talepler'}
-                  {activeView === 'customers' && 'Müşteriler'}
-                  {activeView === 'agents' && 'Temsilciler'}
-                  {activeView === 'profile' && 'Profil'}
-                  {activeView === 'settings' && 'Ayarlar'}
-                </h2>
-              </div>
-              <div className="flex items-center space-x-4">
-                <button className="relative p-2 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300">
-                  <Bell className="w-6 h-6" />
-                  {notifications.filter(n => !n.read).length > 0 && (
-                    <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400 ring-2 ring-white dark:ring-gray-800"></span>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Page Content */}
-        <main className="p-6">
-          {activeView === 'dashboard' && renderDashboard()}
-          {activeView === 'tickets' && renderTickets()}
-          {activeView === 'customers' && renderCustomers()}
-          {activeView === 'agents' && renderAgents()}
-          {activeView === 'profile' && <ProfilePage />}
-          {activeView === 'settings' && <SettingsPage />}
-        </main>
-      </div>
-
-      {/* New Ticket Modal */}
-      {showNewTicketModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Talep Oluştur</h3>
-              <button
-                onClick={() => setShowNewTicketModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Başlık
-                </label>
-                <input
-                  type="text"
-                  value={newTicket.title}
-                  onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Açıklama
-                </label>
-                <textarea
-                  value={newTicket.description}
-                  onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Müşteri
-                </label>
-                <select
-                  value={newTicket.customer_id}
-                  onChange={(e) => setNewTicket({ ...newTicket, customer_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Müşteri seçin</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Öncelik
-                  </label>
-                  <select
-                    value={newTicket.priority}
-                    onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="low">Düşük</option>
-                    <option value="medium">Orta</option>
-                    <option value="high">Yüksek</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Kategori
-                  </label>
-                  <select
-                    value={newTicket.category}
-                    onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="general">Genel</option>
-                    <option value="technical">Teknik</option>
-                    <option value="billing">Faturalama</option>
-                    <option value="feature">Özellik Talebi</option>
-                  </select>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span className="text-sm font-semibold text-white">AU</span>
+                  </div>
+                  <div className="hidden sm:block">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Admin User</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">admin@company.com</p>
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowNewTicketModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                İptal
-              </button>
-              <button
-                onClick={handleCreateTicket}
-                disabled={!newTicket.title || !newTicket.customer_id}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-lg"
-              >
-                Oluştur
-              </button>
-            </div>
-          </div>
+          </header>
+
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto p-6">
+            {renderContent()}
+          </main>
         </div>
+      </div>
+
+      {/* Overlay for mobile sidebar */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        ></div>
       )}
 
-      {/* New Customer Modal */}
-      {showNewCustomerModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Müşteri Ekle</h3>
-              <button
-                onClick={() => setShowNewCustomerModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Ad Soyad *
-                </label>
-                <input
-                  type="text"
-                  value={newCustomer.name}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  E-posta *
-                </label>
-                <input
-                  type="email"
-                  value={newCustomer.email}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Telefon
-                </label>
-                <input
-                  type="tel"
-                  value={newCustomer.phone}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Şirket
-                </label>
-                <input
-                  type="text"
-                  value={newCustomer.company}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Plan
-                </label>
-                <select
-                  value={newCustomer.plan}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, plan: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="basic">Temel</option>
-                  <option value="premium">Premium</option>
-                  <option value="enterprise">Kurumsal</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowNewCustomerModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600"
-              >
-                İptal
-              </button>
-              <button
-                onClick={handleCreateCustomer}
-                disabled={!newCustomer.name || !newCustomer.email}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 rounded-lg"
-              >
-                Ekle
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Live Chat Widget */}
-      <LiveChat
-        isOpen={showChatWidget}
-        onClose={() => setShowChatWidget(false)}
-        onMinimize={() => setIsChatMinimized(!isChatMinimized)}
-        isMinimized={isChatMinimized}
-      />
+      <Toaster position="top-right" />
     </div>
   );
 }
