@@ -15,11 +15,15 @@ import {
   Activity,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Users,
+  ShoppingCart,
+  Award,
+  Target
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
 interface CustomerProfileProps {
   customerId: string;
@@ -43,6 +47,9 @@ interface CustomerData {
   resolved_tickets: number;
   pending_tickets: number;
   avatar_url?: string;
+  subscription_months: number;
+  purchase_journey: string[];
+  assigned_agents: string[];
 }
 
 interface Ticket {
@@ -52,6 +59,8 @@ interface Ticket {
   priority: 'low' | 'medium' | 'high';
   created_at: string;
   resolved_at?: string;
+  agent_name?: string;
+  category: string;
 }
 
 interface Payment {
@@ -60,6 +69,7 @@ interface Payment {
   status: 'paid' | 'pending' | 'failed';
   date: string;
   invoice_number: string;
+  plan: string;
 }
 
 interface ActivityLog {
@@ -67,7 +77,15 @@ interface ActivityLog {
   action: string;
   description: string;
   timestamp: string;
-  type: 'login' | 'payment' | 'ticket' | 'feature_usage';
+  type: 'login' | 'payment' | 'ticket' | 'feature_usage' | 'plan_change';
+}
+
+interface SupportAgent {
+  id: string;
+  name: string;
+  avatar: string;
+  tickets_handled: number;
+  avg_response_time: string;
 }
 
 const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack }) => {
@@ -89,7 +107,10 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
     satisfaction_score: 4.2,
     total_tickets: 12,
     resolved_tickets: 10,
-    pending_tickets: 2
+    pending_tickets: 2,
+    subscription_months: 7,
+    purchase_journey: ['Free Trial', 'Basic Plan', 'Pro Plan'],
+    assigned_agents: ['Ayşe Kaya', 'Mehmet Demir', 'Fatma Şahin']
   };
 
   const tickets: Ticket[] = [
@@ -99,21 +120,46 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
       status: 'resolved',
       priority: 'high',
       created_at: '2025-01-08',
-      resolved_at: '2025-01-09'
+      resolved_at: '2025-01-09',
+      agent_name: 'Ayşe Kaya',
+      category: 'Teknik'
     },
     {
       id: '2',
       title: 'Fatura ile ilgili soru',
       status: 'in_progress',
       priority: 'medium',
-      created_at: '2025-01-10'
+      created_at: '2025-01-10',
+      agent_name: 'Mehmet Demir',
+      category: 'Faturalama'
     },
     {
       id: '3',
       title: 'Yeni özellik talebi',
       status: 'open',
       priority: 'low',
-      created_at: '2025-01-11'
+      created_at: '2025-01-11',
+      category: 'Özellik'
+    },
+    {
+      id: '4',
+      title: 'Hesap erişim sorunu',
+      status: 'resolved',
+      priority: 'high',
+      created_at: '2024-12-20',
+      resolved_at: '2024-12-20',
+      agent_name: 'Fatma Şahin',
+      category: 'Hesap'
+    },
+    {
+      id: '5',
+      title: 'Entegrasyon desteği',
+      status: 'resolved',
+      priority: 'medium',
+      created_at: '2024-11-15',
+      resolved_at: '2024-11-16',
+      agent_name: 'Ayşe Kaya',
+      category: 'Teknik'
     }
   ];
 
@@ -123,21 +169,32 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
       amount: 299.99,
       status: 'paid',
       date: '2024-12-15',
-      invoice_number: 'INV-2024-012'
+      invoice_number: 'INV-2024-012',
+      plan: 'Pro Plan'
     },
     {
       id: '2',
       amount: 299.99,
       status: 'pending',
       date: '2025-01-15',
-      invoice_number: 'INV-2025-001'
+      invoice_number: 'INV-2025-001',
+      plan: 'Pro Plan'
     },
     {
       id: '3',
-      amount: 299.99,
-      status: 'failed',
+      amount: 199.99,
+      status: 'paid',
       date: '2024-11-15',
-      invoice_number: 'INV-2024-011'
+      invoice_number: 'INV-2024-011',
+      plan: 'Basic Plan'
+    },
+    {
+      id: '4',
+      amount: 199.99,
+      status: 'paid',
+      date: '2024-10-15',
+      invoice_number: 'INV-2024-010',
+      plan: 'Basic Plan'
     }
   ];
 
@@ -162,18 +219,68 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
       description: 'Yeni destek talebi oluşturuldu',
       timestamp: '2025-01-08T16:45:00Z',
       type: 'ticket'
+    },
+    {
+      id: '4',
+      action: 'Plan Yükseltildi',
+      description: 'Basic\'ten Pro plana yükseltildi',
+      timestamp: '2024-09-01T12:00:00Z',
+      type: 'plan_change'
+    },
+    {
+      id: '5',
+      action: 'Özellik Kullanıldı',
+      description: 'Analitik raporları görüntülendi',
+      timestamp: '2025-01-09T09:20:00Z',
+      type: 'feature_usage'
+    }
+  ];
+
+  const supportAgents: SupportAgent[] = [
+    {
+      id: '1',
+      name: 'Ayşe Kaya',
+      avatar: 'AK',
+      tickets_handled: 4,
+      avg_response_time: '2.5 saat'
+    },
+    {
+      id: '2',
+      name: 'Mehmet Demir',
+      avatar: 'MD',
+      tickets_handled: 3,
+      avg_response_time: '1.8 saat'
+    },
+    {
+      id: '3',
+      name: 'Fatma Şahin',
+      avatar: 'FŞ',
+      tickets_handled: 2,
+      avg_response_time: '3.2 saat'
     }
   ];
 
   // Aylık kullanım verileri
   const usageData = [
-    { month: 'Tem', logins: 45, tickets: 2, payments: 1 },
-    { month: 'Ağu', logins: 52, tickets: 1, payments: 1 },
-    { month: 'Eyl', logins: 38, tickets: 3, payments: 1 },
-    { month: 'Eki', logins: 41, tickets: 1, payments: 0 },
-    { month: 'Kas', logins: 35, tickets: 2, payments: 1 },
-    { month: 'Ara', logins: 48, tickets: 3, payments: 1 }
+    { month: 'Tem', logins: 45, tickets: 2, payments: 1, features_used: 12 },
+    { month: 'Ağu', logins: 52, tickets: 1, payments: 1, features_used: 15 },
+    { month: 'Eyl', logins: 38, tickets: 3, payments: 1, features_used: 18 },
+    { month: 'Eki', logins: 41, tickets: 1, payments: 0, features_used: 14 },
+    { month: 'Kas', logins: 35, tickets: 2, payments: 1, features_used: 16 },
+    { month: 'Ara', logins: 48, tickets: 3, payments: 1, features_used: 20 }
   ];
+
+  // Talep kategorileri dağılımı
+  const ticketCategories = tickets.reduce((acc, ticket) => {
+    acc[ticket.category] = (acc[ticket.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const ticketCategoryData = Object.entries(ticketCategories).map(([category, count]) => ({
+    name: category,
+    value: count,
+    color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][Math.floor(Math.random() * 5)]
+  }));
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -221,11 +328,21 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
     }
   };
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+      case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    }
+  };
+
   const tabs = [
     { id: 'overview', name: 'Genel Bakış', icon: User },
     { id: 'tickets', name: 'Talepler', icon: MessageSquare },
     { id: 'payments', name: 'Ödemeler', icon: CreditCard },
-    { id: 'activity', name: 'Aktivite', icon: Activity }
+    { id: 'activity', name: 'Aktivite', icon: Activity },
+    { id: 'support-team', name: 'Destek Ekibi', icon: Users }
   ];
 
   return (
@@ -235,9 +352,9 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
         <div className="flex items-center gap-4">
           <button
             onClick={onBack}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
-            ←
+            ← Geri
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Müşteri Profili</h1>
@@ -283,7 +400,7 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
               <Mail className="w-4 h-4 text-gray-400 mr-2" />
@@ -310,17 +427,24 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
               <Clock className="w-4 h-4 text-gray-400 mr-2" />
-              <span className="text-sm text-gray-600 dark:text-gray-400">Son Giriş</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Kullanım Süresi</span>
             </div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">
-              {format(new Date(customerData.last_login), 'dd MMM yyyy', { locale: tr })}
+              {customerData.subscription_months} ay
             </p>
+          </div>
+          <div className="text-center">
+            <div className="flex items-center justify-center mb-2">
+              <Target className="w-4 h-4 text-gray-400 mr-2" />
+              <span className="text-sm text-gray-600 dark:text-gray-400">Plan</span>
+            </div>
+            <p className="text-sm font-medium text-blue-600 dark:text-blue-400">{customerData.plan}</p>
           </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
@@ -372,6 +496,40 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
             </div>
           </div>
         </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Satın Alma Aşaması</p>
+              <p className="text-lg font-bold text-orange-600 mt-2">{customerData.purchase_journey.length} Adım</p>
+            </div>
+            <div className="bg-orange-100 dark:bg-orange-900/20 p-3 rounded-lg">
+              <ShoppingCart className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Purchase Journey */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Satın Alma Süreci</h3>
+        <div className="flex items-center space-x-4">
+          {customerData.purchase_journey.map((step, index) => (
+            <div key={index} className="flex items-center">
+              <div className="flex items-center">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
+                  {index + 1}
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{step}</p>
+                </div>
+              </div>
+              {index < customerData.purchase_journey.length - 1 && (
+                <div className="w-8 h-0.5 bg-gray-300 dark:bg-gray-600 mx-4"></div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -414,28 +572,58 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
                     <Tooltip />
                     <Line type="monotone" dataKey="logins" stroke="#3b82f6" name="Giriş Sayısı" />
                     <Line type="monotone" dataKey="tickets" stroke="#ef4444" name="Talep Sayısı" />
+                    <Line type="monotone" dataKey="features_used" stroke="#10b981" name="Kullanılan Özellik" />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
 
-              {/* Quick Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">Plan Bilgisi</h4>
-                  <p className="text-2xl font-bold text-blue-600">{customerData.plan}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Aktif Plan</p>
+              {/* Ticket Categories */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Talep Kategorileri
+                  </h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={ticketCategoryData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                        label={({ name, value }) => `${name}: ${value}`}
+                      >
+                        {ticketCategoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">Bekleyen Talepler</h4>
-                  <p className="text-2xl font-bold text-orange-600">{customerData.pending_tickets}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Açık Talep</p>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">Müşteri Süresi</h4>
-                  <p className="text-2xl font-bold text-green-600">
-                    {Math.floor((new Date().getTime() - new Date(customerData.created_at).getTime()) / (1000 * 60 * 60 * 24))} gün
-                  </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Toplam Süre</p>
+
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Özet İstatistikler</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Ortalama Yanıt Süresi</h4>
+                      <p className="text-2xl font-bold text-blue-600">2.1 saat</p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Bekleyen Talepler</h4>
+                      <p className="text-2xl font-bold text-orange-600">{customerData.pending_tickets}</p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Son Giriş</h4>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {format(new Date(customerData.last_login), 'dd MMM yyyy', { locale: tr })}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 dark:text-white mb-2">Aktif Plan</h4>
+                      <p className="text-lg font-bold text-green-600">{customerData.plan}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -443,34 +631,46 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
 
           {activeTab === 'tickets' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Destek Talepleri</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Destek Talepleri</h3>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Toplam {tickets.length} talep
+                </div>
+              </div>
               <div className="space-y-3">
                 {tickets.map((ticket) => (
                   <div key={ticket.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center">
                         {getTicketStatusIcon(ticket.status)}
                         <div className="ml-3">
                           <h4 className="font-medium text-gray-900 dark:text-white">{ticket.title}</h4>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
                             {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}
+                            {ticket.agent_name && ` • ${ticket.agent_name}`}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          ticket.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
-                          ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                          'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                        }`}>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
                           {ticket.priority === 'high' ? 'Yüksek' : ticket.priority === 'medium' ? 'Orta' : 'Düşük'}
                         </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400 capitalize">
-                          {ticket.status === 'open' ? 'Açık' : 
-                           ticket.status === 'in_progress' ? 'İşlemde' :
-                           ticket.status === 'resolved' ? 'Çözüldü' : 'Kapalı'}
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                          {ticket.category}
                         </span>
                       </div>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      Durum: <span className="font-medium">
+                        {ticket.status === 'open' ? 'Açık' : 
+                         ticket.status === 'in_progress' ? 'İşlemde' :
+                         ticket.status === 'resolved' ? 'Çözüldü' : 'Kapalı'}
+                      </span>
+                      {ticket.resolved_at && (
+                        <span className="ml-4">
+                          Çözüm Tarihi: {format(new Date(ticket.resolved_at), 'dd MMM yyyy', { locale: tr })}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -480,7 +680,12 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
 
           {activeTab === 'payments' && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Ödeme Geçmişi</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Ödeme Geçmişi</h3>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Toplam {payments.length} ödeme
+                </div>
+              </div>
               <div className="space-y-3">
                 {payments.map((payment) => (
                   <div key={payment.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
@@ -492,7 +697,7 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
                             {payment.invoice_number}
                           </h4>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {format(new Date(payment.date), 'dd MMM yyyy', { locale: tr })}
+                            {format(new Date(payment.date), 'dd MMM yyyy', { locale: tr })} • {payment.plan}
                           </p>
                         </div>
                       </div>
@@ -526,11 +731,13 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
                         log.type === 'login' ? 'bg-blue-100 dark:bg-blue-900/20' :
                         log.type === 'payment' ? 'bg-green-100 dark:bg-green-900/20' :
                         log.type === 'ticket' ? 'bg-orange-100 dark:bg-orange-900/20' :
+                        log.type === 'plan_change' ? 'bg-purple-100 dark:bg-purple-900/20' :
                         'bg-gray-100 dark:bg-gray-900/20'
                       }`}>
                         {log.type === 'login' ? <User className="w-4 h-4 text-blue-600" /> :
                          log.type === 'payment' ? <DollarSign className="w-4 h-4 text-green-600" /> :
                          log.type === 'ticket' ? <MessageSquare className="w-4 h-4 text-orange-600" /> :
+                         log.type === 'plan_change' ? <Award className="w-4 h-4 text-purple-600" /> :
                          <Activity className="w-4 h-4 text-gray-600" />}
                       </div>
                       <div className="flex-1">
@@ -539,6 +746,37 @@ const CustomerProfile: React.FC<CustomerProfileProps> = ({ customerId, onBack })
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                           {format(new Date(log.timestamp), 'dd MMM yyyy HH:mm', { locale: tr })}
                         </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'support-team' && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Destek Veren Ekip</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {supportAgents.map((agent) => (
+                  <div key={agent.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                    <div className="flex items-center mb-3">
+                      <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                        {agent.avatar}
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="font-medium text-gray-900 dark:text-white">{agent.name}</h4>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Destek Temsilcisi</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Çözülen Talepler:</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{agent.tickets_handled}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Ort. Yanıt Süresi:</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{agent.avg_response_time}</span>
                       </div>
                     </div>
                   </div>

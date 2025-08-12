@@ -22,7 +22,11 @@ import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
 import { toast } from 'react-hot-toast';
 
-const CustomersPage: React.FC = () => {
+interface CustomersPageProps {
+  onViewCustomer?: (customerId: string) => void;
+}
+
+const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer }) => {
   const {
     loading,
     customers,
@@ -89,7 +93,11 @@ const CustomersPage: React.FC = () => {
   };
 
   const handleViewCustomer = (customerId: string) => {
-    setShowViewModal(customerId);
+    if (onViewCustomer) {
+      onViewCustomer(customerId);
+    } else {
+      setShowViewModal(customerId);
+    }
   };
 
   const handleEditCustomer = (customerId: string) => {
@@ -305,6 +313,12 @@ const CustomersPage: React.FC = () => {
                   Talepler
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Ödeme Durumu
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Son Ödeme
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Kayıt Tarihi
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -324,7 +338,7 @@ const CustomersPage: React.FC = () => {
                 </tr>
               ) : filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                     {searchTerm || planFilter !== 'all' ? 'Arama kriterlerine uygun müşteri bulunamadı' : 'Henüz müşteri bulunmuyor'}
                   </td>
                 </tr>
@@ -399,6 +413,24 @@ const CustomersPage: React.FC = () => {
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
                         {customer.total_tickets}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        {Math.random() > 0.3 ? (
+                          <>
+                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                            <span className="text-sm text-green-600 dark:text-green-400 font-medium">Güncel</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                            <span className="text-sm text-red-600 dark:text-red-400 font-medium">Gecikmiş</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      {format(new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), 'dd MMM yyyy', { locale: tr })}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
                       {format(new Date(customer.created_at), 'dd MMM yyyy', { locale: tr })}

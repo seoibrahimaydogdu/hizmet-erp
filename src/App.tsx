@@ -27,9 +27,11 @@ import ProfilePage from './components/ProfilePage';
 import PaymentTracking from './components/PaymentTracking';
 import ChurnAnalysis from './components/ChurnAnalysis';
 import CustomerProfile from './components/CustomerProfile';
+import CustomerProfile from './components/CustomerProfile';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
@@ -46,6 +48,19 @@ function App() {
   ];
 
   const renderContent = () => {
+    // Müşteri profili sayfası için özel kontrol
+    if (currentPage === 'customer-profile' && selectedCustomerId) {
+      return (
+        <CustomerProfile 
+          customerId={selectedCustomerId} 
+          onBack={() => {
+            setCurrentPage('customers');
+            setSelectedCustomerId(null);
+          }} 
+        />
+      );
+    }
+
     switch (currentPage) {
       case 'dashboard':
         return (
@@ -152,7 +167,14 @@ function App() {
       case 'tickets':
         return <TicketsPage />;
       case 'customers':
-        return <CustomersPage />;
+        return (
+          <CustomersPage 
+            onViewCustomer={(customerId: string) => {
+              setSelectedCustomerId(customerId);
+              setCurrentPage('customer-profile');
+            }} 
+          />
+        );
       case 'agents':
         return <AgentsPage />;
       case 'payment-tracking':
