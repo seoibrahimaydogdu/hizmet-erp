@@ -1,573 +1,227 @@
 import React, { useState } from 'react';
-import { useSupabase } from '../hooks/useSupabase';
-import { toast } from 'react-hot-toast';
-import { 
-  Download, 
-  Filter, 
-  Calendar,
-  TrendingUp,
-  TrendingDown,
-  MessageSquare,
-  CheckCircle,
-  Clock,
-  Users,
-  Star,
-  UserCheck,
-  AlertCircle
-} from 'lucide-react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  Area,
-  AreaChart
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Download, MessageSquare, CheckCircle, Clock, Star, Users, AlertCircle } from 'lucide-react';
 
-const ReportsPage: React.FC = () => {
-  const {
-    loading,
-    tickets,
-    customers,
-    agents,
-    fetchTickets,
-    fetchCustomers,
-    fetchAgents
-  } = useSupabase();
+const ReportsPage = () => {
+  // Sample data for charts
+  const weeklyData = [
+    { name: 'Pzt', tickets: 12, resolved: 10 },
+    { name: 'Sal', tickets: 19, resolved: 15 },
+    { name: 'Çar', tickets: 15, resolved: 12 },
+    { name: 'Per', tickets: 22, resolved: 18 },
+    { name: 'Cum', tickets: 18, resolved: 16 },
+    { name: 'Cmt', tickets: 8, resolved: 7 },
+    { name: 'Paz', tickets: 5, resolved: 4 }
+  ];
 
-  const [isExporting, setIsExporting] = useState(false);
+  const categoryData = [
+    { name: 'Teknik', value: 35, color: '#3b82f6' },
+    { name: 'Faturalandırma', value: 25, color: '#10b981' },
+    { name: 'Genel', value: 20, color: '#f59e0b' },
+    { name: 'Hesap', value: 20, color: '#ef4444' }
+  ];
 
-  // Rapor türüne göre istatistikleri hesapla
-  const calculateStats = () => {
-    const totalTickets = tickets.length;
-    const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
-    const openTickets = tickets.filter(t => t.status === 'open').length;
-    const inProgressTickets = tickets.filter(t => t.status === 'in_progress').length;
-    const activeAgents = agents.filter(a => a.status === 'online').length;
-    
-    // Ortalama yanıt süresi hesaplama (örnek)
-    const avgResponseTime = totalTickets > 0 ? '2.1 saat' : '0 saat';
-    
-    // Müşteri memnuniyeti ortalaması
-    const avgSatisfaction = customers.length > 0 
-      ? (customers.reduce((sum, c) => sum + c.satisfaction_score, 0) / customers.length).toFixed(1)
-      : '0';
+  const topAgents = [
+    { name: 'Ahmet Yılmaz', resolved: 45, rating: 4.8 },
+    { name: 'Ayşe Kaya', resolved: 38, rating: 4.7 },
+    { name: 'Mehmet Demir', resolved: 32, rating: 4.6 },
+    { name: 'Fatma Şahin', resolved: 28, rating: 4.5 }
+  ];
 
-    return {
-      totalTickets,
-      resolvedTickets,
-      openTickets,
-      inProgressTickets,
-      activeAgents,
-      avgResponseTime,
-      avgSatisfaction
-    };
-  };
+  // Calculate stats
+  const totalTickets = weeklyData.reduce((sum, day) => sum + day.tickets, 0);
+  const totalResolved = weeklyData.reduce((sum, day) => sum + day.resolved, 0);
+  const resolutionRate = Math.round((totalResolved / totalTickets) * 100);
+  const avgResponseTime = 2.5;
+  const customerSatisfaction = 4.2;
+  const activeAgents = 12;
+  const pendingTickets = totalTickets - totalResolved;
 
-  const stats = calculateStats();
+  const stats = [
+    {
+      title: 'Toplam Talepler',
+      value: totalTickets.toString(),
+      change: '+12%',
+      trend: 'up',
+      icon: MessageSquare,
+      color: 'bg-blue-500'
+    },
+    {
+      title: 'Çözülen Talepler',
+      value: totalResolved.toString(),
+      change: '+8%',
+      trend: 'up',
+      icon: CheckCircle,
+      color: 'bg-green-500'
+    },
+    {
+      title: 'Ortalama Yanıt Süresi',
+      value: `${avgResponseTime}s`,
+      change: '-15 dk',
+      trend: 'down',
+      icon: Clock,
+      color: 'bg-orange-500'
+    },
+    {
+      title: 'Müşteri Memnuniyeti',
+      value: customerSatisfaction.toString(),
+      change: '+0.3',
+      trend: 'up',
+      icon: Star,
+      color: 'bg-purple-500'
+    },
+    {
+      title: 'Aktif Temsilciler',
+      value: activeAgents.toString(),
+      change: '+2',
+      trend: 'up',
+      icon: Users,
+      color: 'bg-indigo-500'
+    },
+    {
+      title: 'Bekleyen Talepler',
+      value: pendingTickets.toString(),
+      change: '-5',
+      trend: 'down',
+      icon: AlertCircle,
+      color: 'bg-red-500'
+    }
+  ];
 
-  // Gerçek verilerden haftalık trend oluştur
-  const generateWeeklyData = () => {
-    const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-    const now = new Date();
-    
-    return days.map((day, index) => {
-      const date = new Date(now);
-      date.setDate(date.getDate() - (6 - index));
-      
-      const dayTickets = tickets.filter(ticket => {
-        const ticketDate = new Date(ticket.created_at);
-        return ticketDate.toDateString() === date.toDateString();
-      });
-      
-      const resolvedToday = dayTickets.filter(t => t.status === 'resolved').length;
-      
-      return {
-        name: day,
-        gelen: dayTickets.length,
-        cozulen: resolvedToday
-      };
-    });
-  };
-
-  const weeklyData = generateWeeklyData();
-
-  // Gerçek verilerden kategori dağılımı oluştur
-  const generateCategoryData = () => {
-    const categories = {
-      'Teknik
-} Destek': { count: 0, color: '#3B82F6' },
-      'İade/Değişim': { count: 0, color: '#10B981' },
-      'Sipariş': { count: 0, color: '#F59E0B' },
-      'Kargo': { count: 0, color: '#EF4444' },
-      'Ödeme': { count: 0, color: '#8B5CF6' },
-      'Genel': { count: 0, color: '#6B7280' }
+  const handleExportReport = () => {
+    const reportData = {
+      generatedAt: new Date().toISOString(),
+      period: 'Son 7 Gün',
+      stats: {
+        totalTickets,
+        totalResolved,
+        resolutionRate,
+        avgResponseTime,
+        customerSatisfaction,
+        activeAgents,
+        pendingTickets
+      },
+      weeklyData,
+      categoryData,
+      topAgents
     };
 
-    tickets.forEach(ticket => {
-      const category = ticket.category || 'general';
-      const categoryName = category === 'technical' ? 'Teknik Destek' :
-                          category === 'billing' ? 'Ödeme' :
-                          category === 'support' ? 'İade/Değişim' :
-                          'Genel';
-      
-      if (categories[categoryName]) {
-        categories[categoryName].count++;
-      } else {
-        categories['Genel'].count++;
-      }
-    });
-
-    return Object.entries(categories)
-      .filter(([_, data]) => data.count > 0)
-      .map(([name, data]) => ({
-        name,
-        value: data.count,
-        color: data.color
-      }));
-  };
-
-  const categoryData = generateCategoryData();
-
-  // Gerçek verilerden temsilci performansı oluştur
-  const generateAgentPerformance = () => {
-    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+    const dataStr = JSON.stringify(reportData, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     
-    return agents.slice(0, 4).map((agent, index) => {
-      const agentTickets = tickets.filter(t => t.agent_id === agent.id);
-      const solvedTickets = agentTickets.filter(t => t.status === 'resolved').length;
-      
-      return {
-        name: agent.name,
-        avatar: agent.name.split(' ').map(n => n[0]).join(''),
-        solved: solvedTickets,
-        rating: (4.5 + Math.random() * 0.5).toFixed(1),
-        color: colors[index % colors.length]
-      };
-    });
-  };
-
-  const agentPerformance = generateAgentPerformance();
-
-  const statsCards = [
-        {
-          title: 'Toplam Talepler',
-          value: stats.totalTickets.toString(),
-          change: '+12%',
-          trend: 'up',
-          icon: MessageSquare,
-          color: 'blue'
-        },
-        {
-          title: 'Çözülen Talepler',
-          value: stats.resolvedTickets.toString(),
-          change: '+8%',
-          trend: 'up',
-          icon: CheckCircle,
-          color: 'green'
-        },
-        {
-          title: 'Aktif Temsilciler',
-          value: stats.activeAgents.toString(),
-          change: '0',
-          trend: 'neutral',
-          icon: UserCheck,
-          color: 'indigo'
-        },
-        {
-          title: 'Ortalama Çözüm',
-          value: filteredAgents.length > 0 ? Math.round(stats.resolvedTickets / filteredAgents.length).toString() : '0',
-          change: '+2',
-          trend: 'up',
-          icon: Star,
-          color: 'purple'
-        }
-      ];
-    } else if (reportType === 'customer_satisfaction') {
-      return [
-        {
-          title: 'Müşteri Memnuniyeti',
-          value: stats.avgSatisfaction,
-          change: '+0.3',
-          trend: 'up',
-          icon: Star,
-          color: 'purple'
-        },
-        {
-          title: 'Toplam Müşteri',
-          value: filteredCustomers.length.toString(),
-          change: '+5',
-          trend: 'up',
-          icon: Users,
-          color: 'indigo'
-        },
-        {
-          title: 'Ortalama Yanıt Süresi',
-          value: stats.avgResponseTime,
-          change: '-10 dk',
-          trend: 'down',
-          icon: Clock,
-          color: 'orange'
-        },
-        {
-          title: 'Memnun Müşteri Oranı',
-          value: filteredCustomers.length > 0 ? 
-            Math.round((filteredCustomers.filter(c => c.satisfaction_score >= 4).length / filteredCustomers.length) * 100) + '%' : '0%',
-          change: '+5%',
-          trend: 'up',
-          icon: CheckCircle,
-          color: 'green'
-        }
-      ];
-    } else if (reportType === 'category_analysis') {
-      return [
-        {
-          title: 'Toplam Kategori',
-          value: categoryData.length.toString(),
-          change: '0',
-          trend: 'neutral',
-          icon: MessageSquare,
-          color: 'blue'
-        },
-        {
-          title: 'En Popüler Kategori',
-          value: categoryData.length > 0 ? categoryData.reduce((prev, current) => (prev.value > current.value) ? prev : current).name : 'Yok',
-          change: '+15%',
-          trend: 'up',
-          icon: TrendingUp,
-          color: 'green'
-        },
-        {
-          title: 'Kategori Başına Ortalama',
-          value: categoryData.length > 0 ? Math.round(stats.totalTickets / categoryData.length).toString() : '0',
-          change: '+3',
-          trend: 'up',
-          icon: Star,
-          color: 'purple'
-        },
-        {
-          title: 'Çözüm Oranı',
-          value: stats.totalTickets > 0 ? Math.round((stats.resolvedTickets / stats.totalTickets) * 100) + '%' : '0%',
-          change: '+8%',
-          trend: 'up',
-          icon: CheckCircle,
-          color: 'indigo'
-        }
-      ];
-    } else {
-      // Genel Bakış
-      return [
-        {
-          title: 'Toplam Talepler',
-          value: stats.totalTickets.toString(),
-          change: '+12%',
-          trend: 'up',
-          icon: MessageSquare,
-          color: 'blue'
-        },
-        {
-          title: 'Çözülen Talepler',
-          value: stats.resolvedTickets.toString(),
-          change: '+8%',
-          trend: 'up',
-          icon: CheckCircle,
-          color: 'green'
-        },
-        {
-          title: 'Ortalama Yanıt Süresi',
-          value: stats.avgResponseTime,
-          change: '-15 dk',
-          trend: 'down',
-          icon: Clock,
-          color: 'orange'
-        },
-        {
-          title: 'Müşteri Memnuniyeti',
-          value: stats.avgSatisfaction,
-          change: '+0.3',
-          trend: 'up',
-          icon: Star,
-          color: 'purple'
-        },
-        {
-          title: 'Aktif Temsilciler',
-          value: stats.activeAgents.toString(),
-          change: '0',
-          trend: 'neutral',
-          icon: UserCheck,
-          color: 'indigo'
-        },
-        {
-          title: 'Bekleyen Talepler',
-          value: stats.openTickets.toString(),
-          change: '-5',
-          trend: 'down',
-          icon: AlertCircle,
-          color: 'yellow'
-        }
-      ];
-    }
-  };
-
-  const statsCards = getStatsCards();
-
-  // Rapor başlığını dinamik yap
-  const getReportTitle = () => {
-    switch (reportType) {
-      case 'agent_performance':
-        return 'Temsilci Performans Raporu';
-
-  React.useEffect(() => {
-    fetchTickets();
-    fetchCustomers();
-    fetchAgents();
-  }, []);
-
-  const getStatColor = (color: string) => {
-    const colors = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      orange: 'bg-orange-500',
-      purple: 'bg-purple-500',
-      indigo: 'bg-indigo-500',
-      yellow: 'bg-yellow-500'
-    };
-    return colors[color as keyof typeof colors] || 'bg-gray-500';
-  };
-
-  const getTrendColor = (trend: string) => {
-    switch (trend) {
-      case 'up': return 'text-green-600';
-      case 'down': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
-
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'up': return <TrendingUp className="w-4 h-4" />;
-      case 'down': return <TrendingDown className="w-4 h-4" />;
-      default: return null;
-    }
-  };
-
-  const handleExport = async () => {
-    setIsExporting(true);
-    try {
-      // Rapor verilerini hazırla
-      const reportData = {
-        date: new Date().toISOString(),
-        reportType: 'Genel Bakış Raporu',
-        stats: statsCards,
-        weeklyData,
-        categoryData,
-        agentPerformance,
-        totalTickets: tickets.length,
-        totalCustomers: customers.length,
-        totalAgents: agents.length
-      };
-
-      // JSON formatında indir
-      const dataStr = JSON.stringify(reportData, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `rapor_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast.success('Rapor başarıyla indirildi!');
-    } catch (error) {
-      toast.error('Rapor indirme başarısız');
-      console.error('Export error:', error);
-    } finally {
-      setIsExporting(false);
-    }
+    const exportFileDefaultName = `destek-raporu-${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Raporlar ve Analitik</h1>
-          <p className="text-gray-600 dark:text-gray-400">Destek sistemi performans raporları</p>
+          <h1 className="text-3xl font-bold text-gray-900">Raporlar ve Analitik</h1>
+          <p className="text-gray-600 mt-2">Destek sistemi performans raporları</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {isExporting ? 'İndiriliyor...' : 'Rapor İndir'}
-          </button>
-        </div>
-      </div>
-
-      {/* Report Title */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
-        <h2 className="text-xl font-bold mb-2">Genel Bakış Raporu</h2>
-        <p className="opacity-90">Tüm sistem verilerinin genel analizi</p>
+        <button
+          onClick={handleExportReport}
+          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          Rapor İndir
+        </button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsCards.map((stat, index) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 ${getStatColor(stat.color)} rounded-lg flex items-center justify-center`}>
+            <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-2">{stat.value}</p>
+                  <div className="flex items-center mt-2">
+                    <span className={`text-sm font-medium ${
+                      stat.trend === 'up' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {stat.trend === 'up' ? '↗' : '↘'} {stat.change}
+                    </span>
+                  </div>
+                </div>
+                <div className={`${stat.color} p-3 rounded-lg`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>
-                <div className={`flex items-center gap-1 text-sm font-medium ${getTrendColor(stat.trend)}`}>
-                  {getTrendIcon(stat.trend)}
-                  <span>{stat.change}</span>
-                </div>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{stat.value}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{stat.title}</p>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Trend Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Haftalık Talep Trendi</h3>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <span className="text-gray-600 dark:text-gray-400">Gelen Talepler</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-gray-600 dark:text-gray-400">Çözülen Talepler</span>
-              </div>
-            </div>
-          </div>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              {weeklyData.length > 0 ? (
-                <BarChart data={weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
-                  <XAxis 
-                    dataKey="name" 
-                    stroke="#6B7280"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    stroke="#6B7280"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: '#1F2937',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: '#F9FAFB'
-                    }}
-                  />
-                  <Bar dataKey="gelen" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="cozulen" fill="#10B981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                  Henüz veri bulunmuyor
-                </div>
-              )}
-            </ResponsiveContainer>
-          </div>
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Weekly Trend */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Haftalık Trend</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={weeklyData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="tickets" fill="#3b82f6" name="Toplam Talepler" />
+              <Bar dataKey="resolved" fill="#10b981" name="Çözülen" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Category Distribution */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Kategori Dağılımı</h3>
-          <div className="space-y-4">
-            {categoryData.length > 0 ? categoryData.map((category, index) => (
-              <div key={index} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: category.color }}
-                  ></div>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {category.name}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div 
-                      className="h-2 rounded-full"
-                      style={{ 
-                        backgroundColor: category.color,
-                        width: `${Math.min((category.value / Math.max(...categoryData.map(c => c.value))) * 100, 100)}%`
-                      }}
-                    ></div>
-                  </div>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white w-8 text-right">
-                    {category.value}
-                  </span>
-                </div>
-              </div>
-            )) : (
-              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                Henüz kategori verisi bulunmuyor
-              </div>
-            )}
-          </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Kategori Dağılımı</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={categoryData}
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                dataKey="value"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                {categoryData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Agent Performance */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Temsilci Performansı</h3>
+      {/* Top Agents */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">En İyi Temsilciler</h3>
         <div className="space-y-4">
-          {agentPerformance.length > 0 ? agentPerformance.map((agent, index) => (
-            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div className="flex items-center gap-4">
-                <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                  style={{ backgroundColor: agent.color }}
-                >
-                  {agent.avatar}
+          {topAgents.map((agent, index) => (
+            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <span className="text-blue-600 font-semibold">{agent.name.charAt(0)}</span>
                 </div>
                 <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white">{agent.name}</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{agent.solved} çözülen</p>
+                  <p className="font-medium text-gray-900">{agent.name}</p>
+                  <p className="text-sm text-gray-600">{agent.resolved} çözülen talep</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                <span className="font-semibold text-gray-900 dark:text-white">{agent.rating}</span>
+              <div className="flex items-center gap-1">
+                <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                <span className="text-sm font-medium text-gray-900">{agent.rating}</span>
               </div>
             </div>
-          )) : (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              Henüz temsilci performans verisi bulunmuyor
-            </div>
-          )}
+          ))}
         </div>
       </div>
     </div>
