@@ -89,7 +89,13 @@ const CustomersPage: React.FC = () => {
   };
 
   const handleViewCustomer = (customerId: string) => {
-    setShowViewModal(customerId);
+    // Müşteri profil sayfasına yönlendir
+    if (typeof window !== 'undefined' && (window as any).setCurrentPage) {
+      (window as any).setSelectedCustomerId(customerId);
+      (window as any).setCurrentPage('customer-profile');
+    } else {
+      setShowViewModal(customerId);
+    }
   };
 
   const handleEditCustomer = (customerId: string) => {

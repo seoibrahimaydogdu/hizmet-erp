@@ -25,7 +25,9 @@ import {
   TrendingUp,
   TrendingDown,
   Star,
-  User
+  User,
+  CreditCard,
+  TrendingDown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
