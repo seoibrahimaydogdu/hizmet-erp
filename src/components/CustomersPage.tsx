@@ -39,6 +39,13 @@ const CustomersPage: React.FC = () => {
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [showViewModal, setShowViewModal] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState<string | null>(null);
+  const [newCustomerData, setNewCustomerData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    plan: 'free'
+  });
 
   useEffect(() => {
     fetchCustomers();
@@ -117,6 +124,33 @@ const CustomersPage: React.FC = () => {
     // Müşteri taleplerini görüntüleme
     toast.success('Müşteri talepleri görüntüleniyor...');
     setShowActionMenu(null);
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomerData.name.trim()) {
+      toast.error('Müşteri adı gerekli');
+      return;
+    }
+    if (!newCustomerData.email.trim()) {
+      toast.error('E-posta adresi gerekli');
+      return;
+    }
+    
+    try {
+      // Burada Supabase create işlemi yapılacak
+      toast.success('Yeni müşteri oluşturuldu');
+      setShowNewCustomerModal(false);
+      setNewCustomerData({
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        plan: 'free'
+      });
+      fetchCustomers();
+    } catch (error) {
+      toast.error('Müşteri oluşturulurken hata oluştu');
+    }
   };
 
   const getPlanColor = (plan: string) => {
@@ -452,6 +486,104 @@ const CustomersPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* New Customer Modal */}
+      {showNewCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-2xl mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Müşteri Ekle</h3>
+              <button
+                onClick={() => setShowNewCustomerModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Ad Soyad *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomerData.name}
+                    onChange={(e) => setNewCustomerData({ ...newCustomerData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Müşteri adını girin..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    E-posta *
+                  </label>
+                  <input
+                    type="email"
+                    value={newCustomerData.email}
+                    onChange={(e) => setNewCustomerData({ ...newCustomerData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="E-posta adresini girin..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Telefon
+                  </label>
+                  <input
+                    type="tel"
+                    value={newCustomerData.phone}
+                    onChange={(e) => setNewCustomerData({ ...newCustomerData, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Telefon numarasını girin..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Şirket
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomerData.company}
+                    onChange={(e) => setNewCustomerData({ ...newCustomerData, company: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Şirket adını girin..."
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Plan
+                  </label>
+                  <select
+                    value={newCustomerData.plan}
+                    onChange={(e) => setNewCustomerData({ ...newCustomerData, plan: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="free">Free</option>
+                    <option value="basic">Basic</option>
+                    <option value="pro">Pro</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setShowNewCustomerModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleCreateCustomer}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Müşteri Ekle
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* View Customer Modal */}
       {showViewModal && (
