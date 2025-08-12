@@ -1191,9 +1191,12 @@ function App() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  <button
+                    onClick={() => setActiveTab('profile')}
+                    className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center"
+                  >
                     <span className="text-sm font-semibold text-white">AU</span>
-                  </div>
+                  </button>
                   <div className="hidden sm:block">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">Admin User</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">admin@company.com</p>
