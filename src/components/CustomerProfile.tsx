@@ -32,7 +32,8 @@ import {
   Zap,
   Shield,
   Database,
-  Settings as SettingsIcon
+  BarChart3,
+  Target
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
