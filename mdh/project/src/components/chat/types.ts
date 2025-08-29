@@ -201,9 +201,24 @@ export interface AdvancedSearchResults {
   messages: ChatMessage[];
   voiceMessages: VoiceMessage[];
   files: FileMessage[];
+  users: Array<{
+    id: string;
+    name: string;
+    role: string;
+    avatar: string;
+  }>;
   totalResults: number;
   searchTime: number;
   relevance: number;
+}
+
+export interface AdvancedSearchFilter {
+  messageType: string;
+  dateRange: string;
+  sender: string;
+  hasAttachments: boolean;
+  hasMentions: boolean;
+  keywords: string[];
 }
 
 export interface UserPreferences {

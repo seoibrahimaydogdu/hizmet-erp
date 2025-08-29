@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { toast } from 'react-hot-toast';
+import { Search, MoreVertical, Send, Paperclip, Smile, Mic, Settings, Bell, Moon, Sun } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSupabase } from '../hooks/useSupabase';
 import ChannelList from './chat/ChannelList';
@@ -17,6 +18,7 @@ import {
   AdvancedSearchResults,
   UserPreferences
 } from './chat/types';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Yeni interface'ler
 interface Poll {
@@ -240,9 +242,11 @@ const UserItem: React.FC<{
   );
 };
 
-const EmployeeChat: React.FC = () => {
-  const { supabase } = useSupabase();
+export default function EmployeeChat() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { supabase } = useSupabase();
+  const { isDarkMode, toggleDarkMode } = useTheme();
   
   // State'ler
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -274,8 +278,6 @@ const EmployeeChat: React.FC = () => {
   // Arama ve filtreleme
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'text' | 'files' | 'voice'>('all');
-  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
-  const [advancedSearchResults, setAdvancedSearchResults] = useState<AdvancedSearchResults | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
   // Bildirimler
@@ -1343,68 +1345,131 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
     }
   };
 
-  // Gelişmiş arama
-  const performAdvancedSearch = async () => {
-    setIsSearching(true);
-    try {
-      let filteredMessages = messages;
+  // Gelişmiş arama fonksiyonu
+  const performAdvancedSearch = () => {
+    if (!advancedSearchQuery.trim()) {
+      toast.error('Arama terimi girin');
+      return;
+    }
 
-      // Tarih aralığı filtresi
-      if (advancedSearchFilters.dateRange.start && advancedSearchFilters.dateRange.end) {
-        filteredMessages = filteredMessages.filter(msg => 
-          msg.timestamp >= advancedSearchFilters.dateRange.start! &&
-          msg.timestamp <= advancedSearchFilters.dateRange.end!
-        );
+    const query = advancedSearchQuery.toLowerCase();
+    const results: AdvancedSearchResults = {
+      messages: [],
+      voiceMessages: [],
+      files: [],
+      users: [],
+      totalResults: 0,
+      searchTime: Date.now(),
+      relevance: 0.9
+    };
+
+    // Mesajlarda arama
+    messages.forEach(message => {
+      let shouldInclude = false;
+      
+      // Mesaj tipi filtresi
+      if (advancedSearchFilters.messageType !== 'all' && 
+          message.messageType !== advancedSearchFilters.messageType) {
+        return;
+      }
+
+      // İçerik arama
+      if (message.content.toLowerCase().includes(query)) {
+        shouldInclude = true;
       }
 
       // Gönderen filtresi
-      if (advancedSearchFilters.sender.length > 0) {
-        filteredMessages = filteredMessages.filter(msg =>
-          advancedSearchFilters.sender.includes(msg.senderId)
-        );
+      if (advancedSearchFilters.sender !== 'all' && 
+          message.senderId !== advancedSearchFilters.sender) {
+        return;
       }
 
-      // Mesaj tipi filtresi
-      if (advancedSearchFilters.messageType.length > 0) {
-        filteredMessages = filteredMessages.filter(msg =>
-          advancedSearchFilters.messageType.includes(msg.messageType)
-        );
-      }
-
-      // Ek dosya filtresi
-      if (advancedSearchFilters.hasAttachments) {
-        filteredMessages = filteredMessages.filter(msg => msg.attachments && msg.attachments.length > 0);
+      // Dosya ekleri filtresi
+      if (advancedSearchFilters.hasAttachments && 
+          message.messageType !== 'file' && message.messageType !== 'image') {
+        return;
       }
 
       // Mention filtresi
-      if (advancedSearchFilters.hasMentions) {
-        filteredMessages = filteredMessages.filter(msg => msg.content.includes('@'));
+      if (advancedSearchFilters.hasMentions && 
+          !message.content.includes('@')) {
+        return;
       }
 
-      // Anahtar kelime filtresi
-      if (advancedSearchFilters.keywords.length > 0) {
-        filteredMessages = filteredMessages.filter(msg =>
-          advancedSearchFilters.keywords.some(keyword =>
-            msg.content.toLowerCase().includes(keyword.toLowerCase())
-          )
-        );
+      if (shouldInclude) {
+        results.messages.push(message);
       }
+    });
 
-      setAdvancedSearchResults({
-        messages: filteredMessages,
-        voiceMessages: [],
-        files: [],
-        totalResults: filteredMessages.length,
-        searchTime: Date.now(),
-        relevance: 0.9
-      });
+    // Kullanıcılarda arama
+    const allUsers = [
+      { id: 'user1', name: 'Test User', role: 'Sistem Yöneticisi', avatar: 'TU' },
+      { id: 'user2', name: 'Ahmet Yılmaz', role: 'Yazılım Geliştirici', avatar: 'AY' },
+      { id: 'user3', name: 'Ayşe Çelik', role: 'Proje Yöneticisi', avatar: 'AÇ' },
+      { id: 'user4', name: 'Ali Demir', role: 'UI/UX Tasarımcı', avatar: 'AD' },
+      { id: 'user5', name: 'Aylin Doğan', role: 'İnsan Kaynakları', avatar: 'AD' },
+      { id: 'user6', name: 'Mehmet Kaya', role: 'Satış Müdürü', avatar: 'MK' },
+      { id: 'user7', name: 'Fatma Özkan', role: 'Muhasebe Uzmanı', avatar: 'FÖ' }
+    ];
 
-      toast.success(`${filteredMessages.length} sonuç bulundu`);
-    } catch (error) {
-      console.error('Gelişmiş arama yapılırken hata:', error);
-      toast.error('Arama yapılamadı');
-    } finally {
-      setIsSearching(false);
+    allUsers.forEach(user => {
+      if (user.name.toLowerCase().includes(query) || 
+          user.role.toLowerCase().includes(query)) {
+        results.users.push(user);
+      }
+    });
+
+    // Dosyalarda arama (mock data)
+    const mockFiles: FileMessage[] = [
+      { 
+        id: '1', 
+        fileName: 'rapor.pdf', 
+        fileUrl: '/files/rapor.pdf',
+        fileSize: 2500000,
+        fileType: 'pdf', 
+        senderId: 'user1', 
+        senderName: 'Test User',
+        timestamp: new Date(),
+        channelId: '1'
+      },
+      { 
+        id: '2', 
+        fileName: 'sunum.pptx', 
+        fileUrl: '/files/sunum.pptx',
+        fileSize: 5100000,
+        fileType: 'powerpoint', 
+        senderId: 'user2', 
+        senderName: 'Ahmet Yılmaz',
+        timestamp: new Date(),
+        channelId: '1'
+      },
+      { 
+        id: '3', 
+        fileName: 'resim.jpg', 
+        fileUrl: '/files/resim.jpg',
+        fileSize: 1200000,
+        fileType: 'image', 
+        senderId: 'user3', 
+        senderName: 'Ayşe Çelik',
+        timestamp: new Date(),
+        channelId: '1'
+      }
+    ];
+
+    mockFiles.forEach(file => {
+      if (file.fileName.toLowerCase().includes(query) || 
+          file.fileType.toLowerCase().includes(query)) {
+        results.files.push(file);
+      }
+    });
+
+    results.totalResults = results.messages.length + results.users.length + results.files.length;
+    setAdvancedSearchResults(results);
+    
+    if (results.totalResults > 0) {
+      toast.success(`${results.totalResults} sonuç bulundu`);
+    } else {
+      toast.error('Sonuç bulunamadı');
     }
   };
 
@@ -1672,9 +1737,9 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
   }
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-screen bg-white dark:bg-gray-900">
       {/* Left Column - Channel List */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <ChannelList
           channels={channels}
           selectedChannel={selectedChannel}
@@ -1691,19 +1756,32 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
       <div className="flex-1 flex flex-col">
         {/* Header */}
         {selectedChannel && (
-          <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="flex items-center space-x-2">
-                  <span className="text-lg font-semibold text-gray-900">#{selectedChannel.name}</span>
+                  <span className="text-lg font-semibold text-gray-900 dark:text-white">#{selectedChannel.name}</span>
                 </div>
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
                   {selectedChannel.description}
                 </div>
               </div>
               
               {/* Header Icons */}
               <div className="flex items-center space-x-3">
+                {/* Dark Mode Toggle */}
+                <button 
+                  onClick={toggleDarkMode}
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" 
+                  title={isDarkMode ? "Açık moda geç" : "Koyu moda geç"}
+                >
+                  {isDarkMode ? (
+                    <Sun className="w-5 h-5" />
+                  ) : (
+                    <Moon className="w-5 h-5" />
+                  )}
+                </button>
+                
                 {/* Search */}
                 <button 
                   onClick={() => {
@@ -1712,7 +1790,7 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
                       searchInput.focus();
                     }
                   }}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100" 
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" 
                   title="Ara"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1725,7 +1803,7 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
                   onClick={() => {
                     toast.success('Ayarlar menüsü açıldı');
                   }}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100" 
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" 
                   title="Ayarlar"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2774,5 +2852,3 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
      </div>
    );
  };
-
-export default EmployeeChat;
