@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../contexts/UserContext';
-import EmployeeProfile from './EmployeeProfile';
 import EmployeeManagement from './hr/EmployeeManagement';
 import SkillManagement from './hr/SkillManagement';
 import LeaveManagement from './hr/LeaveManagement';
@@ -195,6 +195,8 @@ interface SkillFormData {
 
 const HRManagement: React.FC = () => {
   const { userProfile } = useUser();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('overview');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -260,9 +262,7 @@ const HRManagement: React.FC = () => {
     days_requested: 0
   });
 
-  // Employee Profile
-  const [showEmployeeProfile, setShowEmployeeProfile] = useState(false);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+
 
   // Departments
   const departments = ['Teknoloji', 'Müşteri Hizmetleri', 'Satış', 'İK', 'Finans', 'Pazarlama', 'Operasyon', 'Genel Yönetim'];
@@ -508,17 +508,7 @@ const HRManagement: React.FC = () => {
     );
   }
 
-  if (showEmployeeProfile) {
-    return (
-      <EmployeeProfile 
-        employeeId={selectedEmployeeId} 
-        onBack={() => {
-          setShowEmployeeProfile(false);
-          setSelectedEmployeeId('');
-        }} 
-      />
-    );
-  }
+
 
   return (
     <div className="p-4 max-w-full overflow-hidden">
@@ -721,8 +711,13 @@ const HRManagement: React.FC = () => {
                       <div className="flex space-x-2">
                         <button
                                 onClick={() => {
-                                  setSelectedEmployeeId(employee.id);
-                                  setShowEmployeeProfile(true);
+                                  navigate('/employee-profile', { 
+                                    state: { 
+                                      employeeId: employee.id, 
+                                      employeeName: employee.name,
+                                      from: location.pathname 
+                                    } 
+                                  });
                                 }}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                                 title="Profil Görüntüle"
@@ -764,8 +759,14 @@ const HRManagement: React.FC = () => {
             employees={employees}
             onEmployeeUpdate={fetchEmployees}
             onViewEmployee={(employeeId: string) => {
-              setSelectedEmployeeId(employeeId);
-              setShowEmployeeProfile(true);
+              const employee = employees.find(emp => emp.id === employeeId);
+              navigate('/employee-profile', { 
+                state: { 
+                  employeeId: employeeId, 
+                  employeeName: employee?.name || '',
+                  from: location.pathname 
+                } 
+              });
             }}
           />
         )}
@@ -994,8 +995,13 @@ const HRManagement: React.FC = () => {
                             <div className="flex space-x-2">
                               <button
                                 onClick={() => {
-                                  setSelectedEmployeeId(manager.id);
-                                  setShowEmployeeProfile(true);
+                                  navigate('/employee-profile', { 
+                                    state: { 
+                                      employeeId: manager.id, 
+                                      employeeName: manager.name,
+                                      from: '/hr-management' 
+                                    } 
+                                  });
                                 }}
                                 className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                                 title="Profil Görüntüle"

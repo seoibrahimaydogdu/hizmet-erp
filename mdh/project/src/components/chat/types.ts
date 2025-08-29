@@ -6,7 +6,7 @@ export interface ChatMessage {
   senderRole: string;
   senderAvatar: string;
   channelId: string;
-  messageType: 'text' | 'file' | 'image' | 'system' | 'announcement';
+  messageType: 'text' | 'file' | 'image' | 'system' | 'announcement' | 'poll';
   attachments?: string[];
   timestamp: Date;
   isPinned?: boolean;
@@ -30,8 +30,10 @@ export interface Channel {
   type: 'public' | 'private' | 'direct';
   members: string[];
   isPinned?: boolean;
+  isArchived?: boolean;
+  isMuted?: boolean;
   lastMessage?: string;
-  lastMessageTime?: Date;
+  lastMessageTime?: number;
   unreadCount?: number;
   icon?: string;
   image?: string;

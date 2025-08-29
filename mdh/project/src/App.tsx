@@ -89,6 +89,7 @@ import WorkflowBuilder from './components/WorkflowBuilder';
 import ApprovalWorkflows from './components/ApprovalWorkflows';
 import EmployeeChat from './components/EmployeeChat';
 import Simple3DGanttDemo from './components/Simple3DGanttDemo';
+import EmployeeProfile from './components/EmployeeProfile';
 
 // BulkOperations artık TicketList içinde entegre edildi
 
@@ -172,6 +173,8 @@ function App() {
     try { fetchBudgets(); } catch (e) { console.log('budgets tablosu yok'); }
     try { fetchFinancialReports(); } catch (e) { console.log('financial_reports tablosu yok'); }
   }, []);
+
+
 
   // Dashboard'da ödeme verilerini otomatik yenile (5 dakikada bir)
   useEffect(() => {
@@ -775,6 +778,8 @@ function App() {
         }} />;
       case 'hr-management':
         return <HRManagement />;
+      case 'employee-profile':
+        return <EmployeeProfile />;
       case 'workflow-builder':
         return <WorkflowBuilder />;
       case 'approval-workflows':
@@ -1163,7 +1168,11 @@ function App() {
 
             {/* Page Content */}
             <main className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-y-auto lg:pl-5">
-              {renderContent()}
+              {location.pathname === '/employee-profile' ? (
+                <EmployeeProfile />
+              ) : (
+                renderContent()
+              )}
             </main>
           </div>
 
@@ -1179,7 +1188,7 @@ function App() {
           <Toaster position="top-right" />
 
           {/* Çalışan Mesajlaşma Sistemi Modal */}
-          {showEmployeeChat && (
+          {showEmployeeChat && location.pathname !== '/employee-profile' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full h-full max-w-full max-h-full flex flex-col">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
