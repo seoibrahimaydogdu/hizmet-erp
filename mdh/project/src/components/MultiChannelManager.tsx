@@ -333,11 +333,12 @@ const MultiChannelManager: React.FC<MultiChannelManagerProps> = ({
                   </div>
                 </div>
               </div>
-              {channel.unreadCount > 0 && (
+              {/* Channel notification badge hidden */}
+              {/* {channel.unreadCount > 0 && (
                 <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px]">
                   {channel.unreadCount}
                 </span>
-              )}
+              )} */}
             </button>
           ))}
         </div>

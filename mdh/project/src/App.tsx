@@ -1083,11 +1083,12 @@ function App() {
                       className="relative p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <Bell className="w-4 h-4" />
-                      {unreadCount > 0 && (
+                      {/* Notification badge hidden */}
+                      {/* {unreadCount > 0 && (
                         <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 text-[10px] leading-4 text-white bg-red-600 rounded-full text-center">
                           {unreadCount}
                         </span>
-                      )}
+                      )} */}
                     </button>
                     {notificationsOpen && (
                       <div className="absolute right-0 mt-1 w-72 sm:w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50">

@@ -14,8 +14,7 @@ import {
   TrendingUp,
   Users,
   DollarSign,
-  Settings,
-  HelpCircle
+  Settings
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { toast } from 'react-hot-toast';
@@ -349,24 +348,24 @@ const RealTimeHintSystem: React.FC<RealTimeHintSystemProps> = ({
       // Dashboard için dinamik ipuçları
       const dynamicHints = [];
       
-      // Yüksek öncelikli talepler varsa
-      if (contextData?.totalTickets && contextData.totalTickets > 10) {
-        dynamicHints.push({
-          id: 'dashboard_high_priority_tickets',
-          type: 'priority' as const,
-          title: 'Yüksek Öncelikli Talepler',
-          message: `${contextData.totalTickets} adet talep var. Acil öncelikli...`,
-          category: 'priority',
-          priority: 'high' as const,
-          action: {
-            label: 'Yü',
-            onClick: () => {
-              toast.success('Talepler sayfasına yönlendiriliyorsunuz');
-              onHintAction?.('dashboard_high_priority_tickets', 'view_tickets');
-            }
-          }
-        });
-      }
+             // Yüksek öncelikli talepler varsa - GİZLENDİ
+       // if (contextData?.totalTickets && contextData.totalTickets > 10) {
+       //   dynamicHints.push({
+       //     id: 'dashboard_high_priority_tickets',
+       //     type: 'priority' as const,
+       //     title: 'Yüksek Öncelikli Talepler',
+       //     message: `${contextData.totalTickets} adet talep var. Acil öncelikli...`,
+       //     category: 'priority',
+       //     priority: 'high' as const,
+       //     action: {
+       //       label: 'Yü',
+       //       onClick: () => {
+       //         toast.success('Talepler sayfasına yönlendiriliyorsunuz');
+       //         onHintAction?.('dashboard_high_priority_tickets', 'view_tickets');
+       //       }
+       //     }
+       //   });
+       // }
       
       // Okunmamış bildirimler varsa
       if (contextData?.unreadNotifications && contextData.unreadNotifications > 0) {
@@ -433,43 +432,43 @@ const RealTimeHintSystem: React.FC<RealTimeHintSystemProps> = ({
           });
         }
         
-        // Yüksek öncelikli talepler varsa
-        if (contextData?.highPriorityTickets && contextData.highPriorityTickets > 0) {
-          dynamicHints.push({
-            id: 'tickets_high_priority_alert',
-            type: 'priority' as const,
-            title: 'Yüksek Öncelikli Talepler',
-            message: `${contextData.highPriorityTickets} adet yüksek öncelikli talep bekliyor. Acil aksiyon gerekli.`,
-            category: 'priority',
-            priority: 'high' as const,
-            action: {
-              label: 'Acil Aksiyon',
-              onClick: () => {
-                toast.success('Acil aksiyon modu etkinleştirildi');
-                onHintAction?.('tickets_high_priority_alert', 'emergency_action');
-              }
-            }
-          });
-        }
+                 // Yüksek öncelikli talepler varsa - GİZLENDİ
+         // if (contextData?.highPriorityTickets && contextData.highPriorityTickets > 0) {
+         //   dynamicHints.push({
+         //     id: 'tickets_high_priority_alert',
+         //     type: 'priority' as const,
+         //     title: 'Yüksek Öncelikli Talepler',
+         //     message: `${contextData.highPriorityTickets} adet yüksek öncelikli talep bekliyor. Acil aksiyon gerekli.`,
+         //     category: 'priority',
+         //     priority: 'high' as const,
+         //     action: {
+         //       label: 'Acil Aksiyon',
+         //       onClick: () => {
+         //         toast.success('Acil aksiyon modu etkinleştirildi');
+         //         onHintAction?.('tickets_high_priority_alert', 'emergency_action');
+         //       }
+         //     }
+         //   });
+         // }
         
-        // Gecikmiş talepler varsa
-        if (contextData?.overdueTickets && contextData.overdueTickets > 0) {
-          dynamicHints.push({
-            id: 'tickets_overdue_alert',
-            type: 'priority' as const,
-            title: 'Gecikmiş Talepler',
-            message: `${contextData.overdueTickets} adet gecikmiş talep var. SLA ihlali riski mevcut.`,
-            category: 'sla',
-            priority: 'high' as const,
-            action: {
-              label: 'SLA Kontrolü',
-              onClick: () => {
-                toast.success('SLA kontrol sistemi başlatıldı');
-                onHintAction?.('tickets_overdue_alert', 'sla_check');
-              }
-            }
-          });
-        }
+                 // Gecikmiş talepler varsa - GİZLENDİ
+         // if (contextData?.overdueTickets && contextData.overdueTickets > 0) {
+         //   dynamicHints.push({
+         //     id: 'tickets_overdue_alert',
+         //     type: 'priority' as const,
+         //     title: 'Gecikmiş Talepler',
+         //     message: `${contextData.overdueTickets} adet gecikmiş talep var. SLA ihlali riski mevcut.`,
+         //     category: 'sla',
+         //     priority: 'high' as const,
+         //     action: {
+         //       label: 'SLA Kontrolü',
+         //       onClick: () => {
+         //         toast.success('SLA kontrol sistemi başlatıldı');
+         //         onHintAction?.('tickets_overdue_alert', 'sla_check');
+         //       }
+         //     }
+         //   });
+         // }
         
         // Çözülen talepler başarılıysa
         if (contextData?.resolvedTickets && contextData.resolvedTickets > 50) {
@@ -885,7 +884,8 @@ const RealTimeHintSystem: React.FC<RealTimeHintSystemProps> = ({
           >
             <div className="relative">
               <Lightbulb className={`w-6 h-6 ${getHintStyle(activeHint?.type || 'info').color}`} />
-                             {unreadCount > 0 && (
+              {/* Notification badges hidden */}
+              {/* {unreadCount > 0 && (
                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                    {unreadCount}
                  </span>
@@ -894,27 +894,11 @@ const RealTimeHintSystem: React.FC<RealTimeHintSystemProps> = ({
                  <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                    {highPriorityCount}
                  </span>
-               )}
+               )} */}
             </div>
           </button>
           
-          {/* Hızlı Aksiyonlar */}
-          <div className="flex space-x-1">
-            <button
-              onClick={markAllAsRead}
-              className="p-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              title="Tümünü Okundu İşaretle"
-            >
-              <CheckCircle className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setShowAllHints(!showAllHints)}
-              className="p-2 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              title="Tüm İpuçları"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
-          </div>
+
         </div>
       )}
 

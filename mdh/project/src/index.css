@@ -123,6 +123,151 @@
   color: var(--color-primary-900);
 }
 
+/* Push Notification Styles */
+.notification-badge {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.highlight-message {
+  animation: highlight 3s ease-in-out;
+}
+
+@keyframes highlight {
+  0%, 100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+}
+
+.notification-priority-urgent {
+  border-left: 4px solid #ef4444;
+}
+
+.notification-priority-high {
+  border-left: 4px solid #f59e0b;
+}
+
+.notification-priority-normal {
+  border-left: 4px solid #3b82f6;
+}
+
+.notification-priority-low {
+  border-left: 4px solid #6b7280;
+}
+
+.notification-silent-hours {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
+
+.notification-settings-section {
+  transition: all 0.3s ease;
+}
+
+.notification-settings-section:hover {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.notification-permission-denied {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.notification-permission-granted {
+  background-color: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* Notification Toast Styles */
+.notification-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  max-width: 400px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #3b82f6;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-toast.urgent {
+  border-left-color: #ef4444;
+}
+
+.notification-toast.high {
+  border-left-color: #f59e0b;
+}
+
+.notification-toast.normal {
+  border-left-color: #3b82f6;
+}
+
+.notification-toast.low {
+  border-left-color: #6b7280;
+}
+
+/* Dark mode notification styles */
+.dark .notification-toast {
+  background: #374151;
+  color: white;
+}
+
+.dark .notification-settings-section:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Notification sound indicator */
+.notification-sound-indicator {
+  position: relative;
+}
+
+.notification-sound-indicator::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  animation: soundWave 1s infinite;
+}
+
+@keyframes soundWave {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
 .border-primary {
   border-color: var(--color-primary);
 }
