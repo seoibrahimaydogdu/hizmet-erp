@@ -335,6 +335,18 @@
 }
 
 /* Varsayılan font ayarları - Inter font family */
+html {
+  background-color: #ffffff;
+  color: #000000;
+  overflow-x: hidden;
+}
+
+.dark html {
+  background-color: #111827;
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
   font-weight: 400;
@@ -342,6 +354,29 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "rlig" 1, "calt" 1;
+  background-color: #ffffff;
+  color: #000000;
+  min-height: 100vh;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.dark body {
+  background-color: #111827;
+  color: #ffffff;
+}
+
+/* Root element için dark mode */
+#root {
+  background-color: #ffffff;
+  color: #000000;
+  min-height: 100vh;
+}
+
+.dark #root {
+  background-color: #111827;
+  color: #ffffff;
 }
 
 /* Inter font optimizasyonları */

@@ -27,7 +27,6 @@ import {
   RefreshCw,
   Maximize2,
   Lightbulb,
-  Globe,
   BookOpen,
   GanttChart,
   Briefcase,
@@ -88,7 +87,6 @@ import HRManagement from './components/HRManagement';
 import WorkflowBuilder from './components/WorkflowBuilder';
 import ApprovalWorkflows from './components/ApprovalWorkflows';
 import EmployeeChat from './components/EmployeeChat';
-import Simple3DGanttDemo from './components/Simple3DGanttDemo';
 import EmployeeProfile from './components/EmployeeProfile';
 
 // BulkOperations artık TicketList içinde entegre edildi
@@ -728,8 +726,7 @@ function App() {
           setShowEmployeeChat(true);
         }} />;
 
-      case '3d-gantt-demo':
-        return <Simple3DGanttDemo />;
+
 
       case 'settings':
         return <SettingsPage />;
@@ -911,12 +908,12 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="h-screen">
-        <div className="bg-gray-50 dark:bg-gray-900 h-screen flex">
+      <div className="h-screen overflow-hidden">
+        <div className="bg-gray-50 dark:bg-gray-900 dark:bg-gray-950 h-screen flex overflow-hidden">
 
           {/* Sidebar */}
-          <div className={`fixed inset-y-0 left-8 z-50 w-64 bg-white dark:bg-gray-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex-shrink-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className={`fixed inset-y-0 left-8 z-50 w-64 bg-white dark:bg-gray-800 dark:bg-gray-900 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 lg:flex-shrink-0 flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 dark:bg-gray-900 flex-shrink-0">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">{settings.siteName}</h1>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -925,7 +922,7 @@ function App() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <nav className="p-6 space-y-2">
+            <nav className="p-6 space-y-2 bg-white dark:bg-gray-800 dark:bg-gray-900 overflow-y-auto flex-1 min-h-0">
               {/* Sidebar menü öğeleri aynı kalır */}
               <button onClick={() => setCurrentPage('dashboard')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'dashboard' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                 <LayoutDashboard className="w-5 h-5" /><span>Dashboard</span>
@@ -947,9 +944,7 @@ function App() {
                 <GanttChart className="w-5 h-5" /><span>Akıllı Proje Yönetimi</span>
               </button>
 
-              <button onClick={() => setCurrentPage('3d-gantt-demo')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === '3d-gantt-demo' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
-                <Globe className="w-5 h-5" /><span>3D Gantt Chart</span>
-              </button>
+
 
               <button onClick={() => setCurrentPage('financial-management')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'financial-management' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                 <DollarSign className="w-5 h-5" /><span>Finansal Yönetim</span>
@@ -987,11 +982,10 @@ function App() {
               <button onClick={() => setCurrentPage('smart-form-demo')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'smart-form-demo' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                 <FileText className="w-5 h-5" /><span>Akıllı Form Asistanı</span>
               </button>
-              
-
-              
-                          {/* Müşteri Portalı Erişimi */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
+            </nav>
+            
+            {/* Müşteri Portalı Erişimi */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 bg-white dark:bg-gray-800 flex-shrink-0 p-6">
               <button 
                 onClick={() => navigate('/customers')}
                 className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
@@ -1000,11 +994,10 @@ function App() {
                 <span>Müşteri Portalı</span>
               </button>
             </div>
-            </nav>
           </div>
 
           {/* Main Content */}
-          <div className="flex-1 flex flex-col h-full">
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Header */}
             <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 pt-3 flex-shrink-0 lg:pl-5">
               <div className="flex items-center justify-between">
@@ -1167,7 +1160,7 @@ function App() {
             </header>
 
             {/* Page Content */}
-            <main className="flex-1 bg-gray-50 dark:bg-gray-900 overflow-y-auto lg:pl-5">
+            <main className="flex-1 bg-gray-50 dark:bg-gray-900 dark:bg-gray-950 overflow-y-auto overflow-x-hidden lg:pl-5">
               {location.pathname === '/employee-profile' ? (
                 <EmployeeProfile />
               ) : (

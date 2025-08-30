@@ -12,7 +12,6 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { Channel } from './types';
-import toast from 'react-hot-toast';
 
 interface ChannelListProps {
   channels: Channel[];
@@ -118,7 +117,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
         
         // Başarı mesajı göster
         const action = channel.isPinned ? 'sabitlemeyi kaldırıldı' : 'sabitlendi';
-        toast.success(`${channel.name} kanalı ${action}`);
+        console.log(`${channel.name} kanalı ${action}`);
         break;
         
       case 'mute':
@@ -133,7 +132,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
         
         // Başarı mesajı göster
         const muteAction = channel.isMuted ? 'sessizi kaldırıldı' : 'sessize alındı';
-        toast.success(`${channel.name} kanalı ${muteAction}`);
+        console.log(`${channel.name} kanalı ${muteAction}`);
         break;
         
       case 'archive':
@@ -148,14 +147,13 @@ const ChannelList: React.FC<ChannelListProps> = ({
         
         // Başarı mesajı göster
         const archiveAction = channel.isArchived ? 'arşivden çıkarıldı' : 'arşivlendi';
-        toast.success(`${channel.name} kanalı ${archiveAction}`);
+        console.log(`${channel.name} kanalı ${archiveAction}`);
         break;
         
       case 'leave':
         // Kanaldan ayrıl
         if (confirm(`${channel.name} kanalından ayrılmak istediğinizden emin misiniz?`)) {
           console.log(`${channel.name} kanalından ayrıldınız`);
-          toast.success(`${channel.name} kanalından ayrıldınız`);
           // Burada gerçek uygulamada API çağrısı yapılır
         }
         break;
@@ -169,7 +167,6 @@ const ChannelList: React.FC<ChannelListProps> = ({
           onChannelUpdate(readChannels); // Parent component'e güncellenmiş kanalları gönder
         }
         console.log(`${channel.name} kanalı okundu olarak işaretlendi`);
-        toast.success(`${channel.name} kanalı okundu olarak işaretlendi`);
         break;
     }
     setShowChannelMenu(null);
@@ -273,7 +270,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
     );
 
     if (channelsToArchive.length === 0) {
-      alert('Arşivlenecek kanal bulunamadı');
+      alert('Arşivlenen kanal bulunamadı');
       return;
     }
 
@@ -285,42 +282,42 @@ const ChannelList: React.FC<ChannelListProps> = ({
   };
 
   return (
-    <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h1 className="text-lg font-semibold text-gray-900">Mesajlaşma Sistemi</h1>
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Mesajlaşma Sistemi</h1>
       </div>
 
       {/* Channels Section */}
-      <div className="p-4 border-b border-gray-200">
-                 <div className="flex items-center justify-between mb-4">
-           <div className="flex items-center space-x-2">
-             <h2 className="text-sm font-medium text-gray-900">Kanallar</h2>
-             <button
-               onClick={() => setShowChannelStats(!showChannelStats)}
-               className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
-               title="Kanal İstatistikleri"
-             >
-               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-               </svg>
-             </button>
-           </div>
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-sm font-medium text-gray-900 dark:text-white">Kanallar</h2>
+            <button
+              onClick={() => setShowChannelStats(!showChannelStats)}
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="Kanal İstatistikleri"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </button>
+          </div>
                        <div className="flex items-center space-x-1">
-              <button
-                onClick={() => setShowArchiveModal(true)}
-                className="p-1 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100"
-                title="Toplu Arşivleme"
-              >
+                             <button
+                 onClick={() => setShowArchiveModal(true)}
+                 className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                 title="Toplu Arşivleme"
+               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </button>
-              <button
-                onClick={() => setShowCreateChannelModal(true)}
-                className="p-1 text-gray-400 hover:text-green-600 rounded-lg hover:bg-gray-100"
-                title="Yeni Kanal Oluştur"
-              >
+                             <button
+                 onClick={() => setShowCreateChannelModal(true)}
+                 className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                 title="Yeni Kanal Oluştur"
+               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
@@ -334,7 +331,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Kanal ara..."
-            className="w-full pl-10 pr-12 py-2 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-12 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
              <button 
@@ -344,45 +341,45 @@ const ChannelList: React.FC<ChannelListProps> = ({
              >
                <Mic className="w-4 h-4" />
              </button>
-             <button 
-               onClick={showHelp}
-               className="p-1 text-gray-400 hover:text-gray-600" 
-               title="Yardım"
-             >
+                           <button 
+                onClick={showHelp}
+                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" 
+                title="Yardım"
+              >
                <HelpCircle className="w-4 h-4" />
              </button>
-             <button 
-               onClick={() => setShowFilterMenu(!showFilterMenu)}
-               className={`p-1 ${showFilterMenu ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-               title="Filtrele"
-             >
+                           <button 
+                onClick={() => setShowFilterMenu(!showFilterMenu)}
+                className={`p-1 ${showFilterMenu ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                title="Filtrele"
+              >
                <Filter className="w-4 h-4" />
              </button>
            </div>
         </div>
 
-        {/* Filter Menu */}
-        {showFilterMenu && (
-          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-gray-900">Filtreler</h3>
-              <button
-                onClick={clearAllFilters}
-                className="text-xs text-blue-600 hover:text-blue-700"
-              >
-                Temizle
-              </button>
-            </div>
+                 {/* Filter Menu */}
+         {showFilterMenu && (
+           <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+             <div className="flex items-center justify-between mb-2">
+               <h3 className="text-sm font-medium text-gray-900 dark:text-white">Filtreler</h3>
+               <button
+                 onClick={clearAllFilters}
+                 className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+               >
+                 Temizle
+               </button>
+             </div>
             
             <div className="space-y-2">
               {/* Temel Filtreler */}
-              <div>
-                <h4 className="text-xs font-medium text-gray-700 mb-1">Kanal Tipi</h4>
+                             <div>
+                 <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Kanal Tipi</h4>
                 <div className="space-y-1">
                   <button
                     onClick={() => setFilterType('all')}
                     className={`w-full text-left px-2 py-1 text-xs rounded ${
-                      filterType === 'all' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                      filterType === 'all' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     Tüm Kanallar
@@ -390,7 +387,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                   <button
                     onClick={() => setFilterType('public')}
                     className={`w-full text-left px-2 py-1 text-xs rounded ${
-                      filterType === 'public' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                      filterType === 'public' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     Genel Kanallar
@@ -398,7 +395,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                   <button
                     onClick={() => setFilterType('private')}
                     className={`w-full text-left px-2 py-1 text-xs rounded ${
-                      filterType === 'private' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                      filterType === 'private' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     Özel Kanallar
@@ -406,7 +403,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                   <button
                     onClick={() => setFilterType('direct')}
                     className={`w-full text-left px-2 py-1 text-xs rounded ${
-                      filterType === 'direct' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100'
+                      filterType === 'direct' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     Direkt Mesajlar
@@ -416,10 +413,10 @@ const ChannelList: React.FC<ChannelListProps> = ({
 
               {/* Gelişmiş Filtreler */}
               <div>
-                <button
-                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                  className="w-full text-left px-2 py-1 text-xs text-blue-600 hover:text-blue-700 flex items-center justify-between"
-                >
+                                 <button
+                   onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                   className="w-full text-left px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center justify-between"
+                 >
                   <span>Gelişmiş Filtreler</span>
                   <svg className={`w-3 h-3 transform transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -435,7 +432,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                         onChange={(e) => setAdvancedFilters(prev => ({ ...prev, hasUnread: e.target.checked }))}
                         className="w-3 h-3"
                       />
-                      <span className="text-xs text-gray-600">Sadece okunmamış</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">Sadece okunmamış</span>
                     </label>
                     <label className="flex items-center space-x-2">
                       <input
@@ -444,7 +441,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                         onChange={(e) => setAdvancedFilters(prev => ({ ...prev, isPinned: e.target.checked }))}
                         className="w-3 h-3"
                       />
-                      <span className="text-xs text-gray-600">Sadece sabitlenmiş</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">Sadece sabitlenmiş</span>
                     </label>
                     <label className="flex items-center space-x-2">
                       <input
@@ -453,15 +450,15 @@ const ChannelList: React.FC<ChannelListProps> = ({
                         onChange={(e) => setAdvancedFilters(prev => ({ ...prev, hasRecentActivity: e.target.checked }))}
                         className="w-3 h-3"
                       />
-                      <span className="text-xs text-gray-600">Son aktivite var</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300">Son aktivite var</span>
                     </label>
                     <div>
-                      <label className="text-xs text-gray-600">Üye sayısı:</label>
-                      <select
-                        value={advancedFilters.memberCount}
-                        onChange={(e) => setAdvancedFilters(prev => ({ ...prev, memberCount: e.target.value as any }))}
-                        className="w-full mt-1 text-xs border border-gray-300 rounded px-2 py-1"
-                      >
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Üye sayısı:</label>
+                                              <select
+                          value={advancedFilters.memberCount}
+                          onChange={(e) => setAdvancedFilters(prev => ({ ...prev, memberCount: e.target.value as any }))}
+                          className="w-full mt-1 text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
                         <option value="all">Tümü</option>
                         <option value="small">Küçük (≤5 üye)</option>
                         <option value="medium">Orta (6-20 üye)</option>
@@ -480,23 +477,23 @@ const ChannelList: React.FC<ChannelListProps> = ({
            <div className="mb-4 p-3 bg-blue-50 rounded-lg">
              <h4 className="text-xs font-medium text-blue-900 mb-2">📊 Kanal İstatistikleri</h4>
              <div className="grid grid-cols-2 gap-2 text-xs">
-               <div className="bg-white p-2 rounded">
+               <div className="bg-white dark:bg-gray-700 p-2 rounded">
                  <div className="text-blue-600 font-medium">{channels.length}</div>
-                 <div className="text-gray-600">Toplam Kanal</div>
+                 <div className="text-gray-600 dark:text-gray-300">Toplam Kanal</div>
                </div>
-               <div className="bg-white p-2 rounded">
+               <div className="bg-white dark:bg-gray-700 p-2 rounded">
                  <div className="text-green-600 font-medium">
                    {channels.filter(c => c.unreadCount && c.unreadCount > 0).length}
                  </div>
-                 <div className="text-gray-600">Okunmamış</div>
+                 <div className="text-gray-600 dark:text-gray-300">Okunmamış</div>
                </div>
-               <div className="bg-white p-2 rounded">
+               <div className="bg-white dark:bg-gray-700 p-2 rounded">
                  <div className="text-purple-600 font-medium">
                    {channels.filter(c => c.isPinned).length}
                  </div>
-                 <div className="text-gray-600">Sabitlenmiş</div>
+                 <div className="text-gray-600 dark:text-gray-300">Sabitlenmiş</div>
                </div>
-               <div className="bg-white p-2 rounded">
+               <div className="bg-white dark:bg-gray-700 p-2 rounded">
                  <div className="text-orange-600 font-medium">
                    {channels.filter(c => c.isMuted).length}
                  </div>
@@ -507,28 +504,28 @@ const ChannelList: React.FC<ChannelListProps> = ({
          )}
 
                    {/* Sıralama ve Arşiv Seçenekleri */}
-          <div className="mb-4 space-y-2">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white"
-            >
-              <option value="activity">Son Aktiviteye Göre</option>
-              <option value="name">İsme Göre</option>
-              <option value="unread">Okunmamış Sayısına Göre</option>
-            </select>
-            
-            <button
-              onClick={() => setShowArchivedChannels(!showArchivedChannels)}
-              className={`w-full text-xs px-2 py-1 rounded border transition-colors ${
-                showArchivedChannels 
-                  ? 'bg-gray-100 text-gray-700 border-gray-300' 
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {showArchivedChannels ? 'Arşivlenmiş Kanalları Gizle' : 'Arşivlenmiş Kanalları Göster'}
-            </button>
-          </div>
+                     <div className="mb-4 space-y-2">
+             <select
+               value={sortBy}
+               onChange={(e) => setSortBy(e.target.value as any)}
+               className="w-full text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+             >
+               <option value="activity">Son Aktiviteye Göre</option>
+               <option value="name">İsme Göre</option>
+               <option value="unread">Okunmamış Sayısına Göre</option>
+             </select>
+             
+             <button
+               onClick={() => setShowArchivedChannels(!showArchivedChannels)}
+               className={`w-full text-xs px-2 py-1 rounded border transition-colors ${
+                 showArchivedChannels 
+                   ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600' 
+                   : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+               }`}
+             >
+               {showArchivedChannels ? 'Arşivlenmiş Kanalları Gizle' : 'Arşivlenmiş Kanalları Göster'}
+             </button>
+           </div>
        </div>
 
        {/* Channel List */}
@@ -539,15 +536,15 @@ const ChannelList: React.FC<ChannelListProps> = ({
               <div key={channel.id} className="relative">
                 <div className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors group ${
                   selectedChannel?.id === channel.id
-                    ? 'bg-purple-100'
-                    : 'hover:bg-gray-100'
+                    ? 'bg-purple-100 dark:bg-purple-900/30'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}>
                   <button
                     onClick={() => onChannelSelect(channel)}
                     className={`flex-1 flex items-center space-x-3 text-left ${
                       selectedChannel?.id === channel.id
-                        ? 'text-purple-700'
-                        : 'text-gray-700'
+                        ? 'text-purple-700 dark:text-purple-300'
+                        : 'text-gray-700 dark:text-gray-200'
                     }`}
                   >
                     <div className="flex-shrink-0">
@@ -559,41 +556,41 @@ const ChannelList: React.FC<ChannelListProps> = ({
                     </div>
                                          <div className="flex-1 min-w-0">
                                                <div className="flex items-center space-x-2">
-                          <span className={`font-medium text-sm truncate ${channel.isArchived ? 'text-gray-400' : ''}`}>
+                          <span className={`font-medium text-sm truncate ${channel.isArchived ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                             #{channel.name}
                           </span>
                           {channel.isPinned && (
                             <Pin className="w-3 h-3 text-yellow-500 fill-yellow-500" />
                           )}
                           {channel.isArchived && (
-                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                             </svg>
                           )}
                           {channel.isMuted && (
-                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                             </svg>
                           )}
                         </div>
                        {channel.lastMessage && (
-                         <p className={`text-xs truncate ${channel.isArchived ? 'text-gray-400' : 'text-gray-500'}`}>
+                         <p className={`text-xs truncate ${channel.isArchived ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-300'}`}>
                            {channel.lastMessage}
                          </p>
                        )}
                      </div>
-                    {channel.unreadCount && channel.unreadCount > 0 && (
-                      <span className="flex-shrink-0 px-2 py-1 text-xs font-medium text-white bg-red-500 rounded-full">
-                        {channel.unreadCount}
-                      </span>
-                    )}
+                                         {channel.unreadCount && channel.unreadCount > 0 && (
+                       <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-xs font-medium text-white bg-red-500 rounded-full">
+                         {channel.unreadCount}
+                       </span>
+                     )}
                   </button>
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowChannelMenu(showChannelMenu === channel.id ? null : channel.id);
                     }}
-                    className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <MoreHorizontal className="w-4 h-4" />
                   </button>
@@ -601,61 +598,53 @@ const ChannelList: React.FC<ChannelListProps> = ({
 
                                  {/* Channel Menu */}
                  {showChannelMenu === channel.id && (
-                   <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                   <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
                      <div className="py-1">
-                                               {channel.unreadCount && channel.unreadCount > 0 && (
-                          <button
-                            onClick={() => handleChannelAction(channel.id, 'markAsRead')}
-                            className="w-full text-left px-3 py-1 text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 flex items-center transition-colors"
-                          >
-                            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                            Okundu İşaretle
-                          </button>
-                        )}
+                                               
                                                  <button
                            onClick={() => handleChannelAction(channel.id, 'pin')}
                            className={`w-full text-left px-3 py-1 text-sm flex items-center transition-colors ${
                              channel.isPinned 
-                               ? 'text-yellow-700 hover:bg-yellow-50' 
-                               : 'text-gray-700 hover:bg-gray-100'
+                               ? 'text-yellow-700 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/30' 
+                               : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
                            }`}
                          >
                            <Pin className={`w-3 h-3 mr-2 ${channel.isPinned ? 'text-yellow-600 fill-yellow-600' : ''}`} />
                            {channel.isPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle'}
                          </button>
-                                               <button
-                          onClick={() => handleChannelAction(channel.id, 'mute')}
-                          className={`w-full text-left px-3 py-1 text-sm flex items-center transition-colors ${
-                            channel.isMuted 
-                              ? 'text-orange-700 hover:bg-orange-50' 
-                              : 'text-gray-700 hover:bg-gray-100'
-                          }`}
-                        >
+                                                                        <button
+                           onClick={() => handleChannelAction(channel.id, 'mute')}
+                           className={`w-full text-left px-3 py-1 text-sm flex items-center transition-colors ${
+                             channel.isMuted 
+                               ? 'text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30' 
+                               : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                           }`}
+                         >
                           <svg className={`w-3 h-3 mr-2 ${channel.isMuted ? 'text-orange-600' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
                           </svg>
                           {channel.isMuted ? 'Sessizi Kaldır' : 'Sessize Al'}
                         </button>
-                        <button
-                          onClick={() => handleChannelAction(channel.id, 'archive')}
-                          className={`w-full text-left px-3 py-1 text-sm flex items-center transition-colors ${
-                            channel.isArchived 
-                              ? 'text-purple-700 hover:bg-purple-50' 
-                              : 'text-gray-700 hover:bg-gray-100'
-                          }`}
-                        >
+                                                 <button
+                           onClick={() => handleChannelAction(channel.id, 'archive')}
+                           className={`w-full text-left px-3 py-1 text-sm flex items-center transition-colors ${
+                             channel.isArchived 
+                               ? 'text-purple-700 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30' 
+                               : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                           }`}
+                         >
                           <svg className={`w-3 h-3 mr-2 ${channel.isArchived ? 'text-purple-600' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                           </svg>
                           {channel.isArchived ? 'Arşivden Çıkar' : 'Arşivle'}
                         </button>
-                       <div className="border-t border-gray-200 my-1"></div>
-                       {channel.type !== 'public' && (
-                         <button
-                           onClick={() => handleChannelAction(channel.id, 'leave')}
-                           className="w-full text-left px-3 py-1 text-sm text-red-600 hover:bg-red-50 flex items-center"
-                         >
+                                               <div className="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+                        {channel.type !== 'public' && (
+                          <button
+                            onClick={() => handleChannelAction(channel.id, 'leave')}
+                            className="w-full text-left px-3 py-1 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center"
+                          >
                            <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                            </svg>
@@ -856,12 +845,12 @@ const ChannelList: React.FC<ChannelListProps> = ({
                    <span className="text-sm text-yellow-800 font-medium">Dikkat</span>
                  </div>
                  <p className="text-sm text-yellow-700 mt-2">
-                   Arşivlenecek kanallar gizlenecek ancak silinmeyecektir. Arşivlenmiş kanalları görüntülemek için "Arşivlenmiş Kanalları Göster" butonunu kullanabilirsiniz.
+                   Arşivlenen kanallar gizlenecek ancak silinmeyecektir. Arşivlenmiş kanalları görüntülemek için "Arşivlenmiş Kanalları Göster" butonunu kullanabilirsiniz.
                  </p>
                </div>
 
                <div className="bg-gray-50 rounded-lg p-4">
-                 <h4 className="text-sm font-medium text-gray-900 mb-2">Arşivlenecek Kanallar:</h4>
+                 <h4 className="text-sm font-medium text-gray-900 mb-2">Arşivlenen Kanallar:</h4>
                  <div className="space-y-1 max-h-32 overflow-y-auto">
                    {channels.filter(channel => !channel.isArchived && channel.type !== 'public').map(channel => (
                      <div key={channel.id} className="flex items-center text-sm text-gray-600">
@@ -870,7 +859,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                      </div>
                    ))}
                    {channels.filter(channel => !channel.isArchived && channel.type !== 'public').length === 0 && (
-                     <p className="text-sm text-gray-500 italic">Arşivlenecek kanal bulunamadı</p>
+                     <p className="text-sm text-gray-500 italic">Arşivlenen kanal bulunamadı</p>
                    )}
                  </div>
                </div>

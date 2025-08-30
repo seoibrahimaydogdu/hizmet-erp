@@ -19,6 +19,11 @@ import {
   UserPreferences
 } from './chat/types';
 import { useTheme } from '../contexts/ThemeContext';
+import { useNotifications } from '../contexts/NotificationContext';
+import { useUIUX } from '../contexts/UIUXContext';
+import NotificationPanel from './notifications/NotificationPanel';
+import UIUXSettingsPanel from './uiux/UIUXSettingsPanel';
+import DataMigration from './DataMigration';
 
 // Yeni interface'ler
 interface Poll {
@@ -148,13 +153,13 @@ const UserItem: React.FC<{
 
   return (
     <div className="relative">
-      <div className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg group">
+      <div className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg group">
         <div className={`w-8 h-8 ${user.color} rounded-full flex items-center justify-center`}>
           <span className="text-white text-xs font-semibold">{user.avatar}</span>
         </div>
         <div className="flex-1">
-          <span className="text-sm text-gray-900 font-medium">{user.name}</span>
-          <p className="text-xs text-gray-500">{user.title}</p>
+          <span className="text-sm text-gray-900 dark:text-white font-medium">{user.name}</span>
+          <p className="text-xs text-gray-500 dark:text-gray-300">{user.title}</p>
         </div>
         <div className={`w-2 h-2 ${getStatusColor(user.status)} rounded-full`}></div>
         
@@ -164,7 +169,7 @@ const UserItem: React.FC<{
             e.stopPropagation();
             setShowMenu(!showMenu);
           }}
-          className="p-1 text-gray-400 hover:text-gray-600 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -174,11 +179,11 @@ const UserItem: React.FC<{
 
       {/* Dropdown Menu */}
       {showMenu && (
-        <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
           <div className="py-1">
             <button
               onClick={() => handleUserAction('message')}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -188,7 +193,7 @@ const UserItem: React.FC<{
             
             <button
               onClick={() => handleUserAction('profile')}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -198,7 +203,7 @@ const UserItem: React.FC<{
             
             <button
               onClick={() => handleUserAction('call')}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -208,7 +213,7 @@ const UserItem: React.FC<{
             
             <button
               onClick={() => handleUserAction('video')}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -218,7 +223,7 @@ const UserItem: React.FC<{
             
             <button
               onClick={() => handleUserAction('email')}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -228,7 +233,7 @@ const UserItem: React.FC<{
             
             <button
               onClick={() => handleUserAction('schedule')}
-              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -242,11 +247,18 @@ const UserItem: React.FC<{
   );
 };
 
-export default function EmployeeChat() {
+function EmployeeChat() {
   const navigate = useNavigate();
   const location = useLocation();
   const { supabase } = useSupabase();
   const { isDarkMode, toggleDarkMode } = useTheme();
+  const { addNotification, unreadCount, clearAllNotifications } = useNotifications();
+  const { user, migrateFromLocalStorage } = useSupabase();
+  const { settings, state, updateState, updateSettings } = useUIUX();
+  
+  // Bildirim ve UI/UX state'leri
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [showUIUXSettings, setShowUIUXSettings] = useState(false);
   
   // State'ler
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -279,6 +291,8 @@ export default function EmployeeChat() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'text' | 'files' | 'voice'>('all');
   const [isSearching, setIsSearching] = useState(false);
+  const [advancedSearchResults, setAdvancedSearchResults] = useState<AdvancedSearchResults | null>(null);
+  const [advancedSearchQuery, setAdvancedSearchQuery] = useState('');
 
   // Bildirimler
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -340,13 +354,91 @@ export default function EmployeeChat() {
   // Gelişmiş arama ve filtreleme
   const [advancedSearchFilters, setAdvancedSearchFilters] = useState<AdvancedSearchFilter>({
     dateRange: { start: null, end: null },
-    sender: [],
-    messageType: [],
+    sender: 'all',
+    messageType: 'all',
     hasAttachments: false,
     hasMentions: false,
     keywords: []
   });
+
+  // UI/UX ayarlarını uygula
+  const applyUIUXSettings = () => {
+    // Font boyutu ayarları
+    const fontSizeMap = { small: 'text-sm', medium: 'text-base', large: 'text-lg' };
+    const fontSizeClass = fontSizeMap[settings.fontSize];
+    
+    // Mesaj aralığı ayarları
+    const spacingMap = { tight: 'space-y-1', normal: 'space-y-2', loose: 'space-y-4' };
+    const spacingClass = spacingMap[settings.messageSpacing];
+    
+    // Border radius ayarları
+    const borderRadiusMap = { none: 'rounded-none', small: 'rounded', medium: 'rounded-lg', large: 'rounded-xl' };
+    const borderRadiusClass = borderRadiusMap[settings.borderRadius];
+    
+    // Gölge ayarları
+    const shadowMap = { none: 'shadow-none', subtle: 'shadow-sm', medium: 'shadow', strong: 'shadow-lg' };
+    const shadowClass = shadowMap[settings.shadows];
+    
+    return {
+      fontSizeClass,
+      spacingClass,
+      borderRadiusClass,
+      shadowClass,
+      animations: settings.animations,
+      reducedMotion: settings.reducedMotion,
+      highContrast: settings.highContrast,
+      largeText: settings.largeText,
+      focusIndicators: settings.focusIndicators
+    };
+  };
+
+  const uiuxClasses = applyUIUXSettings();
   const [showAdvancedSearchPanel, setShowAdvancedSearchPanel] = useState(false);
+
+  // UI/UX ayarlarını güncelle
+  const handleUIUXSettingsUpdate = (newSettings: any) => {
+    updateSettings(newSettings);
+    // Ayarları localStorage'a kaydet
+    localStorage.setItem('uiuxSettings', JSON.stringify({ ...settings, ...newSettings }));
+  };
+
+  // UI/UX ayarlarını sıfırla
+  const handleUIUXSettingsReset = () => {
+    const defaultSettings = {
+      layout: 'default',
+      sidebarCollapsed: false,
+      sidebarWidth: 320,
+      messageSpacing: 'normal',
+      fontSize: 'medium',
+      lineHeight: 'normal',
+      borderRadius: 'medium',
+      shadows: 'subtle',
+      animations: true,
+      animationSpeed: 'normal',
+      reducedMotion: false,
+      accentColor: '#3b82f6',
+      colorScheme: 'blue',
+      customColors: {
+        primary: '#3b82f6',
+        secondary: '#6b7280',
+        accent: '#8b5cf6'
+      },
+      fontFamily: 'system',
+      customFont: '',
+      fontWeight: 'normal',
+      highContrast: false,
+      largeText: false,
+      focusIndicators: true,
+      screenReader: false,
+      lazyLoading: true,
+      virtualScrolling: false,
+      imageOptimization: true,
+      customCSS: '',
+      customJS: ''
+    };
+    updateSettings(defaultSettings);
+    localStorage.setItem('uiuxSettings', JSON.stringify(defaultSettings));
+  };
 
   // Akıllı özetleme
   const [conversationSummaries, setConversationSummaries] = useState<ConversationSummary[]>([]);
@@ -1030,6 +1122,7 @@ export default function EmployeeChat() {
         messages: results,
         voiceMessages: [],
         files: [],
+        users: [],
         totalResults: results.length,
         searchTime: Date.now(),
         relevance: 0.8
@@ -1666,7 +1759,59 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
   // Effect'ler
   useEffect(() => {
     loadChannels();
-  }, []);
+    
+    // Örnek bildirimler ekle (sadece ilk kez)
+    const hasShownWelcomeNotifications = localStorage.getItem('hasShownWelcomeNotifications');
+    
+    if (!hasShownWelcomeNotifications) {
+      setTimeout(() => {
+        addNotification({
+          title: 'Hoş Geldiniz!',
+          message: 'EmployeeChat sistemine başarıyla giriş yaptınız.',
+          type: 'success',
+          priority: 'medium',
+          category: 'system'
+        });
+      }, 1000);
+
+      setTimeout(() => {
+        addNotification({
+          title: 'Yeni Mesaj',
+          message: 'Ahmet Yılmaz size mesaj gönderdi.',
+          type: 'message',
+          priority: 'high',
+          category: 'chat',
+          senderName: 'Ahmet Yılmaz',
+          channelName: 'Genel'
+        });
+      }, 3000);
+
+      setTimeout(() => {
+        addNotification({
+          title: 'Dosya Paylaşıldı',
+          message: 'Yeni bir dosya paylaşıldı: proje_raporu.pdf',
+          type: 'file',
+          priority: 'medium',
+          category: 'file',
+          senderName: 'Mehmet Demir'
+        });
+      }, 5000);
+
+      // Bildirimlerin gösterildiğini işaretle
+      localStorage.setItem('hasShownWelcomeNotifications', 'true');
+    }
+    
+    // LocalStorage'dan Supabase'e veri taşıma (kullanıcı giriş yapmışsa)
+    if (user) {
+      migrateFromLocalStorage()
+        .then(() => {
+          console.log('Veriler başarıyla Supabase\'e taşındı');
+        })
+        .catch((error) => {
+          console.error('Veri taşıma hatası:', error);
+        });
+    }
+  }, [user]);
 
   useEffect(() => {
     if (selectedChannel) {
@@ -1737,7 +1882,7 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
   }
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900">
+    <div className={`flex h-screen bg-white dark:bg-gray-900 dark:bg-gray-950 ${uiuxClasses.fontSizeClass} ${settings.reducedMotion ? 'motion-reduce' : ''} ${settings.highContrast ? 'high-contrast' : ''}`}>
       {/* Left Column - Channel List */}
       <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <ChannelList
@@ -1755,66 +1900,81 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
       {/* Middle Column - Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        {selectedChannel && (
-          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+        <div className={`bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 ${uiuxClasses.shadowClass} ${uiuxClasses.borderRadiusClass}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              {selectedChannel ? (
+                <>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg font-semibold text-gray-900 dark:text-white">#{selectedChannel.name}</span>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {selectedChannel.description}
+                  </div>
+                </>
+              ) : (
                 <div className="flex items-center space-x-2">
-                  <span className="text-lg font-semibold text-gray-900 dark:text-white">#{selectedChannel.name}</span>
+                  <span className="text-lg font-semibold text-gray-900 dark:text-white">Çalışan Mesajlaşma Sistemi</span>
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedChannel.description}
-                </div>
-              </div>
+              )}
+            </div>
+            
+            {/* Header Icons */}
+            <div className="flex items-center space-x-3">
+              {/* Notifications */}
+              <button 
+                onClick={() => setShowNotificationPanel(true)}
+                className="relative p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                title="Bildirimler"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* UI/UX Settings */}
+              <button 
+                onClick={() => setShowUIUXSettings(true)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                title="UI/UX Ayarları"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+
+              {/* Dark Mode Toggle */}
+              <button 
+                onClick={toggleDarkMode}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                title={isDarkMode ? "Açık moda geç" : "Koyu moda geç"}
+              >
+                {isDarkMode ? (
+                  <Sun className="w-5 h-5 text-yellow-500" />
+                ) : (
+                  <Moon className="w-5 h-5 text-gray-600" />
+                )}
+              </button>
               
-              {/* Header Icons */}
-              <div className="flex items-center space-x-3">
-                {/* Dark Mode Toggle */}
-                <button 
-                  onClick={toggleDarkMode}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" 
-                  title={isDarkMode ? "Açık moda geç" : "Koyu moda geç"}
-                >
-                  {isDarkMode ? (
-                    <Sun className="w-5 h-5" />
-                  ) : (
-                    <Moon className="w-5 h-5" />
-                  )}
-                </button>
-                
-                {/* Search */}
-                <button 
-                  onClick={() => {
-                    const searchInput = document.querySelector('input[placeholder*="ara"]') as HTMLInputElement;
-                    if (searchInput) {
-                      searchInput.focus();
-                    }
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" 
-                  title="Ara"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </button>
-                
-                {/* Settings */}
-                <button 
-                  onClick={() => {
-                    toast.success('Ayarlar menüsü açıldı');
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700" 
-                  title="Ayarlar"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </button>
-              </div>
+              {/* Search */}
+              <button 
+                onClick={() => {
+                  const searchInput = document.querySelector('input[placeholder*="ara"]') as HTMLInputElement;
+                  if (searchInput) {
+                    searchInput.focus();
+                  }
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                title="Ara"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
@@ -1841,22 +2001,22 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
                 />
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center text-gray-500">
-                  <div className="w-16 h-16 mx-auto mb-4 border-2 border-gray-300 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">Kanal mesajları</h3>
-                  <p>Bu kanalda henüz mesaj yok.</p>
+                          <div className="flex items-center justify-center h-full">
+              <div className="text-center text-gray-500 dark:text-gray-300">
+                <div className="w-16 h-16 mx-auto mb-4 border-2 border-gray-300 dark:border-gray-600 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
                 </div>
+                <h3 className="text-lg font-semibold mb-2 dark:text-white">Kanal mesajları</h3>
+                <p>Bu kanalda henüz mesaj yok.</p>
               </div>
+            </div>
             )
           ) : (
             <div className="flex items-center justify-center h-full">
-              <div className="text-center text-gray-500">
-                <h3 className="text-xl font-semibold mb-2">Kanal Seçin</h3>
+              <div className="text-center text-gray-500 dark:text-gray-300">
+                <h3 className="text-xl font-semibold mb-2 dark:text-white">Kanal Seçin</h3>
                 <p>Mesajlaşmaya başlamak için bir kanal seçin</p>
               </div>
             </div>
@@ -1885,15 +2045,15 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
       </div>
 
       {/* Right Column - Users/Employees */}
-      <div className="w-64 bg-white border-l border-gray-200 flex flex-col">
+      <div className="w-64 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
-                     <div className="flex items-center justify-between">
-             <div>
-               <h3 className="text-sm font-medium text-gray-900">Çalışanlar</h3>
-               <p className="text-xs text-gray-500 mt-1">16 çalışan</p>
-             </div>
-           </div>
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">Çalışanlar</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">16 çalışan</p>
+            </div>
+          </div>
         </div>
 
         {/* Users List */}
@@ -1918,39 +2078,39 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
           </div>
         </div>
 
-                 {/* Quick Actions */}
-         <div className="p-4 border-t border-gray-200">
-           <h4 className="text-xs font-medium text-gray-700 mb-2">Hızlı Aksiyonlar</h4>
-           <div className="space-y-1">
-             <button 
-               onClick={() => setShowNewChannelModal(true)}
-               className="w-full flex items-center space-x-2 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded"
-             >
-               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-               </svg>
-               <span>Yeni Kanal</span>
-             </button>
-             <button 
-               onClick={() => setShowBulkMessageModal(true)}
-               className="w-full flex items-center space-x-2 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded"
-             >
-               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-               </svg>
-               <span>Toplu Mesaj</span>
-             </button>
-             <button 
-               onClick={() => setShowReportModal(true)}
-               className="w-full flex items-center space-x-2 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 rounded"
-             >
-               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-               </svg>
-               <span>Rapor Oluştur</span>
-             </button>
-           </div>
-         </div>
+        {/* Quick Actions */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Hızlı Aksiyonlar</h4>
+          <div className="space-y-1">
+            <button 
+              onClick={() => setShowNewChannelModal(true)}
+              className="w-full flex items-center space-x-2 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span>Yeni Kanal</span>
+            </button>
+            <button 
+              onClick={() => setShowBulkMessageModal(true)}
+              className="w-full flex items-center space-x-2 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              <span>Toplu Mesaj</span>
+            </button>
+            <button 
+              onClick={() => setShowReportModal(true)}
+              className="w-full flex items-center space-x-2 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span>Rapor Oluştur</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* YENİ ÖZELLİKLER İÇİN MODAL'LAR VE PANELLER */}
@@ -2849,6 +3009,33 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
            </div>
          </div>
        )}
+
+       {/* Notification Panel */}
+       <NotificationPanel 
+         isOpen={showNotificationPanel}
+         onClose={() => setShowNotificationPanel(false)}
+         notifications={[]}
+         onMarkAsRead={(id) => console.log('Mark as read:', id)}
+         onResetNotifications={clearAllNotifications}
+       />
+
+       {/* UI/UX Settings Panel */}
+       <UIUXSettingsPanel 
+         isOpen={showUIUXSettings}
+         onClose={() => setShowUIUXSettings(false)}
+         settings={settings}
+         onUpdateSettings={handleUIUXSettingsUpdate}
+         onReset={handleUIUXSettingsReset}
+       />
+
+       {/* Veri Taşıma Bileşeni - Sadece kullanıcı giriş yaptığında göster */}
+       {user && (
+         <DataMigration onComplete={() => {
+           console.log('Veri taşıma tamamlandı');
+         }} />
+       )}
      </div>
    );
  };
+
+export default EmployeeChat;

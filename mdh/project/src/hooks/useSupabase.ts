@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase, Customer, Agent, Ticket } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
 export const useSupabase = () => {
   const [loading, setLoading] = useState(false);
@@ -2267,6 +2273,225 @@ export const useSupabase = () => {
     return data;
   };
 
+  // Kullanıcı tercihleri fonksiyonları
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Mevcut kullanıcıyı al
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+
+    getUser();
+
+    // Auth state değişikliklerini dinle
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Kullanıcı tercihlerini al
+  const getUserPreferences = async () => {
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Kullanıcı tercihleri alınamadı:', error);
+      return null;
+    }
+
+    return data;
+  };
+
+  // Kullanıcı tercihlerini oluştur veya güncelle
+  const upsertUserPreferences = async (preferences: any) => {
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .upsert({
+        user_id: user.id,
+        ...preferences
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Kullanıcı tercihleri kaydedilemedi:', error);
+      return null;
+    }
+
+    return data;
+  };
+
+  // UI/UX ayarlarını güncelle
+  const updateUIUXSettings = async (settings: any) => {
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .upsert({
+        user_id: user.id,
+        uiux_settings: settings
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('UI/UX ayarları güncellenemedi:', error);
+      return null;
+    }
+
+    return data;
+  };
+
+  // Bildirim ayarlarını güncelle
+  const updateNotificationSettings = async (settings: any) => {
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .upsert({
+        user_id: user.id,
+        notification_settings: settings
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Bildirim ayarları güncellenemedi:', error);
+      return null;
+    }
+
+    return data;
+  };
+
+  // Tema ayarını güncelle
+  const updateTheme = async (theme: string) => {
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .upsert({
+        user_id: user.id,
+        theme: theme
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Tema ayarı güncellenemedi:', error);
+      return null;
+    }
+
+    return data;
+  };
+
+  // Bildirim geçmişini güncelle
+  const updateNotificationHistory = async (shownNotifications: string[], hasShownWelcome: boolean) => {
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('user_preferences')
+      .upsert({
+        user_id: user.id,
+        shown_notifications: shownNotifications,
+        has_shown_welcome_notifications: hasShownWelcome
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Bildirim geçmişi güncellenemedi:', error);
+      return null;
+    }
+
+    return data;
+  };
+
+  // LocalStorage'dan Supabase'e veri taşıma
+  const migrateFromLocalStorage = async () => {
+    if (!user) return null;
+
+    try {
+      // LocalStorage'dan tüm verileri al
+      const uiuxSettings = localStorage.getItem('uiuxSettings');
+      const notificationSettings = localStorage.getItem('notificationSettings');
+      const theme = localStorage.getItem('theme');
+      const shownNotifications = localStorage.getItem('shownNotifications');
+      const hasShownWelcome = localStorage.getItem('hasShownWelcomeNotifications');
+      const userProfile = localStorage.getItem('userProfile');
+      const appSettings = localStorage.getItem('appSettings');
+      
+      // Müşteri bildirim tercihlerini al
+      const customerNotificationPrefs: Record<string, string | null> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('notification_prefs_')) {
+          const customerId = key.replace('notification_prefs_', '');
+          customerNotificationPrefs[customerId] = localStorage.getItem(key);
+        }
+      }
+
+      // Supabase'e taşı
+      const preferences = {
+        user_id: user.id,
+        uiux_settings: uiuxSettings ? JSON.parse(uiuxSettings) : null,
+        notification_settings: notificationSettings ? JSON.parse(notificationSettings) : null,
+        theme: theme || 'auto',
+        shown_notifications: shownNotifications ? JSON.parse(shownNotifications) : [],
+        has_shown_welcome_notifications: hasShownWelcome === 'true',
+        user_preferences: {
+          userProfile: userProfile ? JSON.parse(userProfile) : null,
+          appSettings: appSettings ? JSON.parse(appSettings) : null,
+          customerNotificationPrefs: customerNotificationPrefs
+        }
+      };
+
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .upsert(preferences)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Veri taşıma hatası:', error);
+        return null;
+      }
+
+      // Başarılı taşıma sonrası localStorage'ı temizle
+      localStorage.removeItem('uiuxSettings');
+      localStorage.removeItem('notificationSettings');
+      localStorage.removeItem('theme');
+      localStorage.removeItem('shownNotifications');
+      localStorage.removeItem('hasShownWelcomeNotifications');
+      localStorage.removeItem('userProfile');
+      localStorage.removeItem('appSettings');
+      
+      // Müşteri bildirim tercihlerini temizle
+      Object.keys(customerNotificationPrefs).forEach(customerId => {
+        localStorage.removeItem(`notification_prefs_${customerId}`);
+      });
+      
+      console.log('✅ Tüm LocalStorage verileri Supabase\'e başarıyla taşındı');
+      return data;
+
+    } catch (error) {
+      console.error('Veri taşıma sırasında hata:', error);
+      return null;
+    }
+  };
+
   return {
     loading,
     searchTerm,
@@ -2377,6 +2602,15 @@ export const useSupabase = () => {
     fetchTrainingBadges,
     fetchUserBadges,
     fetchSmartTips,
+    // Kullanıcı tercihleri fonksiyonları
+    user,
+    getUserPreferences,
+    upsertUserPreferences,
+    updateUIUXSettings,
+    updateNotificationSettings,
+    updateTheme,
+    updateNotificationHistory,
+    migrateFromLocalStorage,
     supabase
   };
 };

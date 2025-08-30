@@ -214,7 +214,7 @@ export interface AdvancedSearchResults {
 
 export interface AdvancedSearchFilter {
   messageType: string;
-  dateRange: string;
+  dateRange: { start: Date | null; end: Date | null };
   sender: string;
   hasAttachments: boolean;
   hasMentions: boolean;
