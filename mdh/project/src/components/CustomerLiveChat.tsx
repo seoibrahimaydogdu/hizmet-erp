@@ -875,6 +875,7 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
                         </p>
                       </div>
                     )}
+                    
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-gray-900 dark:text-white">
@@ -901,10 +902,12 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
                         </svg>
                       </button>
                     </div>
+                    
                     <div 
                       className="text-sm"
                       dangerouslySetInnerHTML={{ __html: message.content }}
                     />
+                    
                     {message.attachments && message.attachments.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {message.attachments.map((attachment, index) => (
@@ -922,9 +925,9 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
             <div ref={messagesEndRef} />
           </div>
 
-                     {/* Message Input */}
-           {currentTicket && (
-             <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+          {/* Message Input */}
+          {currentTicket && (
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
               {/* Alıntı Göstergesi */}
               {replyingTo && (
                 <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">

@@ -264,99 +264,100 @@ const MessageList: React.FC<MessageListProps> = ({
                    </p>
                  </div>
                )}
-                               {/* Mesaj Aksiyonları - Sağ Taraf */}
-                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="flex items-center space-x-1">
-                    {/* Yanıtla Butonu */}
-                    {onReplyToMessage && (
-                      <button
-                        onClick={() => onReplyToMessage(message)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
-                        title="Yanıtla"
-                      >
-                        <Reply className="w-3 h-3" />
-                      </button>
-                    )}
-                    {onCreateTask && (
-                      <button
-                        onClick={() => onCreateTask(message)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
-                        title="Görev oluştur"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                      </button>
-                    )}
-                    {onStarMessage && (
-                      <button
-                        onClick={() => onStarMessage(message.id)}
-                        className={`p-1 rounded ${isMessageStarred && isMessageStarred(message.id) ? 'text-yellow-500' : 'text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100'}`}
-                        title={isMessageStarred && isMessageStarred(message.id) ? 'Önemli işaretlemeyi kaldır' : 'Önemli işaretle'}
-                      >
-                        <svg className="w-3 h-3" fill={isMessageStarred && isMessageStarred(message.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                        </svg>
-                      </button>
-                    )}
-                    {onPinMessage && (
-                      <button
-                        onClick={() => onPinMessage(message.id)}
-                        className={`p-1 rounded ${isMessagePinned && isMessagePinned(message.id) ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100'}`}
-                        title={isMessagePinned && isMessagePinned(message.id) ? 'Sabitlemeyi kaldır' : 'Sabitle'}
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                      </button>
-                    )}
-                    {/* Mesaj Kopyalama */}
-                    {onCopyMessage && (
-                      <button
-                        onClick={() => onCopyMessage(message)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
-                        title="Kopyala"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    )}
-                    {/* Mesaj İletme */}
-                    {onForwardMessage && (
-                      <button
-                        onClick={() => onForwardMessage(message)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
-                        title="İlet"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                      </button>
-                    )}
-                    {/* Mesaj Geri Yükleme (sadece silinen mesajlar için) */}
-                    {deletedMessages && deletedMessages.has(message.id) && onRestoreMessage && (
-                      <button
-                        onClick={() => onRestoreMessage(message.id)}
-                        className="p-1 text-green-400 hover:text-green-600 dark:text-green-300 dark:hover:text-green-100 rounded"
-                        title="Geri yükle"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
+               
+               {/* Mesaj Aksiyonları - Sağ Taraf */}
+               <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                 <div className="flex items-center space-x-1">
+                   {/* Yanıtla Butonu */}
+                   {onReplyToMessage && (
+                     <button
+                       onClick={() => onReplyToMessage(message)}
+                       className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
+                       title="Yanıtla"
+                     >
+                       <Reply className="w-3 h-3" />
+                     </button>
+                   )}
+                   {onCreateTask && (
+                     <button
+                       onClick={() => onCreateTask(message)}
+                       className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
+                       title="Görev oluştur"
+                     >
+                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                       </svg>
+                     </button>
+                   )}
+                   {onStarMessage && (
+                     <button
+                       onClick={() => onStarMessage(message.id)}
+                       className={`p-1 rounded ${isMessageStarred && isMessageStarred(message.id) ? 'text-yellow-500' : 'text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100'}`}
+                       title={isMessageStarred && isMessageStarred(message.id) ? 'Önemli işaretlemeyi kaldır' : 'Önemli işaretle'}
+                     >
+                       <svg className="w-3 h-3" fill={isMessageStarred && isMessageStarred(message.id) ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                       </svg>
+                     </button>
+                   )}
+                   {onPinMessage && (
+                     <button
+                       onClick={() => onPinMessage(message.id)}
+                       className={`p-1 rounded ${isMessagePinned && isMessagePinned(message.id) ? 'text-blue-500' : 'text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100'}`}
+                       title={isMessagePinned && isMessagePinned(message.id) ? 'Sabitlemeyi kaldır' : 'Sabitle'}
+                     >
+                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                       </svg>
+                     </button>
+                   )}
+                   {/* Mesaj Kopyalama */}
+                   {onCopyMessage && (
+                     <button
+                       onClick={() => onCopyMessage(message)}
+                       className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
+                       title="Kopyala"
+                     >
+                       <Copy className="w-3 h-3" />
+                     </button>
+                   )}
+                   {/* Mesaj İletme */}
+                   {onForwardMessage && (
+                     <button
+                       onClick={() => onForwardMessage(message)}
+                       className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded"
+                       title="İlet"
+                     >
+                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                       </svg>
+                     </button>
+                   )}
+                   {/* Mesaj Geri Yükleme (sadece silinen mesajlar için) */}
+                   {deletedMessages && deletedMessages.has(message.id) && onRestoreMessage && (
+                     <button
+                       onClick={() => onRestoreMessage(message.id)}
+                       className="p-1 text-green-400 hover:text-green-600 dark:text-green-300 dark:hover:text-green-100 rounded"
+                       title="Geri yükle"
+                     >
+                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                       </svg>
+                     </button>
+                   )}
+                 </div>
+               </div>
 
-                {/* Emoji Butonu - Sol Taraf */}
-                <div className="absolute top-1/2 -translate-y-1/2 -left-8 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
-                    className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700"
-                    title="Emoji ekle"
-                  >
-                    😊
-                  </button>
-                </div>
+               {/* Emoji Butonu - Sol Taraf */}
+               <div className="absolute top-1/2 -translate-y-1/2 -left-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                 <button
+                   onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
+                   className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded bg-white dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700"
+                   title="Emoji ekle"
+                 >
+                   😊
+                 </button>
+               </div>
 
                {/* GELİŞMİŞ MESAJLAŞMA ÖZELLİKLERİ */}
                
@@ -451,8 +452,7 @@ const MessageList: React.FC<MessageListProps> = ({
                    </div>
                  </div>
                )}
-
-               
+              
               {message.messageType === 'poll' ? (
                 <div className="text-sm">
                   <div className="mb-2 font-medium">📊 Anket</div>
@@ -511,33 +511,33 @@ const MessageList: React.FC<MessageListProps> = ({
                 </div>
                              ) : (
                  <p className="text-sm">{stripHtml(message.content)}</p>
-                               )}
+               )}
              </div>
 
-                           {/* Mesaj Reaksiyonları - Mesaj balonunun altında */}
-              {messageReactions && messageReactions[message.id] && Object.keys(messageReactions[message.id]).length > 0 && (
-                <div className={`mt-2 flex flex-wrap gap-1 ${message.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}>
-                  {Object.entries(messageReactions[message.id])
-                    .filter(([emoji, users]) => users.length > 0) // Sadece 1 ve daha fazla reaksiyonu olanları göster
-                    .map(([emoji, users]) => (
-                    <button
-                      key={emoji}
-                      onClick={() => users.includes(currentUserId) 
-                        ? onRemoveReaction?.(message.id, emoji)
-                        : onAddReaction?.(message.id, emoji)
-                      }
-                      className={`px-2 py-1 rounded-full text-xs transition-colors ${
-                        users.includes(currentUserId)
-                          ? 'bg-blue-100 text-blue-600'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                      title={`${users.length} kişi ${emoji} reaksiyonu verdi`}
-                    >
-                      {emoji} {users.length}
-                    </button>
-                  ))}
-                </div>
-              )}
+             {/* Mesaj Reaksiyonları - Mesaj balonunun altında */}
+             {messageReactions && messageReactions[message.id] && Object.keys(messageReactions[message.id]).length > 0 && (
+               <div className={`mt-2 flex flex-wrap gap-1 ${message.senderId === currentUserId ? 'justify-end' : 'justify-start'}`}>
+                 {Object.entries(messageReactions[message.id])
+                   .filter(([emoji, users]) => users.length > 0) // Sadece 1 ve daha fazla reaksiyonu olanları göster
+                   .map(([emoji, users]) => (
+                   <button
+                     key={emoji}
+                     onClick={() => users.includes(currentUserId) 
+                       ? onRemoveReaction?.(message.id, emoji)
+                       : onAddReaction?.(message.id, emoji)
+                     }
+                     className={`px-2 py-1 rounded-full text-xs transition-colors ${
+                       users.includes(currentUserId)
+                         ? 'bg-blue-100 text-blue-600'
+                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                     }`}
+                     title={`${users.length} kişi ${emoji} reaksiyonu verdi`}
+                   >
+                     {emoji} {users.length}
+                   </button>
+                 ))}
+               </div>
+             )}
            </div>
          </div>
       ))}
