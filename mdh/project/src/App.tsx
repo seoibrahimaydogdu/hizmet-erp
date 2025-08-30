@@ -906,6 +906,11 @@ function App() {
     return <CustomerPortal onBackToAdmin={() => navigate('/')} />;
   }
 
+  // Çalışan profili gösteriliyorsa
+  if (location.pathname === '/employee-profile') {
+    return <EmployeeProfile />;
+  }
+
   return (
     <ErrorBoundary>
       <div className="h-screen overflow-hidden">
@@ -1161,11 +1166,7 @@ function App() {
 
             {/* Page Content */}
             <main className="flex-1 bg-gray-50 dark:bg-gray-900 dark:bg-gray-950 overflow-y-auto overflow-x-hidden lg:pl-5">
-              {location.pathname === '/employee-profile' ? (
-                <EmployeeProfile />
-              ) : (
-                renderContent()
-              )}
+              {renderContent()}
             </main>
           </div>
 

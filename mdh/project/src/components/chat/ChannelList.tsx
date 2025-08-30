@@ -579,11 +579,13 @@ const ChannelList: React.FC<ChannelListProps> = ({
                          </p>
                        )}
                      </div>
-                                         {channel.unreadCount && channel.unreadCount > 0 && (
-                       <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center text-xs font-medium text-white bg-red-500 rounded-full">
-                         {channel.unreadCount}
-                       </span>
-                     )}
+                                         <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center text-xs font-medium rounded-full ${
+                                           channel.unreadCount && channel.unreadCount > 0 
+                                             ? 'text-white bg-red-500' 
+                                             : 'text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700'
+                                         }`}>
+                                           {channel.unreadCount || 0}
+                                         </span>
                   </button>
                   <button 
                     onClick={(e) => {

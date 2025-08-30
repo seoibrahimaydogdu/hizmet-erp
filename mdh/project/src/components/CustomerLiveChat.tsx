@@ -781,10 +781,10 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-medium">
+                      <span className="text-xs font-medium text-gray-900 dark:text-white">
                         {message.senderType === 'customer' ? 'Siz' : message.senderName}
                       </span>
-                      <span className="text-xs opacity-70">
+                      <span className="text-xs opacity-70 text-gray-600 dark:text-gray-300">
                         {format(message.timestamp, 'HH:mm', { locale: tr })}
                       </span>
                       {message.senderType === 'customer' && (
@@ -822,96 +822,96 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
               {isRichEditor && (
                 <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded border">
                   <div className="flex flex-wrap gap-1 mb-2">
-                    {/* Text Formatting */}
-                    <button onClick={() => formatText('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Bold className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Italic className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('underline')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Underline className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('strikeThrough')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Strikethrough className="w-4 h-4" />
-                    </button>
+                                         {/* Text Formatting */}
+                     <button onClick={() => formatText('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Bold className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Italic className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('underline')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Underline className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('strikeThrough')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Strikethrough className="w-4 h-4" />
+                     </button>
                     
                     <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                     
-                    {/* Alignment */}
-                    <button onClick={() => formatText('justifyLeft')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignLeft className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('justifyCenter')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignCenter className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('justifyRight')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignRight className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('justifyFull')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignJustify className="w-4 h-4" />
-                    </button>
+                                         {/* Alignment */}
+                     <button onClick={() => formatText('justifyLeft')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignLeft className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('justifyCenter')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignCenter className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('justifyRight')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignRight className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('justifyFull')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignJustify className="w-4 h-4" />
+                     </button>
                     
                     <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                     
-                    {/* Lists */}
-                    <button onClick={() => formatText('insertUnorderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <List className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('insertOrderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <ListOrdered className="w-4 h-4" />
-                    </button>
+                                         {/* Lists */}
+                     <button onClick={() => formatText('insertUnorderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <List className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('insertOrderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <ListOrdered className="w-4 h-4" />
+                     </button>
                     
                     <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                     
-                    {/* Special */}
-                    <button onClick={() => formatText('formatBlock', '<blockquote>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Quote className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('formatBlock', '<pre>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Code className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('foreColor')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Palette className="w-4 h-4" />
-                    </button>
+                                         {/* Special */}
+                     <button onClick={() => formatText('formatBlock', '<blockquote>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Quote className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('formatBlock', '<pre>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Code className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('foreColor')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Palette className="w-4 h-4" />
+                     </button>
                   </div>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {characterCount} / {maxCharacters} karakter
                     </span>
-                    <div className="flex gap-1">
-                      <button onClick={() => formatText('undo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                        <Undo className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => formatText('redo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                        <Redo className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => formatText('removeFormat')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                                         <div className="flex gap-1">
+                       <button onClick={() => formatText('undo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                         <Undo className="w-4 h-4" />
+                       </button>
+                       <button onClick={() => formatText('redo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                         <Redo className="w-4 h-4" />
+                       </button>
+                       <button onClick={() => formatText('removeFormat')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                         <X className="w-4 h-4" />
+                       </button>
+                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Attachments */}
-              {attachments.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {attachments.map((file, index) => (
-                    <div key={index} className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                      <File className="w-3 h-3" />
-                      <span className="truncate max-w-20">{file.name}</span>
-                      <button
-                        onClick={() => removeAttachment(index)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                             {/* Attachments */}
+               {attachments.length > 0 && (
+                 <div className="mb-3 flex flex-wrap gap-2">
+                   {attachments.map((file, index) => (
+                     <div key={index} className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs border border-gray-200 dark:border-gray-600">
+                       <File className="w-3 h-3 text-gray-600 dark:text-gray-300" />
+                       <span className="truncate max-w-20 text-gray-700 dark:text-gray-300">{file.name}</span>
+                       <button
+                         onClick={() => removeAttachment(index)}
+                         className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                       >
+                         <X className="w-3 h-3" />
+                       </button>
+                     </div>
+                   ))}
+                 </div>
+               )}
               
               <div className="flex items-end gap-2">
                 <div className="flex-1">

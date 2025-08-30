@@ -41,6 +41,9 @@ interface MessageInputProps {
   replyContent: string;
   setReplyContent: (content: string) => void;
   onVoiceMessage?: (audioBlob: Blob) => void;
+  // Yazıyor göstergesi için
+  onTypingStart?: () => void;
+  onTypingStop?: () => void;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
@@ -55,7 +58,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
   sendReply,
   replyContent,
   setReplyContent,
-  onVoiceMessage
+  onVoiceMessage,
+  onTypingStart,
+  onTypingStop
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const contentEditableRef = useRef<HTMLDivElement>(null);
@@ -200,6 +205,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
       const content = contentEditableRef.current.innerHTML;
       const cleanContent = content.replace(/<div><br><\/div>/g, '').trim();
       setNewMessage(cleanContent);
+      
+      // Yazıyor göstergesi
+      if (cleanContent.trim()) {
+        onTypingStart?.();
+      } else {
+        onTypingStop?.();
+      }
     }
   };
 
@@ -496,10 +508,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div className="space-y-3">
       {/* Formatting Toolbar */}
-      <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
+      <div className="flex items-center space-x-2 px-3 py-2 rounded-lg">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Dosya ekle"
         >
           <Paperclip className="w-4 h-4" />
@@ -508,20 +520,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div className="relative emoji-picker-container">
           <button 
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+            className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
             title="Emoji"
           >
             <Smile className="w-4 h-4" />
           </button>
           
           {showEmojiPicker && (
-            <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-max">
+            <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-50 min-w-max">
               <div className="grid grid-cols-5 gap-1">
                 {emojis.map((emoji, index) => (
                   <button
                     key={index}
                     onClick={() => addEmoji(emoji)}
-                    className="p-1 hover:bg-gray-100 rounded text-lg transition-colors"
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-lg transition-colors"
                   >
                     {emoji}
                   </button>
@@ -535,7 +547,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {!isVoiceRecording && !audioBlob && (
           <button
             onClick={startVoiceRecording}
-            className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+            className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
             title="Sesli Mesaj Kaydet"
           >
             <Mic className="w-4 h-4" />
@@ -582,7 +594,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('bold')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200 font-bold"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600 font-bold"
           title="Kalın"
         >
           B
@@ -590,7 +602,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('italic')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200 italic"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600 italic"
           title="İtalik"
         >
           I
@@ -598,7 +610,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('code')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Kod"
         >
           <Code className="w-4 h-4" />
@@ -606,7 +618,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('quote')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Alıntı"
         >
           <Quote className="w-4 h-4" />
@@ -614,7 +626,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('list')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Liste"
         >
           <List className="w-4 h-4" />
@@ -622,7 +634,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('ordered-list')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Numaralı Liste"
         >
           <ListOrdered className="w-4 h-4" />
@@ -633,7 +645,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openAdvancedSearch'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Gelişmiş Arama"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -646,7 +658,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openPollCreator'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Anket Oluştur"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -659,7 +671,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openTemplateSelector'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Mesaj Şablonları"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -672,7 +684,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openTaskCreator'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Görev Oluştur"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -685,7 +697,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('generateSummary'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Akıllı Özetleme"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

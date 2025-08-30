@@ -21,6 +21,12 @@ export interface ChatMessage {
     senderName: string;
     content: string;
   };
+  forwardedFrom?: {
+    messageId: string;
+    senderName: string;
+    channelName: string;
+    originalTimestamp: Date;
+  };
 }
 
 export interface Channel {

@@ -80,18 +80,49 @@ interface AdvancedSearchFilter {
   keywords: string[];
 }
 
+// Gerçek zamanlı bildirimler ve okundu durumu için interface'ler
+interface MessageReadStatus {
+  messageId: string;
+  readBy: string[];
+  readAt: { [userId: string]: Date };
+  unreadBy: string[];
+}
+
+interface TypingIndicator {
+  userId: string;
+  userName: string;
+  channelId: string;
+  isTyping: boolean;
+  lastTypingTime: Date;
+}
+
+interface RealTimeNotification {
+  id: string;
+  type: 'message' | 'reaction' | 'mention' | 'file' | 'typing';
+  channelId: string;
+  senderId: string;
+  senderName: string;
+  messageId?: string;
+  content?: string;
+  timestamp: Date;
+  isRead: boolean;
+}
+
 // UserItem Component
 const UserItem: React.FC<{ 
   user: any; 
   channels: Channel[]; 
   setChannels: React.Dispatch<React.SetStateAction<Channel[]>>;
   setSelectedChannel: React.Dispatch<React.SetStateAction<Channel | null>>;
-}> = ({ user, channels, setChannels, setSelectedChannel }) => {
+  userStatus?: 'online' | 'away' | 'busy' | 'offline';
+  customStatus?: string;
+  lastSeen?: Date;
+}> = ({ user, channels, setChannels, setSelectedChannel, userStatus = 'online', customStatus, lastSeen }) => {
   const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const getStatusColor = (status: string) => {
+  const getSimpleStatusColor = (status: string) => {
     switch (status) {
       case 'green': return 'bg-green-500';
       case 'yellow': return 'bg-yellow-500';
@@ -157,11 +188,28 @@ const UserItem: React.FC<{
         <div className={`w-8 h-8 ${user.color} rounded-full flex items-center justify-center`}>
           <span className="text-white text-xs font-semibold">{user.avatar}</span>
         </div>
-        <div className="flex-1">
-          <span className="text-sm text-gray-900 dark:text-white font-medium">{user.name}</span>
-          <p className="text-xs text-gray-500 dark:text-gray-300">{user.title}</p>
-        </div>
-        <div className={`w-2 h-2 ${getStatusColor(user.status)} rounded-full`}></div>
+                  <div className="flex-1">
+            <span className="text-sm text-gray-900 dark:text-white font-medium">{user.name}</span>
+            <p className="text-xs text-gray-500 dark:text-gray-300">{user.title}</p>
+            {customStatus && (
+              <p className="text-xs text-blue-600 dark:text-blue-400 italic">{customStatus}</p>
+            )}
+            {userStatus === 'offline' && lastSeen && (
+              <p className="text-xs text-gray-400">Son görülme: {(() => {
+                const now = new Date();
+                const diff = now.getTime() - lastSeen.getTime();
+                const minutes = Math.floor(diff / (1000 * 60));
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+                if (minutes < 1) return 'Az önce';
+                if (minutes < 60) return `${minutes} dakika önce`;
+                if (hours < 24) return `${hours} saat önce`;
+                return `${days} gün önce`;
+              })()}</p>
+            )}
+          </div>
+        <div className={`w-2 h-2 ${getSimpleStatusColor(userStatus)} rounded-full`}></div>
         
         {/* Menu Button */}
         <button
@@ -252,7 +300,7 @@ function EmployeeChat() {
   const location = useLocation();
   const { supabase } = useSupabase();
   const { isDarkMode, toggleDarkMode } = useTheme();
-  const { addNotification, unreadCount, clearAllNotifications } = useNotifications();
+  const { addNotification, unreadCount, clearAllNotifications, markAsRead, notifications } = useNotifications();
   const { user, migrateFromLocalStorage } = useSupabase();
   const { settings, state, updateState, updateSettings } = useUIUX();
   
@@ -295,8 +343,23 @@ function EmployeeChat() {
   const [advancedSearchQuery, setAdvancedSearchQuery] = useState('');
 
   // Bildirimler
-  const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  // GERÇEK ZAMANLI ÖZELLİKLER İÇİN STATE'LER
+  
+  // Mesaj okundu durumu
+  const [messageReadStatus, setMessageReadStatus] = useState<{ [messageId: string]: MessageReadStatus }>({});
+  
+  // Yazıyor göstergesi
+  const [typingUsers, setTypingUsers] = useState<TypingIndicator[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  
+  // Gerçek zamanlı bildirimler
+  const [realTimeNotifications, setRealTimeNotifications] = useState<RealTimeNotification[]>([]);
+  
+  // Mesaj okundu bildirimleri
+  const [readReceipts, setReadReceipts] = useState<{ [messageId: string]: { [userId: string]: Date } }>({});
 
   // YENİ ÖZELLİKLER İÇİN STATE'LER
   
@@ -340,16 +403,7 @@ function EmployeeChat() {
     category: 'genel'
   });
 
-  // Üretkenlik araçları
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [showTaskCreator, setShowTaskCreator] = useState(false);
-  const [taskForm, setTaskForm] = useState({
-    title: '',
-    description: '',
-    assignedTo: [] as string[],
-    dueDate: new Date(),
-    priority: 'medium' as 'low' | 'medium' | 'high'
-  });
+  // Üretkenlik araçları (eski - kaldırıldı)
 
   // Gelişmiş arama ve filtreleme
   const [advancedSearchFilters, setAdvancedSearchFilters] = useState<AdvancedSearchFilter>({
@@ -879,6 +933,38 @@ function EmployeeChat() {
           : ch
       ));
 
+      // Gerçek zamanlı özellikler: Mesaj okundu durumu başlat
+      const messageReadStatus: MessageReadStatus = {
+        messageId: message.id,
+        readBy: ['user1'], // Gönderen kendisi okumuş sayılır
+        readAt: { 'user1': new Date() },
+        unreadBy: selectedChannel.members.filter(member => member !== 'user1')
+      };
+      
+      setMessageReadStatus(prev => ({
+        ...prev,
+        [message.id]: messageReadStatus
+      }));
+
+      // Yazıyor göstergesini temizle
+      setIsTyping(false);
+      setTypingUsers(prev => prev.filter(t => t.userId !== 'user1' || t.channelId !== selectedChannel.id));
+
+      // Gerçek zamanlı bildirim gönder
+      const notification: RealTimeNotification = {
+        id: Date.now().toString(),
+        type: 'message',
+        channelId: selectedChannel.id,
+        senderId: 'user1',
+        senderName: 'Test User',
+        messageId: message.id,
+        content: newMessage,
+        timestamp: new Date(),
+        isRead: false
+      };
+      
+      setRealTimeNotifications(prev => [...prev, notification]);
+
       toast.success('Mesaj gönderildi');
     } catch (error) {
       console.error('Mesaj gönderilirken hata:', error);
@@ -929,6 +1015,224 @@ function EmployeeChat() {
     setMessages(prev => prev.filter(msg => msg.id !== messageId));
     toast.success('Mesaj silindi');
   };
+
+  // GERÇEK ZAMANLI ÖZELLİKLER İÇİN FONKSİYONLAR
+
+  // Mesaj okundu olarak işaretle
+  const markMessageAsRead = async (messageId: string) => {
+    const currentUserId = 'user1';
+    const currentTime = new Date();
+    
+    setMessageReadStatus(prev => {
+      const currentStatus = prev[messageId];
+      if (!currentStatus) return prev;
+      
+      const updatedStatus: MessageReadStatus = {
+        ...currentStatus,
+        readBy: [...currentStatus.readBy, currentUserId],
+        readAt: {
+          ...currentStatus.readAt,
+          [currentUserId]: currentTime
+        },
+        unreadBy: currentStatus.unreadBy.filter(userId => userId !== currentUserId)
+      };
+      
+      return {
+        ...prev,
+        [messageId]: updatedStatus
+      };
+    });
+
+    // Okundu bildirimi gönder
+    const readReceipt = {
+      messageId,
+      userId: currentUserId,
+      readAt: currentTime
+    };
+    
+    setReadReceipts(prev => ({
+      ...prev,
+      [messageId]: {
+        ...prev[messageId],
+        [currentUserId]: currentTime
+      }
+    }));
+  };
+
+  // Yazıyor göstergesi başlat
+  const startTyping = () => {
+    if (!selectedChannel) return;
+    
+    setIsTyping(true);
+    
+    const typingIndicator: TypingIndicator = {
+      userId: 'user1',
+      userName: 'Test User',
+      channelId: selectedChannel.id,
+      isTyping: true,
+      lastTypingTime: new Date()
+    };
+    
+    setTypingUsers(prev => {
+      const existing = prev.find(t => t.userId === 'user1' && t.channelId === selectedChannel.id);
+      if (existing) {
+        return prev.map(t => 
+          t.userId === 'user1' && t.channelId === selectedChannel.id
+            ? { ...t, isTyping: true, lastTypingTime: new Date() }
+            : t
+        );
+      }
+      return [...prev, typingIndicator];
+    });
+
+    // 3 saniye sonra yazıyor göstergesini kaldır
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    
+    const timeout = setTimeout(() => {
+      stopTyping();
+    }, 3000);
+    
+    setTypingTimeout(timeout);
+  };
+
+  // Yazıyor göstergesini durdur
+  const stopTyping = () => {
+    setIsTyping(false);
+    setTypingUsers(prev => prev.filter(t => !(t.userId === 'user1' && t.channelId === selectedChannel?.id)));
+    
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+      setTypingTimeout(null);
+    }
+  };
+
+  // Mesaj görüntülendiğinde otomatik okundu işaretle
+  const handleMessageView = (messageId: string) => {
+    const currentUserId = 'user1';
+    const message = messages.find(m => m.id === messageId);
+    
+    if (message && message.senderId !== currentUserId) {
+      markMessageAsRead(messageId);
+    }
+  };
+
+  // MESAJ İLETME VE KOPYALAMA FONKSİYONLARI
+
+  // Mesajı kopyala
+  const copyMessageToClipboard = async (message: ChatMessage) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      toast.success('Mesaj panoya kopyalandı');
+    } catch (error) {
+      console.error('Mesaj kopyalanırken hata:', error);
+      toast.error('Mesaj kopyalanamadı');
+    }
+  };
+
+  // Mesajı ilet
+  const forwardMessage = (message: ChatMessage, targetChannelId: string) => {
+    const targetChannel = channels.find(ch => ch.id === targetChannelId);
+    if (!targetChannel) {
+      toast.error('Hedef kanal bulunamadı');
+      return;
+    }
+
+    const forwardedMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: `📤 İletilen mesaj:\n\n${message.content}`,
+      senderId: 'user1',
+      senderName: 'Test User',
+      senderRole: 'employee',
+      senderAvatar: 'TU',
+      channelId: targetChannelId,
+      messageType: 'text',
+      timestamp: new Date(),
+      forwardedFrom: {
+        messageId: message.id,
+        senderName: message.senderName,
+        channelName: channels.find(ch => ch.id === message.channelId)?.name || 'Bilinmeyen Kanal',
+        originalTimestamp: message.timestamp
+      }
+    };
+
+    setMessages(prev => [...prev, forwardedMessage]);
+    
+    // Kanalın son mesajını güncelle
+    setChannels(prev => prev.map(ch => 
+      ch.id === targetChannelId 
+        ? { ...ch, lastMessage: `📤 ${message.content.substring(0, 50)}...`, lastMessageTime: Date.now() }
+        : ch
+    ));
+
+    toast.success(`Mesaj ${targetChannel.name} kanalına iletildi`);
+  };
+
+  // Mesaj iletme modal'ı için state
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [messageToForward, setMessageToForward] = useState<ChatMessage | null>(null);
+
+  // GELİŞMİŞ DOSYA YÖNETİMİ İÇİN STATE'LER
+  
+  // Dosya sürükle-bırak
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragCounter, setDragCounter] = useState(0);
+  
+  // Dosya önizleme ve düzenleme
+  const [showFileEditor, setShowFileEditor] = useState(false);
+  const [fileToEdit, setFileToEdit] = useState<File | null>(null);
+  const [fileEditContent, setFileEditContent] = useState('');
+  
+  // Dosya filtreleme
+  const [fileFilter, setFileFilter] = useState<'all' | 'images' | 'documents' | 'videos' | 'audio'>('all');
+  const [showFileManager, setShowFileManager] = useState(false);
+  
+  // Dosya arama
+  const [fileSearchTerm, setFileSearchTerm] = useState('');
+  const [filteredFiles, setFilteredFiles] = useState<FileMessage[]>([]);
+
+  // ÇALIŞAN DURUMU VE MÜSAİTLİK İÇİN STATE'LER
+  
+  // Kullanıcı durumu
+  const [userStatus, setUserStatus] = useState<'online' | 'away' | 'busy' | 'offline'>('online');
+  const [customStatus, setCustomStatus] = useState('');
+  const [lastSeen, setLastSeen] = useState(new Date());
+  
+  // Diğer kullanıcıların durumu
+  const [otherUsersStatus, setOtherUsersStatus] = useState<{
+    [userId: string]: {
+      status: 'online' | 'away' | 'busy' | 'offline';
+      customStatus?: string;
+      lastSeen: Date;
+      isTyping?: boolean;
+    }
+  }>({});
+  
+  // Durum değiştirme modal'ı
+  const [showStatusModal, setShowStatusModal] = useState(false);
+
+  // MESAJ FİLTRELEME VE ETİKETLEME İÇİN STATE'LER
+  
+  // Mesaj filtreleme
+  const [messageFilters, setMessageFilters] = useState({
+    showFiles: true,
+    showImages: true,
+    showLinks: true,
+    showMentions: false,
+    showSystemMessages: true,
+    showAnnouncements: true
+  });
+  
+  // Mesaj etiketleme
+  const [messageTags, setMessageTags] = useState<{ [messageId: string]: string[] }>({});
+  const [availableTags, setAvailableTags] = useState<string[]>([
+    'önemli', 'acil', 'proje', 'toplantı', 'görev', 'sorun', 'çözüm', 'fikir'
+  ]);
+  
+  // Filtreleme modal'ı
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filteredMessages, setFilteredMessages] = useState<ChatMessage[]>([]);
 
   // Mesaj sabitleme
   const pinMessage = async (messageId: string) => {
@@ -999,9 +1303,65 @@ function EmployeeChat() {
     return null;
   };
 
+  // GELİŞMİŞ DOSYA YÖNETİMİ FONKSİYONLARI
+
+  // Dosya sürükle-bırak işlemleri
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev + 1);
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(prev => prev - 1);
+    if (dragCounter === 0) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    setDragCounter(0);
+
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(file => handleFileUpload(file));
+    
+    toast.success(`${files.length} dosya yüklendi`);
+  };
+
   // Dosya yükleme
   const handleFileUpload = async (file: File) => {
     try {
+      // Dosya boyutu kontrolü (10MB limit)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('Dosya boyutu 10MB\'dan büyük olamaz');
+        return;
+      }
+
+      // Dosya tipi kontrolü
+      const allowedTypes = [
+        'image/', 'video/', 'audio/', 'text/', 'application/pdf',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      ];
+
+      const isAllowed = allowedTypes.some(type => file.type.startsWith(type));
+      if (!isAllowed) {
+        toast.error('Bu dosya tipi desteklenmiyor');
+        return;
+      }
+
       const fileMessage: FileMessage = {
         id: Date.now().toString(),
         fileName: file.name,
@@ -1019,12 +1379,643 @@ function EmployeeChat() {
       };
 
       setFileMessages(prev => [...prev, fileMessage]);
+      
+      // Mesaj olarak da gönder
+      const message: ChatMessage = {
+        id: Date.now().toString(),
+        content: `📎 ${file.name} dosyası paylaşıldı`,
+        senderId: 'user1',
+        senderName: 'Test User',
+        senderRole: 'employee',
+        senderAvatar: 'TU',
+        channelId: selectedChannel?.id || '',
+        messageType: 'file',
+        timestamp: new Date(),
+        attachments: [fileMessage.id]
+      };
+
+      setMessages(prev => [...prev, message]);
+      
+      // Kanalın son mesajını güncelle
+      if (selectedChannel) {
+        setChannels(prev => prev.map(ch => 
+          ch.id === selectedChannel.id 
+            ? { ...ch, lastMessage: `📎 ${file.name}`, lastMessageTime: Date.now() }
+            : ch
+        ));
+      }
+
       toast.success('Dosya yüklendi');
     } catch (error) {
       console.error('Dosya yüklenirken hata:', error);
       toast.error('Dosya yüklenemedi');
     }
   };
+
+  // Dosya düzenleme
+  const editFile = (file: File) => {
+    setFileToEdit(file);
+    setFileEditContent('');
+    setShowFileEditor(true);
+  };
+
+  // Dosya filtreleme
+  const filterFiles = () => {
+    let filtered = fileMessages;
+    
+    // Tip filtreleme
+    switch (fileFilter) {
+      case 'images':
+        filtered = filtered.filter(f => f.isImage);
+        break;
+      case 'documents':
+        filtered = filtered.filter(f => f.isDocument);
+        break;
+      case 'videos':
+        filtered = filtered.filter(f => f.isVideo);
+        break;
+      case 'audio':
+        filtered = filtered.filter(f => f.isAudio);
+        break;
+    }
+    
+    // Arama filtreleme
+    if (fileSearchTerm) {
+      filtered = filtered.filter(f => 
+        f.fileName.toLowerCase().includes(fileSearchTerm.toLowerCase())
+      );
+    }
+    
+    setFilteredFiles(filtered);
+  };
+
+  // Dosya arama ve filtreleme effect'i
+  useEffect(() => {
+    filterFiles();
+  }, [fileFilter, fileSearchTerm, fileMessages]);
+
+  // ÇALIŞAN DURUMU VE MÜSAİTLİK FONKSİYONLARI
+
+  // Kullanıcı durumunu güncelle
+  const updateUserStatus = (status: 'online' | 'away' | 'busy' | 'offline', customMessage?: string) => {
+    setUserStatus(status);
+    if (customMessage) {
+      setCustomStatus(customMessage);
+    }
+    setLastSeen(new Date());
+    
+    // Diğer kullanıcılara durum değişikliğini bildir
+    toast.success(`Durumunuz "${status}" olarak güncellendi`);
+  };
+
+  // Son görülme zamanını hesapla
+  const getLastSeenText = (lastSeen: Date) => {
+    const now = new Date();
+    const diff = now.getTime() - lastSeen.getTime();
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (minutes < 1) return 'Az önce';
+    if (minutes < 60) return `${minutes} dakika önce`;
+    if (hours < 24) return `${hours} saat önce`;
+    return `${days} gün önce`;
+  };
+
+  // Kullanıcı durumu rengini al
+  const getUserStatusColor = (status: 'online' | 'away' | 'busy' | 'offline') => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'away': return 'bg-yellow-500';
+      case 'busy': return 'bg-red-500';
+      case 'offline': return 'bg-gray-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  // Kullanıcı durumu metnini al
+  const getUserStatusText = (status: 'online' | 'away' | 'busy' | 'offline') => {
+    switch (status) {
+      case 'online': return 'Çevrimiçi';
+      case 'away': return 'Uzakta';
+      case 'busy': return 'Meşgul';
+      case 'offline': return 'Çevrimdışı';
+      default: return 'Bilinmiyor';
+    }
+  };
+
+  // Otomatik durum güncelleme (5 dakika hareketsizlik sonrası "away")
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    
+    const resetTimeout = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        if (userStatus === 'online') {
+          updateUserStatus('away');
+        }
+      }, 5 * 60 * 1000); // 5 dakika
+    };
+
+    const handleActivity = () => {
+      if (userStatus === 'away') {
+        updateUserStatus('online');
+      }
+      resetTimeout();
+    };
+
+    // Kullanıcı aktivitelerini dinle
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keypress', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+
+    resetTimeout();
+
+    return () => {
+      clearTimeout(timeout);
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keypress', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+    };
+  }, [userStatus]);
+
+  // MESAJ FİLTRELEME VE ETİKETLEME FONKSİYONLARI
+
+  // Mesajları filtrele
+  const filterMessages = () => {
+    let filtered = messages;
+
+    // Dosya mesajları
+    if (!messageFilters.showFiles) {
+      filtered = filtered.filter(msg => msg.messageType !== 'file');
+    }
+
+    // Resim mesajları
+    if (!messageFilters.showImages) {
+      filtered = filtered.filter(msg => !msg.content.includes('🖼️') && !msg.content.includes('image'));
+    }
+
+    // Link mesajları
+    if (!messageFilters.showLinks) {
+      filtered = filtered.filter(msg => !msg.content.includes('http'));
+    }
+
+    // Mention mesajları
+    if (!messageFilters.showMentions) {
+      filtered = filtered.filter(msg => !msg.content.includes('@'));
+    }
+
+    // Sistem mesajları
+    if (!messageFilters.showSystemMessages) {
+      filtered = filtered.filter(msg => msg.messageType !== 'system');
+    }
+
+    // Duyuru mesajları
+    if (!messageFilters.showAnnouncements) {
+      filtered = filtered.filter(msg => msg.messageType !== 'announcement');
+    }
+
+    setFilteredMessages(filtered);
+  };
+
+  // Mesaj etiketle
+  const tagMessage = (messageId: string, tag: string) => {
+    setMessageTags(prev => {
+      const currentTags = prev[messageId] || [];
+      if (currentTags.includes(tag)) {
+        return prev; // Etiket zaten var
+      }
+      return {
+        ...prev,
+        [messageId]: [...currentTags, tag]
+      };
+    });
+
+    // Yeni etiket varsa ekle
+    if (!availableTags.includes(tag)) {
+      setAvailableTags(prev => [...prev, tag]);
+    }
+
+    toast.success(`Mesaj "${tag}" etiketi ile etiketlendi`);
+  };
+
+  // Mesaj etiketini kaldır
+  const removeMessageTag = (messageId: string, tag: string) => {
+    setMessageTags(prev => {
+      const currentTags = prev[messageId] || [];
+      return {
+        ...prev,
+        [messageId]: currentTags.filter(t => t !== tag)
+      };
+    });
+
+    toast.success(`"${tag}" etiketi kaldırıldı`);
+  };
+
+  // Etiketli mesajları getir
+  const getMessagesByTag = (tag: string) => {
+    return messages.filter(msg => messageTags[msg.id]?.includes(tag));
+  };
+
+  // Mesaj filtreleme effect'i
+  useEffect(() => {
+    filterMessages();
+  }, [messageFilters, messages]);
+
+  // MESAJ SABİTLEME VE ÖNEMLİ İŞARETLEME FONKSİYONLARI
+
+  // Mesajı sabitle/sabitlemeyi kaldır
+  const togglePinMessage = (messageId: string) => {
+    if (!selectedChannel) return;
+
+    const channelPinnedMessages = pinnedMessages[selectedChannel.id] || [];
+    const isPinned = channelPinnedMessages.includes(messageId);
+
+    if (isPinned) {
+      // Sabitlemeyi kaldır
+      const updatedPinnedMessages = channelPinnedMessages.filter(id => id !== messageId);
+      setPinnedMessages(prev => ({
+        ...prev,
+        [selectedChannel.id]: updatedPinnedMessages
+      }));
+      toast.success('Mesaj sabitlemeyi kaldırıldı');
+    } else {
+      // Sabitle (maksimum 5 mesaj)
+      if (channelPinnedMessages.length >= 5) {
+        toast.error('Maksimum 5 mesaj sabitleyebilirsiniz');
+        return;
+      }
+      
+      const updatedPinnedMessages = [...channelPinnedMessages, messageId];
+      setPinnedMessages(prev => ({
+        ...prev,
+        [selectedChannel.id]: updatedPinnedMessages
+      }));
+      toast.success('Mesaj sabitlendi');
+    }
+  };
+
+  // Mesajı önemli işaretle/önemli işaretlemeyi kaldır
+  const toggleStarMessage = (messageId: string) => {
+    const isStarred = starredMessages[messageId];
+    
+    setStarredMessages(prev => ({
+      ...prev,
+      [messageId]: !isStarred
+    }));
+
+    if (isStarred) {
+      toast.success('Mesaj önemli işaretlemeyi kaldırıldı');
+    } else {
+      toast.success('Mesaj önemli işaretlendi');
+    }
+  };
+
+  // Sabitlenen mesajları getir
+  const getPinnedMessages = (channelId: string) => {
+    const pinnedIds = pinnedMessages[channelId] || [];
+    return messages.filter(msg => pinnedIds.includes(msg.id));
+  };
+
+  // Önemli işaretlenen mesajları getir
+  const getStarredMessages = () => {
+    return messages.filter(msg => starredMessages[msg.id]);
+  };
+
+  // Mesajın sabitlenip sabitlenmediğini kontrol et
+  const isMessagePinned = (messageId: string) => {
+    if (!selectedChannel) return false;
+    const channelPinnedMessages = pinnedMessages[selectedChannel.id] || [];
+    return channelPinnedMessages.includes(messageId);
+  };
+
+  // Mesajın önemli işaretlenip işaretlenmediğini kontrol et
+  const isMessageStarred = (messageId: string) => {
+    return starredMessages[messageId] || false;
+  };
+
+  // Sabitlenen mesaj sayısını getir
+  const getPinnedMessageCount = (channelId: string) => {
+    return pinnedMessages[channelId]?.length || 0;
+  };
+
+  // Önemli işaretlenen mesaj sayısını getir
+  const getStarredMessageCount = () => {
+    return Object.values(starredMessages).filter(Boolean).length;
+  };
+
+  // GELİŞMİŞ GÖREV YÖNETİMİ İÇİN STATE'LER
+  
+  // Görevler
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [showTaskManager, setShowTaskManager] = useState(false);
+  const [showTaskCreator, setShowTaskCreator] = useState(false);
+  const [showTaskDetails, setShowTaskDetails] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  
+  // Görev filtreleme
+  const [taskFilter, setTaskFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'overdue'>('all');
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'urgent'>('all');
+  const [taskAssigneeFilter, setTaskAssigneeFilter] = useState('all');
+  
+  // Görev oluşturma formu
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    description: '',
+    assignedTo: [] as string[],
+    dueDate: new Date(),
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    tags: [] as string[],
+    attachments: [] as string[],
+    estimatedHours: 0,
+    dependencies: [] as string[]
+  });
+  
+  // Görev düzenleme
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  
+  // Görev arama
+  const [taskSearchTerm, setTaskSearchTerm] = useState('');
+  
+  // Görev istatistikleri
+  const [taskStats, setTaskStats] = useState({
+    total: 0,
+    pending: 0,
+    inProgress: 0,
+    completed: 0,
+    overdue: 0
+  });
+
+  // GELİŞMİŞ GÖREV YÖNETİMİ FONKSİYONLARI
+
+  // Görev oluştur
+  const createTask = () => {
+    if (!taskForm.title.trim()) {
+      toast.error('Görev başlığı gereklidir');
+      return;
+    }
+
+    const newTask: Task = {
+      id: Date.now().toString(),
+      title: taskForm.title,
+      description: taskForm.description,
+      assignee: taskForm.assignedTo[0] || 'user1',
+      assigneeName: 'Test User', // Gerçek uygulamada kullanıcı adı alınır
+      priority: taskForm.priority,
+      status: 'pending',
+      dueDate: taskForm.dueDate,
+      createdAt: new Date(),
+      tags: taskForm.tags,
+      attachments: taskForm.attachments
+    };
+
+    setTasks(prev => [...prev, newTask]);
+    updateTaskStats();
+    
+    // Görev oluşturma mesajı gönder
+    if (selectedChannel) {
+      const taskMessage: ChatMessage = {
+        id: Date.now().toString(),
+        content: `📋 Görev Oluşturuldu:\n\n**${newTask.title}**\n\n${newTask.description}\n\n👤 Atanan: ${newTask.assigneeName}\n📅 Bitiş: ${newTask.dueDate.toLocaleDateString('tr-TR')}\n🎯 Öncelik: ${getPriorityText(newTask.priority)}`,
+        senderId: 'user1',
+        senderName: 'Test User',
+        senderRole: 'employee',
+        senderAvatar: 'TU',
+        channelId: selectedChannel.id,
+        messageType: 'system',
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, taskMessage]);
+    }
+
+    // Formu temizle
+    setTaskForm({
+      title: '',
+      description: '',
+      assignedTo: [],
+      dueDate: new Date(),
+      priority: 'medium',
+      tags: [],
+      attachments: [],
+      estimatedHours: 0,
+      dependencies: []
+    });
+
+    setShowTaskCreator(false);
+    toast.success('Görev başarıyla oluşturuldu');
+  };
+
+  // Görev güncelle
+  const updateTask = (taskId: string, updates: Partial<Task>) => {
+    setTasks(prev => prev.map(task => 
+      task.id === taskId ? { ...task, ...updates } : task
+    ));
+    updateTaskStats();
+    toast.success('Görev güncellendi');
+  };
+
+  // Görev sil
+  const deleteTask = (taskId: string) => {
+    setTasks(prev => prev.filter(task => task.id !== taskId));
+    updateTaskStats();
+    toast.success('Görev silindi');
+  };
+
+  // Görev durumunu değiştir
+  const changeTaskStatus = (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed' | 'cancelled') => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updates: Partial<Task> = { status: newStatus };
+    
+    if (newStatus === 'completed') {
+      updates.completedAt = new Date();
+    }
+
+    updateTask(taskId, updates);
+  };
+
+  // Görev önceliğini değiştir
+  const changeTaskPriority = (taskId: string, newPriority: 'low' | 'medium' | 'high' | 'urgent') => {
+    updateTask(taskId, { priority: newPriority });
+  };
+
+  // Görev atamasını değiştir
+  const reassignTask = (taskId: string, newAssignee: string) => {
+    updateTask(taskId, { assignee: newAssignee });
+  };
+
+  // Görev istatistiklerini güncelle
+  const updateTaskStats = () => {
+    const stats = {
+      total: tasks.length,
+      pending: tasks.filter(t => t.status === 'pending').length,
+      inProgress: tasks.filter(t => t.status === 'in_progress').length,
+      completed: tasks.filter(t => t.status === 'completed').length,
+      overdue: tasks.filter(t => {
+        return t.status !== 'completed' && t.dueDate < new Date();
+      }).length
+    };
+    setTaskStats(stats);
+  };
+
+  // Görevleri filtrele
+  const getFilteredTasks = () => {
+    let filtered = tasks;
+
+    // Durum filtresi
+    if (taskFilter !== 'all') {
+      filtered = filtered.filter(task => task.status === taskFilter);
+    }
+
+    // Öncelik filtresi
+    if (taskPriorityFilter !== 'all') {
+      filtered = filtered.filter(task => task.priority === taskPriorityFilter);
+    }
+
+    // Atanan kişi filtresi
+    if (taskAssigneeFilter !== 'all') {
+      filtered = filtered.filter(task => task.assignee === taskAssigneeFilter);
+    }
+
+    // Arama filtresi
+    if (taskSearchTerm) {
+      const searchLower = taskSearchTerm.toLowerCase();
+      filtered = filtered.filter(task => 
+        task.title.toLowerCase().includes(searchLower) ||
+        task.description.toLowerCase().includes(searchLower) ||
+        task.assigneeName.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return filtered;
+  };
+
+  // Öncelik metnini al
+  const getPriorityText = (priority: string) => {
+    switch (priority) {
+      case 'low': return 'Düşük';
+      case 'medium': return 'Orta';
+      case 'high': return 'Yüksek';
+      case 'urgent': return 'Acil';
+      default: return 'Orta';
+    }
+  };
+
+  // Öncelik rengini al
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'low': return 'bg-gray-500';
+      case 'medium': return 'bg-blue-500';
+      case 'high': return 'bg-orange-500';
+      case 'urgent': return 'bg-red-500';
+      default: return 'bg-blue-500';
+    }
+  };
+
+  // Durum metnini al
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Bekliyor';
+      case 'in_progress': return 'Devam Ediyor';
+      case 'completed': return 'Tamamlandı';
+      case 'cancelled': return 'İptal Edildi';
+      default: return 'Bekliyor';
+    }
+  };
+
+  // Durum rengini al
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-500';
+      case 'in_progress': return 'bg-blue-500';
+      case 'completed': return 'bg-green-500';
+      case 'cancelled': return 'bg-gray-500';
+      default: return 'bg-yellow-500';
+    }
+  };
+
+  // Mesajdan görev oluştur
+  const createTaskFromMessage = (message: ChatMessage) => {
+    setTaskForm(prev => ({
+      ...prev,
+      title: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : ''),
+      description: message.content
+    }));
+    setShowTaskCreator(true);
+  };
+
+  // Görev istatistiklerini effect ile güncelle
+  useEffect(() => {
+    updateTaskStats();
+  }, [tasks]);
+
+  // KANAL İÇİ ARAMA FONKSİYONLARI
+
+  // Seçili kanalın mesajlarını ara
+  const searchChannelMessages = (query: string) => {
+    if (!query.trim() || !selectedChannel) {
+      setFilteredMessages(messages);
+      return;
+    }
+
+    const searchLower = query.toLowerCase();
+    const filtered = messages.filter(message => {
+      // Sadece seçili kanaldaki mesajları ara
+      if (message.channelId !== selectedChannel.id) {
+        return false;
+      }
+
+      // Mesaj içeriğinde ara
+      if (message.content.toLowerCase().includes(searchLower)) {
+        return true;
+      }
+
+      // Gönderen adında ara
+      if (message.senderName.toLowerCase().includes(searchLower)) {
+        return true;
+      }
+
+      // Dosya mesajlarında dosya adında ara
+      if (message.messageType === 'file' && message.attachments) {
+        const fileMessage = fileMessages.find(fm => fm.id === message.attachments?.[0]);
+        if (fileMessage && fileMessage.fileName.toLowerCase().includes(searchLower)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    setFilteredMessages(filtered);
+    
+    if (filtered.length > 0) {
+      toast.success(`"${query}" için ${filtered.length} mesaj bulundu`);
+    } else {
+      toast.error(`"${query}" için mesaj bulunamadı`);
+    }
+  };
+
+  // Kanal içi arama state'i
+  const [channelSearchTerm, setChannelSearchTerm] = useState('');
+  const [showChannelSearch, setShowChannelSearch] = useState(false);
+
+  // MESAJ SABİTLEME VE ÖNEMLİ İŞARETLEME İÇİN STATE'LER
+  
+  // Sabitlenen mesajlar
+  const [pinnedMessages, setPinnedMessages] = useState<{ [channelId: string]: string[] }>({});
+  
+  // Önemli işaretlenen mesajlar (yıldızlı)
+  const [starredMessages, setStarredMessages] = useState<{ [messageId: string]: boolean }>({});
+  
+  // Sabitlenen mesajlar paneli
+  const [showPinnedMessages, setShowPinnedMessages] = useState(false);
+  
+  // Önemli mesajlar paneli
+  const [showStarredMessages, setShowStarredMessages] = useState(false);
 
   // Sesli mesaj işleme
   const handleVoiceMessage = async (audioBlob: Blob) => {
@@ -1352,91 +2343,7 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
     }
   };
 
-  // Görev oluşturma
-  const createTask = async () => {
-    if (!taskForm.title.trim() || !taskForm.description.trim()) {
-      toast.error('Lütfen görev başlığı ve açıklamasını doldurun');
-      return;
-    }
-
-    if (selectedChannel) {
-      // Görevi mesaj olarak gönder
-      const taskMessage = `
-📋 Görev Oluşturuldu: ${taskForm.title}
-
-📝 Açıklama: ${taskForm.description}
-
-👥 Atanan Kişiler: ${taskForm.assignedTo.length > 0 ? taskForm.assignedTo.map(userId => {
-  const userInfo = {
-    'user1': { name: 'Test User', role: 'Sistem Yöneticisi' },
-    'user2': { name: 'Ahmet Yılmaz', role: 'Yazılım Geliştirici' },
-    'user3': { name: 'Ayşe Çelik', role: 'Proje Yöneticisi' },
-    'user4': { name: 'Ali Demir', role: 'UI/UX Tasarımcı' },
-    'user5': { name: 'Aylin Doğan', role: 'İnsan Kaynakları' },
-    'user6': { name: 'Mehmet Kaya', role: 'Satış Müdürü' },
-    'user7': { name: 'Fatma Özkan', role: 'Muhasebe Uzmanı' }
-  };
-  const user = userInfo[userId as keyof typeof userInfo];
-  return user ? `${user.name} (${user.role})` : userId;
-}).join(', ') : 'Atanmamış'}
-
-📅 Bitiş Tarihi: ${taskForm.dueDate.toLocaleDateString('tr-TR')}
-
-⚡ Öncelik: ${taskForm.priority === 'low' ? 'Düşük' : taskForm.priority === 'medium' ? 'Orta' : 'Yüksek'}
-
-🆔 Durum: Bekliyor
-      `.trim();
-
-      const newTaskMessage: ChatMessage = {
-        id: Date.now().toString(),
-        content: taskMessage,
-        senderId: 'user1',
-        senderName: 'Test User',
-        senderRole: 'employee',
-        senderAvatar: 'TU',
-        channelId: selectedChannel.id,
-        messageType: 'system',
-        timestamp: new Date()
-      };
-
-      // Mesajı listeye ekle
-      setMessages(prev => [...prev, newTaskMessage]);
-
-      // Kanalın son mesajını güncelle
-      setChannels(prev => prev.map(ch => 
-        ch.id === selectedChannel.id 
-          ? { ...ch, lastMessage: `📋 ${taskForm.title}`, lastMessageTime: Date.now() }
-          : ch
-      ));
-
-      // Görevi tasks listesine de ekle
-      const task: Task = {
-        id: Date.now().toString(),
-        title: taskForm.title,
-        description: taskForm.description,
-        assignedTo: taskForm.assignedTo,
-        dueDate: taskForm.dueDate,
-        priority: taskForm.priority,
-        status: 'pending',
-        createdFromMessage: newTaskMessage.id,
-        channelId: selectedChannel.id
-      };
-
-      setTasks(prev => [...prev, task]);
-      setShowTaskCreator(false);
-      setTaskForm({
-        title: '',
-        description: '',
-        assignedTo: [],
-        dueDate: new Date(),
-        priority: 'medium'
-      });
-      
-      toast.success('Görev mesaj olarak gönderildi');
-    } else {
-      toast.error('Lütfen önce bir kanal seçin');
-    }
-  };
+  // Eski görev oluşturma fonksiyonu kaldırıldı
 
   // Gelişmiş arama fonksiyonu
   const performAdvancedSearch = () => {
@@ -1816,8 +2723,20 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
   useEffect(() => {
     if (selectedChannel) {
       loadMessages(selectedChannel.id);
+      
+      // Kanal seçildiğinde o kanala ait okunmamış bildirimleri otomatik olarak okundu olarak işaretle
+      if (notifications.length > 0) {
+        const unreadChannelNotifications = notifications.filter(
+          (n) => !n.isRead && n.channelId === selectedChannel.id
+        );
+
+        // O kanala ait okunmamış bildirimleri okundu olarak işaretle
+        unreadChannelNotifications.forEach((notification) => {
+          markAsRead(notification.id);
+        });
+      }
     }
-  }, [selectedChannel]);
+  }, [selectedChannel, notifications, markAsRead]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1882,7 +2801,13 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
   }
 
   return (
-    <div className={`flex h-screen bg-white dark:bg-gray-900 dark:bg-gray-950 ${uiuxClasses.fontSizeClass} ${settings.reducedMotion ? 'motion-reduce' : ''} ${settings.highContrast ? 'high-contrast' : ''}`}>
+    <div 
+      className={`flex h-screen bg-white dark:bg-gray-900 dark:bg-gray-950 ${uiuxClasses.fontSizeClass} ${settings.reducedMotion ? 'motion-reduce' : ''} ${settings.highContrast ? 'high-contrast' : ''} ${isDragOver ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Left Column - Channel List */}
       <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <ChannelList
@@ -1899,8 +2824,8 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
 
       {/* Middle Column - Main Chat Area */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className={`bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 ${uiuxClasses.shadowClass} ${uiuxClasses.borderRadiusClass}`}>
+        {/* Header - Her zaman görünür */}
+        <div className={`bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 ${uiuxClasses.shadowClass} ${uiuxClasses.borderRadiusClass} sticky top-0 z-10`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               {selectedChannel ? (
@@ -1957,7 +2882,68 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
                 )}
               </button>
               
-              {/* Search */}
+              {/* Sabitlenen Mesajlar */}
+              {selectedChannel && getPinnedMessageCount(selectedChannel.id) > 0 && (
+                <button 
+                  onClick={() => setShowPinnedMessages(true)}
+                  className="relative p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                  title="Sabitlenen mesajlar"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    {getPinnedMessageCount(selectedChannel.id)}
+                  </span>
+                </button>
+              )}
+
+              {/* Görev Yönetimi */}
+              <button 
+                onClick={() => setShowTaskManager(true)}
+                className="relative p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                title="Görev yönetimi"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                {taskStats.total > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    {taskStats.total}
+                  </span>
+                )}
+              </button>
+
+              {/* Önemli Mesajlar */}
+              {getStarredMessageCount() > 0 && (
+                <button 
+                  onClick={() => setShowStarredMessages(true)}
+                  className="relative p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                  title="Önemli mesajlar"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  <span className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    {getStarredMessageCount()}
+                  </span>
+                </button>
+              )}
+
+              {/* Kanal İçi Arama */}
+              {selectedChannel && (
+                <button 
+                  onClick={() => setShowChannelSearch(!showChannelSearch)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
+                  title="Kanal içinde ara"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Kanal Arama */}
               <button 
                 onClick={() => {
                   const searchInput = document.querySelector('input[placeholder*="ara"]') as HTMLInputElement;
@@ -1966,28 +2952,93 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
                   }
                 }}
                 className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" 
-                title="Ara"
+                title="Kanal ara"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21l4-4 4 4M3 10h18M7 15h10" />
                 </svg>
               </button>
             </div>
           </div>
+
+          {/* Kanal İçi Arama Çubuğu */}
+          {showChannelSearch && selectedChannel && (
+            <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
+              <div className="flex items-center space-x-3">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder={`#${selectedChannel.name} kanalında ara...`}
+                    value={channelSearchTerm}
+                    onChange={(e) => {
+                      setChannelSearchTerm(e.target.value);
+                      searchChannelMessages(e.target.value);
+                    }}
+                    className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowChannelSearch(false);
+                    setChannelSearchTerm('');
+                    setFilteredMessages(messages);
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  title="Aramayı kapat"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              {channelSearchTerm && (
+                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                  {filteredMessages.length} sonuç bulundu
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pt-8">
           {selectedChannel ? (
             messages.length > 0 ? (
               <div className="p-6">
+                {/* Bildirim Göstergesi - Kanal İçinde */}
+                {unreadCount > 0 && (
+                  <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                        </div>
+                        <span className="text-sm text-orange-800 dark:text-orange-200 font-medium">
+                          {unreadCount} okunmamış bildirim
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setShowNotificationPanel(true)}
+                        className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 text-xs font-medium"
+                      >
+                        Görüntüle
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
                 <MessageList
-                  messages={messages}
+                  messages={channelSearchTerm ? filteredMessages : messages}
                   voiceMessages={voiceMessages}
                   currentUserId="user1"
                   onEditMessage={editMessage}
                   onDeleteMessage={deleteMessage}
-                  onPinMessage={pinMessage}
+                  onPinMessage={togglePinMessage}
                   onReplyToMessage={handleReplyToMessage}
                   editingMessage={editingMessage}
                   setEditingMessage={setEditingMessage}
@@ -1998,26 +3049,104 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
                   pollVotes={pollVotes}
                   onPollVote={handlePollVote}
                   userVotes={userVotes}
+                  messageReadStatus={messageReadStatus}
+                  onMessageView={handleMessageView}
+                  typingUsers={typingUsers}
+                  onCopyMessage={copyMessageToClipboard}
+                  onForwardMessage={(message) => {
+                    setMessageToForward(message);
+                    setShowForwardModal(true);
+                  }}
+                  onStarMessage={toggleStarMessage}
+                  isMessagePinned={isMessagePinned}
+                  isMessageStarred={isMessageStarred}
+                  onCreateTask={createTaskFromMessage}
                 />
+
+                {/* Yazıyor Göstergesi */}
+                {typingUsers.length > 0 && (
+                  <div className="px-6 py-2 text-sm text-gray-500 dark:text-gray-400 italic">
+                    <div className="flex items-center space-x-2">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                      <span>
+                        {typingUsers.map(t => t.userName).join(', ')} yazıyor...
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-                          <div className="flex items-center justify-center h-full">
-              <div className="text-center text-gray-500 dark:text-gray-300">
-                <div className="w-16 h-16 mx-auto mb-4 border-2 border-gray-300 dark:border-gray-600 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center text-gray-500 dark:text-gray-300">
+                  <div className="w-16 h-16 mx-auto mb-4 border-2 border-gray-300 dark:border-gray-600 rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2 dark:text-white">Kanal mesajları</h3>
+                  <p>Bu kanalda henüz mesaj yok.</p>
+                  
+                  {/* Bildirim Göstergesi - Boş Kanal */}
+                  {unreadCount > 0 && (
+                    <div className="mt-6 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-medium text-orange-800 dark:text-orange-200">Okunmamış Bildirimler</h4>
+                            <p className="text-xs text-orange-600 dark:text-orange-300">{unreadCount} adet okunmamış bildiriminiz var</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowNotificationPanel(true)}
+                          className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 text-sm font-medium"
+                        >
+                          Görüntüle
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-lg font-semibold mb-2 dark:text-white">Kanal mesajları</h3>
-                <p>Bu kanalda henüz mesaj yok.</p>
               </div>
-            </div>
             )
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-gray-500 dark:text-gray-300">
                 <h3 className="text-xl font-semibold mb-2 dark:text-white">Kanal Seçin</h3>
                 <p>Mesajlaşmaya başlamak için bir kanal seçin</p>
+                
+                {/* Bildirim Göstergesi */}
+                {unreadCount > 0 && (
+                  <div className="mt-6 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-orange-800 dark:text-orange-200">Okunmamış Bildirimler</h4>
+                          <p className="text-xs text-orange-600 dark:text-orange-300">{unreadCount} adet okunmamış bildiriminiz var</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowNotificationPanel(true)}
+                        className="text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-200 text-sm font-medium"
+                      >
+                        Görüntüle
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2028,7 +3157,15 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
           <div className="border-t border-gray-200 p-4">
             <MessageInput
               newMessage={newMessage}
-              setNewMessage={setNewMessage}
+              setNewMessage={(value) => {
+                setNewMessage(value);
+                // Yazıyor göstergesini başlat
+                if (value.trim()) {
+                  startTyping();
+                } else {
+                  stopTyping();
+                }
+              }}
               onSendMessage={sendMessage}
               onFileUpload={handleFileUpload}
               onVoiceRecord={startVoiceRecording}
@@ -2039,6 +3176,8 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
               replyContent={replyContent}
               setReplyContent={setReplyContent}
               onVoiceMessage={handleVoiceMessage}
+              onTypingStart={startTyping}
+              onTypingStop={stopTyping}
             />
           </div>
         )}
@@ -2112,6 +3251,23 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
           </div>
         </div>
       </div>
+
+      {/* Sürükle-Bırak Göstergesi */}
+      {isDragOver && (
+        <div className="fixed inset-0 bg-blue-500 bg-opacity-20 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-8 shadow-xl border-2 border-dashed border-blue-500">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Dosyaları Buraya Bırakın</h3>
+              <p className="text-gray-600 dark:text-gray-300">Dosyalarınızı yüklemek için buraya bırakın</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* YENİ ÖZELLİKLER İÇİN MODAL'LAR VE PANELLER */}
 
@@ -2914,6 +4070,454 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
          </div>
        )}
 
+       {/* Sabitlenen Mesajlar Modal'ı */}
+       {showPinnedMessages && selectedChannel && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+             <div className="flex items-center justify-between mb-4">
+               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                 Sabitlenen Mesajlar - #{selectedChannel.name}
+               </h3>
+               <button
+                 onClick={() => setShowPinnedMessages(false)}
+                 className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+               >
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+               </button>
+             </div>
+
+             <div className="overflow-y-auto max-h-[60vh] space-y-4">
+               {getPinnedMessages(selectedChannel.id).length > 0 ? (
+                 getPinnedMessages(selectedChannel.id).map((message) => (
+                   <div key={message.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                     <div className="flex items-start justify-between mb-2">
+                       <div className="flex items-center space-x-2">
+                         <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                           <span className="text-white text-sm font-semibold">
+                             {message.senderName.charAt(0).toUpperCase()}
+                           </span>
+                         </div>
+                         <span className="text-sm font-medium text-gray-900 dark:text-white">
+                           {message.senderName}
+                         </span>
+                         <span className="text-xs text-gray-500 dark:text-gray-400">
+                           {new Date(message.timestamp).toLocaleString('tr-TR')}
+                         </span>
+                       </div>
+                       <button
+                         onClick={() => togglePinMessage(message.id)}
+                         className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+                         title="Sabitlemeyi kaldır"
+                       >
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                         </svg>
+                       </button>
+                     </div>
+                     <p className="text-sm text-gray-700 dark:text-gray-300">{message.content}</p>
+                   </div>
+                 ))
+               ) : (
+                 <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                   Bu kanalda sabitlenen mesaj bulunmuyor.
+                 </div>
+               )}
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Görev Yönetimi Modal'ı */}
+       {showTaskManager && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-6xl max-h-[90vh] overflow-hidden">
+             <div className="flex items-center justify-between mb-6">
+               <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+                 <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                 </svg>
+                 <span>Görev Yönetimi</span>
+               </h3>
+               <div className="flex items-center space-x-2">
+                 <button
+                   onClick={() => setShowTaskCreator(true)}
+                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                 >
+                   + Yeni Görev
+                 </button>
+                 <button
+                   onClick={() => setShowTaskManager(false)}
+                   className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+                 >
+                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                   </svg>
+                 </button>
+               </div>
+             </div>
+
+             {/* İstatistikler */}
+             <div className="grid grid-cols-5 gap-4 mb-6">
+               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{taskStats.total}</div>
+                 <div className="text-sm text-blue-600 dark:text-blue-400">Toplam</div>
+               </div>
+               <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
+                 <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{taskStats.pending}</div>
+                 <div className="text-sm text-yellow-600 dark:text-yellow-400">Bekliyor</div>
+               </div>
+               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{taskStats.inProgress}</div>
+                 <div className="text-sm text-blue-600 dark:text-blue-400">Devam Ediyor</div>
+               </div>
+               <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">{taskStats.completed}</div>
+                 <div className="text-sm text-green-600 dark:text-green-400">Tamamlandı</div>
+               </div>
+               <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+                 <div className="text-2xl font-bold text-red-600 dark:text-red-400">{taskStats.overdue}</div>
+                 <div className="text-sm text-red-600 dark:text-red-400">Gecikmiş</div>
+               </div>
+             </div>
+
+             {/* Filtreler */}
+             <div className="flex items-center space-x-4 mb-6">
+               <input
+                 type="text"
+                 placeholder="Görev ara..."
+                 value={taskSearchTerm}
+                 onChange={(e) => setTaskSearchTerm(e.target.value)}
+                 className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+               />
+               <select
+                 value={taskFilter}
+                 onChange={(e) => setTaskFilter(e.target.value as any)}
+                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+               >
+                 <option value="all">Tüm Durumlar</option>
+                 <option value="pending">Bekliyor</option>
+                 <option value="in_progress">Devam Ediyor</option>
+                 <option value="completed">Tamamlandı</option>
+                 <option value="overdue">Gecikmiş</option>
+               </select>
+               <select
+                 value={taskPriorityFilter}
+                 onChange={(e) => setTaskPriorityFilter(e.target.value as any)}
+                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+               >
+                 <option value="all">Tüm Öncelikler</option>
+                 <option value="low">Düşük</option>
+                 <option value="medium">Orta</option>
+                 <option value="high">Yüksek</option>
+                 <option value="urgent">Acil</option>
+               </select>
+             </div>
+
+             {/* Görev Listesi */}
+             <div className="overflow-y-auto max-h-[50vh] space-y-3">
+               {getFilteredTasks().length > 0 ? (
+                 getFilteredTasks().map((task) => (
+                   <div key={task.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                     <div className="flex items-start justify-between">
+                       <div className="flex-1">
+                         <div className="flex items-center space-x-2 mb-2">
+                           <h4 className="text-lg font-medium text-gray-900 dark:text-white">{task.title}</h4>
+                           <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(task.priority)} text-white`}>
+                             {getPriorityText(task.priority)}
+                           </span>
+                           <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(task.status)} text-white`}>
+                             {getStatusText(task.status)}
+                           </span>
+                         </div>
+                         <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{task.description}</p>
+                         <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+                           <span>👤 {task.assigneeName}</span>
+                           <span>📅 {task.dueDate.toLocaleDateString('tr-TR')}</span>
+                           <span>🏷️ {task.tags.join(', ') || 'Etiket yok'}</span>
+                         </div>
+                       </div>
+                       <div className="flex items-center space-x-2">
+                         <button
+                           onClick={() => {
+                             setSelectedTask(task);
+                             setShowTaskDetails(true);
+                           }}
+                           className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+                           title="Detayları görüntüle"
+                         >
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                           </svg>
+                         </button>
+                         <button
+                           onClick={() => deleteTask(task.id)}
+                           className="p-2 text-red-400 hover:text-red-600"
+                           title="Görevi sil"
+                         >
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                           </svg>
+                         </button>
+                       </div>
+                     </div>
+                   </div>
+                 ))
+               ) : (
+                 <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                   Görev bulunamadı.
+                 </div>
+               )}
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Görev Oluşturma Modal'ı */}
+       {showTaskCreator && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+             <div className="flex items-center justify-between mb-6">
+               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Yeni Görev Oluştur</h3>
+               <button
+                 onClick={() => setShowTaskCreator(false)}
+                 className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+               >
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+               </button>
+             </div>
+
+             <div className="space-y-4">
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Görev Başlığı *</label>
+                 <input
+                   type="text"
+                   value={taskForm.title}
+                   onChange={(e) => setTaskForm(prev => ({ ...prev, title: e.target.value }))}
+                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                   placeholder="Görev başlığını yazın"
+                 />
+               </div>
+
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Açıklama</label>
+                 <textarea
+                   value={taskForm.description}
+                   onChange={(e) => setTaskForm(prev => ({ ...prev, description: e.target.value }))}
+                   rows={4}
+                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                   placeholder="Görev açıklamasını yazın"
+                 />
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bitiş Tarihi</label>
+                   <input
+                     type="datetime-local"
+                     value={taskForm.dueDate.toISOString().slice(0, 16)}
+                     onChange={(e) => setTaskForm(prev => ({ ...prev, dueDate: new Date(e.target.value) }))}
+                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                   />
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Öncelik</label>
+                   <select
+                     value={taskForm.priority}
+                     onChange={(e) => setTaskForm(prev => ({ ...prev, priority: e.target.value as any }))}
+                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                   >
+                     <option value="low">Düşük</option>
+                     <option value="medium">Orta</option>
+                     <option value="high">Yüksek</option>
+                     <option value="urgent">Acil</option>
+                   </select>
+                 </div>
+               </div>
+
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Atanan Kişi</label>
+                 <select
+                   value={taskForm.assignedTo[0] || ''}
+                   onChange={(e) => setTaskForm(prev => ({ ...prev, assignedTo: e.target.value ? [e.target.value] : [] }))}
+                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                 >
+                   <option value="">Kişi seçin</option>
+                   <option value="user1">Test User</option>
+                   <option value="user2">Ahmet Yılmaz</option>
+                   <option value="user3">Ayşe Çelik</option>
+                 </select>
+               </div>
+
+               <div className="flex space-x-2">
+                 <button
+                   onClick={createTask}
+                   className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                 >
+                   Görev Oluştur
+                 </button>
+                 <button
+                   onClick={() => setShowTaskCreator(false)}
+                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                 >
+                   İptal
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Önemli Mesajlar Modal'ı */}
+       {showStarredMessages && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+             <div className="flex items-center justify-between mb-4">
+               <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center space-x-2">
+                 <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                 </svg>
+                 <span>Önemli Mesajlar</span>
+               </h3>
+               <button
+                 onClick={() => setShowStarredMessages(false)}
+                 className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+               >
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+               </button>
+             </div>
+
+             <div className="overflow-y-auto max-h-[60vh] space-y-4">
+               {getStarredMessages().length > 0 ? (
+                 getStarredMessages().map((message) => (
+                   <div key={message.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                     <div className="flex items-start justify-between mb-2">
+                       <div className="flex items-center space-x-2">
+                         <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                           <span className="text-white text-sm font-semibold">
+                             {message.senderName.charAt(0).toUpperCase()}
+                           </span>
+                         </div>
+                         <span className="text-sm font-medium text-gray-900 dark:text-white">
+                           {message.senderName}
+                         </span>
+                         <span className="text-xs text-gray-500 dark:text-gray-400">
+                           {new Date(message.timestamp).toLocaleString('tr-TR')}
+                         </span>
+                         <span className="text-xs text-gray-400 dark:text-gray-500">
+                           #{channels.find(ch => ch.id === message.channelId)?.name || 'Bilinmeyen Kanal'}
+                         </span>
+                       </div>
+                       <button
+                         onClick={() => toggleStarMessage(message.id)}
+                         className="text-yellow-500 hover:text-yellow-600"
+                         title="Önemli işaretlemeyi kaldır"
+                       >
+                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                         </svg>
+                       </button>
+                     </div>
+                     <p className="text-sm text-gray-700 dark:text-gray-300">{message.content}</p>
+                   </div>
+                 ))
+               ) : (
+                 <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                   Önemli işaretlenen mesaj bulunmuyor.
+                 </div>
+               )}
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Mesaj İletme Modal'ı */}
+       {showForwardModal && messageToForward && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+           <div className="bg-white rounded-lg p-6 w-full max-w-md">
+             <div className="flex items-center justify-between mb-4">
+               <h3 className="text-lg font-semibold text-gray-900">Mesaj İlet</h3>
+               <button
+                 onClick={() => {
+                   setShowForwardModal(false);
+                   setMessageToForward(null);
+                 }}
+                 className="text-gray-400 hover:text-gray-600"
+               >
+                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                 </svg>
+               </button>
+             </div>
+
+             <div className="space-y-4">
+               {/* İletilecek mesaj önizlemesi */}
+               <div className="bg-gray-50 rounded-lg p-3">
+                 <p className="text-sm text-gray-600 mb-2">İletilecek mesaj:</p>
+                 <p className="text-sm text-gray-900">{messageToForward.content}</p>
+                 <p className="text-xs text-gray-500 mt-1">
+                   {messageToForward.senderName} • {new Date(messageToForward.timestamp).toLocaleString('tr-TR')}
+                 </p>
+               </div>
+
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">Hedef Kanal Seçin</label>
+                 <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-2">
+                   {channels.filter(ch => ch.id !== selectedChannel?.id).map(channel => (
+                     <label key={channel.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
+                       <input
+                         type="radio"
+                         name="targetChannel"
+                         value={channel.id}
+                         className="text-blue-600 focus:ring-blue-500"
+                       />
+                       <div className="flex-1">
+                         <span className="text-sm font-medium text-gray-900">#{channel.name}</span>
+                         <p className="text-xs text-gray-500">{channel.description}</p>
+                       </div>
+                     </label>
+                   ))}
+                 </div>
+               </div>
+
+               <div className="flex space-x-2">
+                 <button
+                   onClick={() => {
+                     const selectedChannelId = document.querySelector('input[name="targetChannel"]:checked') as HTMLInputElement;
+                     if (selectedChannelId) {
+                       forwardMessage(messageToForward, selectedChannelId.value);
+                       setShowForwardModal(false);
+                       setMessageToForward(null);
+                     } else {
+                       toast.error('Lütfen bir hedef kanal seçin');
+                     }
+                   }}
+                   className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                 >
+                   İlet
+                 </button>
+                 <button
+                   onClick={() => {
+                     setShowForwardModal(false);
+                     setMessageToForward(null);
+                   }}
+                   className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                 >
+                   İptal
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+
        {/* Rapor Oluşturma Modal'ı */}
        {showReportModal && (
          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
@@ -3014,8 +4618,8 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
        <NotificationPanel 
          isOpen={showNotificationPanel}
          onClose={() => setShowNotificationPanel(false)}
-         notifications={[]}
-         onMarkAsRead={(id) => console.log('Mark as read:', id)}
+         notifications={notifications}
+         onMarkAsRead={markAsRead}
          onResetNotifications={clearAllNotifications}
        />
 
