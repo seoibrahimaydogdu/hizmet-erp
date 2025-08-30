@@ -44,8 +44,11 @@ import {
   Zap,
   Star,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  Search
 } from 'lucide-react';
+import VoiceSearch from './common/VoiceSearch';
+import VoiceMessage from './common/VoiceMessage';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
@@ -60,6 +63,12 @@ interface Message {
   timestamp: Date;
   attachments?: string[];
   ticketId?: string;
+  // Alıntı özelliği
+  replyTo?: {
+    messageId: string;
+    senderName: string;
+    content: string;
+  };
 }
 
 interface Ticket {
@@ -128,6 +137,14 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
   const [characterCount, setCharacterCount] = useState(0);
   const maxCharacters = 2000;
 
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
+  
+  // Alıntı özelliği için state'ler
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+
   // Priority colors and text
   const priorityColors = {
     low: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
@@ -165,6 +182,20 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
       console.error('Ticket yükleme hatası:', error);
     }
   };
+
+  // Filter tickets based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredTickets(tickets);
+    } else {
+      const filtered = tickets.filter(ticket =>
+        ticket.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ticket.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        priorityText[ticket.priority].toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredTickets(filtered);
+    }
+  }, [searchTerm, tickets]);
 
   // Load messages for current ticket
   const loadMessages = async (ticketId?: string) => {
@@ -336,7 +367,15 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
         sender_name: customerName,
         sender_type: 'customer',
         ticket_id: currentTicket.id,
-        attachments: attachments.map(file => file.name)
+        attachments: attachments.map(file => file.name),
+        // Alıntı özelliği
+        ...(replyingTo && {
+          reply_to: {
+            message_id: replyingTo.id,
+            sender_name: replyingTo.senderName,
+            message: replyingTo.content
+          }
+        })
       };
 
       const { error } = await supabase
@@ -348,11 +387,26 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
       setNewMessage('');
       setAttachments([]);
       setCharacterCount(0);
+      
+      // Alıntıyı temizle
+      if (replyingTo) {
+        setReplyingTo(null);
+      }
 
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
       toast.error('Mesaj gönderilemedi');
     }
+  };
+
+  // Alıntı fonksiyonları
+  const handleReplyToMessage = (message: Message) => {
+    setReplyingTo(message);
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
+    setReplyContent('');
   };
 
   // File handling
@@ -595,12 +649,34 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
               Yeni Talep
             </button>
           </div>
+
+          {/* Arama Alanı */}
+          <div className="relative mb-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Destek taleplerinde ara..."
+                className="w-full pl-10 pr-12 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+              <div className="absolute right-1.5 top-1/2 transform -translate-y-1/2">
+                <VoiceSearch
+                  onTranscript={(text) => setSearchTerm(text)}
+                  className=""
+                />
+              </div>
+            </div>
+          </div>
           
           <div className="space-y-2 flex-1 overflow-y-auto">
-            {tickets.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Henüz destek talebiniz yok</p>
+            {filteredTickets.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz destek talebiniz yok'}
+              </p>
             ) : (
-              tickets.map((ticket) => (
+              filteredTickets.map((ticket) => (
                 <div
                   key={ticket.id}
                   onClick={() => setCurrentTicket(ticket)}
@@ -774,25 +850,56 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
                   className={`flex ${message.senderType === 'customer' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                    className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg group ${
                       message.senderType === 'customer'
                         ? 'bg-blue-600 text-white'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-medium">
-                        {message.senderType === 'customer' ? 'Siz' : message.senderName}
-                      </span>
-                      <span className="text-xs opacity-70">
-                        {format(message.timestamp, 'HH:mm', { locale: tr })}
-                      </span>
-                      {message.senderType === 'customer' && (
-                        <div className="flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          <CheckCircle className="w-3 h-3" />
+                    {/* Alıntı Mesajı */}
+                    {message.replyTo && (
+                      <div className="mb-2 p-2 bg-gray-200 dark:bg-gray-600 rounded border-l-4 border-blue-500">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
+                          <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            {message.replyTo.senderName}
+                          </span>
                         </div>
-                      )}
+                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+                          {message.replyTo.content.length > 80 
+                            ? `${message.replyTo.content.substring(0, 80)}...` 
+                            : message.replyTo.content
+                          }
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-900 dark:text-white">
+                          {message.senderType === 'customer' ? 'Siz' : message.senderName}
+                        </span>
+                        <span className="text-xs opacity-70 text-gray-600 dark:text-gray-300">
+                          {format(message.timestamp, 'HH:mm', { locale: tr })}
+                        </span>
+                        {message.senderType === 'customer' && (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            <CheckCircle className="w-3 h-3" />
+                          </div>
+                        )}
+                      </div>
+                      {/* Yanıtla Butonu */}
+                      <button
+                        onClick={() => handleReplyToMessage(message)}
+                        className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Yanıtla"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                      </button>
                     </div>
                     <div 
                       className="text-sm"
@@ -818,104 +925,133 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
                      {/* Message Input */}
            {currentTicket && (
              <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              {/* Alıntı Göstergesi */}
+              {replyingTo && (
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                      </svg>
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                        {replyingTo.senderName} mesajına yanıt veriyorsunuz
+                      </span>
+                    </div>
+                    <button
+                      onClick={cancelReply}
+                      className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
+                      title="Yanıtlamayı iptal et"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="mt-1 text-sm text-blue-600 dark:text-blue-400 line-clamp-2">
+                    {replyingTo.content.length > 100 
+                      ? `${replyingTo.content.substring(0, 100)}...` 
+                      : replyingTo.content
+                    }
+                  </p>
+                </div>
+              )}
+              
               {/* Rich Editor Toolbar */}
               {isRichEditor && (
                 <div className="mb-3 p-2 bg-gray-50 dark:bg-gray-700 rounded border">
                   <div className="flex flex-wrap gap-1 mb-2">
-                    {/* Text Formatting */}
-                    <button onClick={() => formatText('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Bold className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Italic className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('underline')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Underline className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('strikeThrough')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Strikethrough className="w-4 h-4" />
-                    </button>
+                                         {/* Text Formatting */}
+                     <button onClick={() => formatText('bold')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Bold className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('italic')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Italic className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('underline')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Underline className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('strikeThrough')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Strikethrough className="w-4 h-4" />
+                     </button>
                     
                     <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                     
-                    {/* Alignment */}
-                    <button onClick={() => formatText('justifyLeft')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignLeft className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('justifyCenter')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignCenter className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('justifyRight')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignRight className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('justifyFull')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <AlignJustify className="w-4 h-4" />
-                    </button>
+                                         {/* Alignment */}
+                     <button onClick={() => formatText('justifyLeft')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignLeft className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('justifyCenter')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignCenter className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('justifyRight')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignRight className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('justifyFull')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <AlignJustify className="w-4 h-4" />
+                     </button>
                     
                     <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                     
-                    {/* Lists */}
-                    <button onClick={() => formatText('insertUnorderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <List className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('insertOrderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <ListOrdered className="w-4 h-4" />
-                    </button>
+                                         {/* Lists */}
+                     <button onClick={() => formatText('insertUnorderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <List className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('insertOrderedList')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <ListOrdered className="w-4 h-4" />
+                     </button>
                     
                     <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                     
-                    {/* Special */}
-                    <button onClick={() => formatText('formatBlock', '<blockquote>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Quote className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('formatBlock', '<pre>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Code className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => formatText('foreColor')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                      <Palette className="w-4 h-4" />
-                    </button>
+                                         {/* Special */}
+                     <button onClick={() => formatText('formatBlock', '<blockquote>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Quote className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('formatBlock', '<pre>')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Code className="w-4 h-4" />
+                     </button>
+                     <button onClick={() => formatText('foreColor')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                       <Palette className="w-4 h-4" />
+                     </button>
                   </div>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {characterCount} / {maxCharacters} karakter
                     </span>
-                    <div className="flex gap-1">
-                      <button onClick={() => formatText('undo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                        <Undo className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => formatText('redo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                        <Redo className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => formatText('removeFormat')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
+                                         <div className="flex gap-1">
+                       <button onClick={() => formatText('undo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                         <Undo className="w-4 h-4" />
+                       </button>
+                       <button onClick={() => formatText('redo')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                         <Redo className="w-4 h-4" />
+                       </button>
+                       <button onClick={() => formatText('removeFormat')} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100">
+                         <X className="w-4 h-4" />
+                       </button>
+                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Attachments */}
-              {attachments.length > 0 && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {attachments.map((file, index) => (
-                    <div key={index} className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                      <File className="w-3 h-3" />
-                      <span className="truncate max-w-20">{file.name}</span>
-                      <button
-                        onClick={() => removeAttachment(index)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+                             {/* Attachments */}
+               {attachments.length > 0 && (
+                 <div className="mb-3 flex flex-wrap gap-2">
+                   {attachments.map((file, index) => (
+                     <div key={index} className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs border border-gray-200 dark:border-gray-600">
+                       <File className="w-3 h-3 text-gray-600 dark:text-gray-300" />
+                       <span className="truncate max-w-20 text-gray-700 dark:text-gray-300">{file.name}</span>
+                       <button
+                         onClick={() => removeAttachment(index)}
+                         className="text-red-500 hover:text-red-700 dark:hover:text-red-400"
+                       >
+                         <X className="w-3 h-3" />
+                       </button>
+                     </div>
+                   ))}
+                 </div>
+               )}
               
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  {isRichEditor ? (
+                             <div className="flex items-end gap-2">
+                 <div className="flex-1">
+                   {isRichEditor ? (
                     <div
                       ref={editorRef}
                       contentEditable
@@ -938,40 +1074,56 @@ const CustomerLiveChat: React.FC<CustomerLiveChatProps> = ({
                   )}
                 </div>
                 
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => setIsRichEditor(!isRichEditor)}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                    title={isRichEditor ? 'Basit Editör' : 'Zengin Editör'}
-                  >
-                    <FileText className="w-4 h-4" />
-                  </button>
-                  
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                    title="Dosya ekle"
-                  >
-                    <Paperclip className="w-4 h-4" />
-                  </button>
-                  
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  
-                  <button
-                    onClick={sendMessage}
-                    disabled={!newMessage.trim() && attachments.length === 0}
-                    className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
-                    title="Gönder"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
+                                 <div className="flex flex-col gap-1">
+                   {/* Sesli Mesaj Bileşeni */}
+                   <VoiceMessage
+                     onSendMessage={(text) => {
+                       setNewMessage(text);
+                       // Sesli mesaj gönderildikten sonra otomatik olarak gönder
+                       setTimeout(() => {
+                         if (attachments.length > 0) {
+                           sendMessage();
+                         } else {
+                           sendMessage();
+                         }
+                       }, 100);
+                     }}
+                     className=""
+                   />
+                   
+                   <button
+                     onClick={() => setIsRichEditor(!isRichEditor)}
+                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                     title={isRichEditor ? 'Basit Editör' : 'Zengin Editör'}
+                   >
+                     <FileText className="w-4 h-4" />
+                   </button>
+                   
+                   <button
+                     onClick={() => fileInputRef.current?.click()}
+                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                     title="Dosya ekle"
+                   >
+                     <Paperclip className="w-4 h-4" />
+                   </button>
+                   
+                   <input
+                     ref={fileInputRef}
+                     type="file"
+                     multiple
+                     onChange={handleFileUpload}
+                     className="hidden"
+                   />
+                   
+                   <button
+                     onClick={sendMessage}
+                     disabled={!newMessage.trim() && attachments.length === 0}
+                     className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+                     title="Gönder"
+                   >
+                     <Send className="w-4 h-4" />
+                   </button>
+                 </div>
               </div>
             </div>
           )}

@@ -30,6 +30,7 @@ import {
   Mail,
   Phone
 } from 'lucide-react';
+import VoiceSearch from './common/VoiceSearch';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
@@ -940,7 +941,7 @@ const TicketList: React.FC<TicketListProps> = ({
           </div>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="relative">
+              <div className="relative flex items-center">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
@@ -951,8 +952,17 @@ const TicketList: React.FC<TicketListProps> = ({
                     setFilters(prev => ({ ...prev, searchTerm: e.target.value }));
                   }}
                   placeholder="Talep no, müşteri adı, etiket, kategori, öncelik..."
-                  className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  className="pl-10 pr-12 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                 />
+                <div className="absolute right-1.5 top-1/2 transform -translate-y-1/2">
+                  <VoiceSearch
+                    onTranscript={(text) => {
+                      setSearchTerm(text);
+                      setFilters(prev => ({ ...prev, searchTerm: text }));
+                    }}
+                    className=""
+                  />
+                </div>
               </div>
               
               <div className="flex items-center gap-2">

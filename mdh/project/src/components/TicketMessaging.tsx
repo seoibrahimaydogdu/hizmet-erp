@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Share2
 } from 'lucide-react';
+import VoiceMessage from './common/VoiceMessage';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
@@ -44,6 +45,12 @@ interface Message {
   created_at: string;
   sender_name?: string;
   attachments?: string[];
+  // Alıntı özelliği
+  reply_to?: {
+    message_id: string;
+    sender_name: string;
+    message: string;
+  };
 }
 
 const TicketMessaging: React.FC<TicketMessagingProps> = ({ 
@@ -63,8 +70,22 @@ const TicketMessaging: React.FC<TicketMessagingProps> = ({
   const [showCrossChannel, setShowCrossChannel] = useState(false);
   const [conversationContext, setConversationContext] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Alıntı özelliği için state'ler
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [replyContent, setReplyContent] = useState('');
 
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'Sistem Yöneticisi';
+
+  // Alıntı fonksiyonları
+  const handleReplyToMessage = (message: Message) => {
+    setReplyingTo(message);
+  };
+
+  const cancelReply = () => {
+    setReplyingTo(null);
+    setReplyContent('');
+  };
 
   // Debug: Kullanıcı bilgilerini kontrol et (sadece geliştirme modunda)
   useEffect(() => {
@@ -311,7 +332,15 @@ const TicketMessaging: React.FC<TicketMessagingProps> = ({
            message_type: 'text',
            is_internal: false,
            created_at: new Date().toISOString(),
-           updated_at: new Date().toISOString()
+           updated_at: new Date().toISOString(),
+           // Alıntı özelliği
+           ...(replyingTo && {
+             reply_to: {
+               message_id: replyingTo.id,
+               sender_name: replyingTo.sender_name || 'Bilinmeyen',
+               message: replyingTo.message
+             }
+           })
          });
 
       if (error) {
@@ -345,6 +374,11 @@ const TicketMessaging: React.FC<TicketMessagingProps> = ({
 
       // Formu temizle
       setNewMessage('');
+      
+      // Alıntıyı temizle
+      if (replyingTo) {
+        setReplyingTo(null);
+      }
 
       // Talep durumunu güncelle
       if (ticket.status === 'open') {
@@ -908,12 +942,31 @@ const TicketMessaging: React.FC<TicketMessagingProps> = ({
                }}
              >
               <div
-                className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
+                className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg group ${
                   message.sender_type === 'admin'
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                 } ${message.is_internal ? 'border-2 border-yellow-400' : ''}`}
               >
+                {/* Alıntı Mesajı */}
+                {message.reply_to && (
+                  <div className="mb-2 p-2 bg-gray-200 dark:bg-gray-600 rounded border-l-4 border-blue-500">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                      </svg>
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                        {message.reply_to.sender_name}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+                      {message.reply_to.message.length > 80 
+                        ? `${message.reply_to.message.substring(0, 80)}...` 
+                        : message.reply_to.message
+                      }
+                    </p>
+                  </div>
+                )}
                 {/* Mesaj Başlığı */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-2">
@@ -927,24 +980,34 @@ const TicketMessaging: React.FC<TicketMessagingProps> = ({
                       {message.is_internal && ' (İç Not)'}
                     </span>
                   </div>
-                                     <div className="flex items-center space-x-1">
-                     <div className="relative group">
-                       <div className="flex items-center space-x-0.5">
-                         <svg className={`w-5 h-5 ${message.is_read ? 'text-blue-500' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                         </svg>
-                         <svg className={`w-5 h-5 ${message.is_read ? 'text-blue-500' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                         </svg>
-                       </div>
-                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                         {message.is_read ? 'Okundu' : 'Okunmadı'}
-                       </div>
-                     </div>
-                     <span className="text-xs opacity-75">
-                       {format(new Date(message.created_at), 'HH:mm', { locale: tr })}
-                     </span>
-                   </div>
+                  <div className="flex items-center space-x-1">
+                    {/* Yanıtla Butonu */}
+                    <button
+                      onClick={() => handleReplyToMessage(message)}
+                      className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Yanıtla"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                      </svg>
+                    </button>
+                    <div className="relative group">
+                      <div className="flex items-center space-x-0.5">
+                        <svg className={`w-5 h-5 ${message.is_read ? 'text-blue-500' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                        <svg className={`w-5 h-5 ${message.is_read ? 'text-blue-500' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 px-2 py-1 text-xs bg-gray-800 text-white rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                        {message.is_read ? 'Okundu' : 'Okunmadı'}
+                      </div>
+                    </div>
+                    <span className="text-xs opacity-75">
+                      {format(new Date(message.created_at), 'HH:mm', { locale: tr })}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Mesaj İçeriği */}
@@ -1209,6 +1272,35 @@ const TicketMessaging: React.FC<TicketMessagingProps> = ({
 
              {/* Mesaj Gönderme Formu */}
        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+         {/* Alıntı Göstergesi */}
+         {replyingTo && (
+           <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+             <div className="flex items-center justify-between">
+               <div className="flex items-center space-x-2">
+                 <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                 </svg>
+                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                   {replyingTo.sender_name} mesajına yanıt veriyorsunuz
+                 </span>
+               </div>
+               <button
+                 onClick={cancelReply}
+                 className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
+                 title="Yanıtlamayı iptal et"
+               >
+                 <X className="w-4 h-4" />
+               </button>
+             </div>
+             <p className="mt-1 text-sm text-blue-600 dark:text-blue-400 line-clamp-2">
+               {replyingTo.message.length > 100 
+                 ? `${replyingTo.message.substring(0, 100)}...` 
+                 : replyingTo.message
+               }
+             </p>
+           </div>
+         )}
+         
          {/* Dosya Ekleme Bölümü */}
          {showFileUpload && (
            <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -1250,7 +1342,23 @@ const TicketMessaging: React.FC<TicketMessagingProps> = ({
                }}
              />
            </div>
-           <div className="flex flex-col space-y-2">
+           <div className="flex flex-col space-y-1.5">
+             {/* Sesli Mesaj Butonu */}
+             <VoiceMessage
+               onSendMessage={(text) => {
+                 setNewMessage(text);
+                 // Sesli mesaj gönderildikten sonra otomatik olarak gönder
+                 setTimeout(() => {
+                   if (attachments.length > 0) {
+                     sendMessageWithFiles();
+                   } else {
+                     sendMessage();
+                   }
+                 }, 100);
+               }}
+               className="mb-1"
+             />
+             
              {/* Dosya Ekleme Butonu */}
              <button
                onClick={() => setShowFileUpload(!showFileUpload)}

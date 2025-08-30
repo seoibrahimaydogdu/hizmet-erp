@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import VoiceSearch from './components/common/VoiceSearch';
 
 import { Toaster, toast } from 'react-hot-toast';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -88,6 +89,7 @@ import WorkflowBuilder from './components/WorkflowBuilder';
 import ApprovalWorkflows from './components/ApprovalWorkflows';
 import EmployeeChat from './components/EmployeeChat';
 import EmployeeProfile from './components/EmployeeProfile';
+
 
 // BulkOperations artık TicketList içinde entegre edildi
 
@@ -781,6 +783,7 @@ function App() {
         return <WorkflowBuilder />;
       case 'approval-workflows':
         return <ApprovalWorkflows />;
+
       case 'payment-reminder':
         return <PaymentReminder currentUser={userProfile} />;
       // BulkOperations artık TicketList içinde entegre edildi
@@ -906,6 +909,11 @@ function App() {
     return <CustomerPortal onBackToAdmin={() => navigate('/')} />;
   }
 
+  // Çalışan profili gösteriliyorsa
+  if (location.pathname === '/employee-profile') {
+    return <EmployeeProfile />;
+  }
+
   return (
     <ErrorBoundary>
       <div className="h-screen overflow-hidden">
@@ -961,9 +969,11 @@ function App() {
                 <UserCheck className="w-5 h-5" /><span>Onay Süreçleri</span>
               </button>
               
+
+              
               {/* Çalışan Mesajlaşma Sistemi */}
               <button onClick={() => setShowEmployeeChat(true)} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700`}>
-                <MessageSquare className="w-5 h-5" /><span>Mesajlaşma</span>
+                <MessageSquare className="w-5 h-5" /><span>Takım Mesajları</span>
                 <span className="ml-auto px-2 py-0.5 text-xs bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded-full">
                   3
                 </span>
@@ -1008,7 +1018,7 @@ function App() {
                   >
                     <Menu className="w-4 h-4" />
                   </button>
-                  <div className="relative">
+                  <div className="relative flex items-center">
                     <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="text"
@@ -1017,8 +1027,14 @@ function App() {
                       onFocus={() => setShowSearchResults(true)}
                       onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
                       placeholder="Talep no, müşteri adı, fatura no, e-posta, şirket..."
-                      className="pl-8 pr-3 py-1.5 w-72 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="pl-8 pr-12 py-1.5 w-72 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    <div className="absolute right-1.5 top-1/2 transform -translate-y-1/2">
+                      <VoiceSearch
+                        onTranscript={(text) => handleGlobalSearch(text)}
+                        className=""
+                      />
+                    </div>
                     {showSearchResults && searchResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto">
                         <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
@@ -1161,11 +1177,7 @@ function App() {
 
             {/* Page Content */}
             <main className="flex-1 bg-gray-50 dark:bg-gray-900 dark:bg-gray-950 overflow-y-auto overflow-x-hidden lg:pl-5">
-              {location.pathname === '/employee-profile' ? (
-                <EmployeeProfile />
-              ) : (
-                renderContent()
-              )}
+              {renderContent()}
             </main>
           </div>
 

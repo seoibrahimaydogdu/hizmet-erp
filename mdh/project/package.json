@@ -11,7 +11,8 @@
     "migration": "echo \"Migration dosyasını Supabase Dashboard SQL Editor de çalıştırın\"",
     "project-migration": "node run-project-management-migration.js",
     "workflow-migration": "node run-workflow-migration.js",
-    "approval-migration": "node run-approval-migration.js"
+    "approval-migration": "node run-approval-migration.js",
+    "recurring-billing-migration": "node run-recurring-billing-migration.cjs"
   },
   "dependencies": {
     "@fontsource/roboto": "^5.2.6",

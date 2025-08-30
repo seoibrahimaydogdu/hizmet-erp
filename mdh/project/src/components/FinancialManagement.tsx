@@ -1187,6 +1187,14 @@ Saygılarımızla,
     <ExpenseManagement
       expenses={expenses}
       expenseCategories={expenseCategories}
+      revenues={payments?.map(payment => ({
+        id: payment.id,
+        description: `Ödeme - ${payment.customers?.name || 'Bilinmeyen Müşteri'}`,
+        amount: payment.amount,
+        date: payment.payment_date,
+        created_at: payment.created_at,
+        notes: payment.notes
+      })) || []}
       onAddExpense={() => {
         setModalType('expense');
         setFormData({});
@@ -1195,6 +1203,24 @@ Saygılarımızla,
       onViewExpense={handleViewExpense}
       onEditExpense={handleEditExpense}
       onDeleteExpense={handleDeleteExpense}
+      onAddRevenue={() => {
+        setModalType('payment');
+        setFormData({});
+        setShowAddModal(true);
+      }}
+      onEditRevenue={(revenue) => {
+        const payment = payments?.find(p => p.id === revenue.id);
+        if (payment) {
+          setEditingPayment(payment);
+          setShowPaymentEdit(true);
+        }
+      }}
+      onDeleteRevenue={(revenueId) => {
+        const payment = payments?.find(p => p.id === revenueId);
+        if (payment) {
+          handleDeletePayment(payment);
+        }
+      }}
     />
   );
 
@@ -1300,7 +1326,7 @@ Saygılarımızla,
              {[
                { id: 'overview', name: 'Genel Bakış', icon: BarChart3 },
                { id: 'payments', name: 'Ödeme Takibi', icon: CreditCard },
-               { id: 'expenses', name: 'Gider Yönetimi', icon: TrendingDown },
+               { id: 'expenses', name: 'Finansal Yönetim', icon: TrendingDown },
                { id: 'promotions', name: 'Promosyonlar', icon: Gift },
                { id: 'referrals', name: 'Referans Programı', icon: Users },
                { id: 'budgets', name: 'Bütçe Yönetimi', icon: Wallet },

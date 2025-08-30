@@ -21,6 +21,20 @@ export interface ChatMessage {
     senderName: string;
     content: string;
   };
+  forwardedFrom?: {
+    messageId: string;
+    senderName: string;
+    channelName: string;
+    originalTimestamp: Date;
+  };
+  // Gelişmiş mesajlaşma özellikleri
+  readReceipts?: { [userId: string]: Date }; // Okundu bilgisi
+  messageStatus?: 'sent' | 'delivered' | 'read' | 'failed'; // Mesaj durumu
+  canEdit?: boolean; // Düzenlenebilir mi
+  canDelete?: boolean; // Silinebilir mi
+  editHistory?: { content: string; editedAt: Date }[]; // Düzenleme geçmişi
+  deletedAt?: Date; // Silinme tarihi
+  isDeleted?: boolean; // Silinmiş mi
 }
 
 export interface Channel {

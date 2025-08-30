@@ -38,9 +38,26 @@ interface MessageInputProps {
   replyingTo: ChatMessage | null;
   cancelReply: () => void;
   sendReply: () => void;
-  replyContent: string;
-  setReplyContent: (content: string) => void;
   onVoiceMessage?: (audioBlob: Blob) => void;
+  // Yazıyor göstergesi için
+  onTypingStart?: () => void;
+  onTypingStop?: () => void;
+  // GELİŞMİŞ MESAJLAŞMA ÖZELLİKLERİ
+  quickReplies?: string[];
+  onSendQuickReply?: (reply: string) => void;
+  onAddQuickReply?: (reply: string) => void;
+  onRemoveQuickReply?: (reply: string) => void;
+  showQuickReplies?: boolean;
+  onToggleQuickReplies?: () => void;
+  // Otomatik Tamamlama
+  onAutoComplete?: (input: string) => void;
+  autoCompleteSuggestions?: string[];
+  showAutoComplete?: boolean;
+  autoCompleteIndex?: number;
+  onSelectAutoComplete?: (suggestion: string) => void;
+  onNavigateAutoComplete?: (direction: 'up' | 'down') => void;
+  onApplyAutoComplete?: () => void;
+  onClearAutoComplete?: () => void;
 }
 
 const MessageInput: React.FC<MessageInputProps> = ({
@@ -53,9 +70,25 @@ const MessageInput: React.FC<MessageInputProps> = ({
   replyingTo,
   cancelReply,
   sendReply,
-  replyContent,
-  setReplyContent,
-  onVoiceMessage
+  onVoiceMessage,
+  onTypingStart,
+  onTypingStop,
+  // GELİŞMİŞ MESAJLAŞMA ÖZELLİKLERİ
+  quickReplies = [],
+  onSendQuickReply,
+  onAddQuickReply,
+  onRemoveQuickReply,
+  showQuickReplies = false,
+  onToggleQuickReplies,
+  // Otomatik Tamamlama
+  onAutoComplete,
+  autoCompleteSuggestions = [],
+  showAutoComplete = false,
+  autoCompleteIndex = 0,
+  onSelectAutoComplete,
+  onNavigateAutoComplete,
+  onApplyAutoComplete,
+  onClearAutoComplete
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const contentEditableRef = useRef<HTMLDivElement>(null);
@@ -200,6 +233,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
       const content = contentEditableRef.current.innerHTML;
       const cleanContent = content.replace(/<div><br><\/div>/g, '').trim();
       setNewMessage(cleanContent);
+      
+      // Yazıyor göstergesi
+      if (cleanContent.trim()) {
+        onTypingStart?.();
+      } else {
+        onTypingStop?.();
+      }
     }
   };
 
@@ -496,10 +536,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div className="space-y-3">
       {/* Formatting Toolbar */}
-      <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 rounded-lg">
+      <div className="flex items-center space-x-2 px-3 py-2 rounded-lg">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Dosya ekle"
         >
           <Paperclip className="w-4 h-4" />
@@ -508,20 +548,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div className="relative emoji-picker-container">
           <button 
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+            className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
             title="Emoji"
           >
             <Smile className="w-4 h-4" />
           </button>
           
           {showEmojiPicker && (
-            <div className="absolute bottom-full left-0 mb-2 p-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-max">
+            <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-50 min-w-max">
               <div className="grid grid-cols-5 gap-1">
                 {emojis.map((emoji, index) => (
                   <button
                     key={index}
                     onClick={() => addEmoji(emoji)}
-                    className="p-1 hover:bg-gray-100 rounded text-lg transition-colors"
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-lg transition-colors"
                   >
                     {emoji}
                   </button>
@@ -535,7 +575,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {!isVoiceRecording && !audioBlob && (
           <button
             onClick={startVoiceRecording}
-            className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+            className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
             title="Sesli Mesaj Kaydet"
           >
             <Mic className="w-4 h-4" />
@@ -582,7 +622,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('bold')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200 font-bold"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600 font-bold"
           title="Kalın"
         >
           B
@@ -590,7 +630,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('italic')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200 italic"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600 italic"
           title="İtalik"
         >
           I
@@ -598,7 +638,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('code')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Kod"
         >
           <Code className="w-4 h-4" />
@@ -606,7 +646,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('quote')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Alıntı"
         >
           <Quote className="w-4 h-4" />
@@ -614,7 +654,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('list')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Liste"
         >
           <List className="w-4 h-4" />
@@ -622,7 +662,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('ordered-list')}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Numaralı Liste"
         >
           <ListOrdered className="w-4 h-4" />
@@ -633,7 +673,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openAdvancedSearch'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Gelişmiş Arama"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -646,7 +686,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openPollCreator'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Anket Oluştur"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -659,7 +699,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openTemplateSelector'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Mesaj Şablonları"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -672,7 +712,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openTaskCreator'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Görev Oluştur"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -685,7 +725,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('generateSummary'));
           }}
-          className="p-1 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-200"
+          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
           title="Akıllı Özetleme"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -709,12 +749,55 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <div
             ref={contentEditableRef}
             contentEditable
-            onInput={handleMentionInput}
-            onKeyPress={handleKeyPress}
+            onInput={(e) => {
+              handleMentionInput(e);
+              // Otomatik tamamlama için input değerini kontrol et
+              const textContent = e.currentTarget.textContent || '';
+              if (onAutoComplete) {
+                onAutoComplete(textContent);
+              }
+            }}
+            onKeyPress={(e) => {
+              handleKeyPress(e);
+              // Otomatik tamamlama navigasyonu
+              if (e.key === 'ArrowDown' && showAutoComplete) {
+                e.preventDefault();
+                onNavigateAutoComplete?.('down');
+              } else if (e.key === 'ArrowUp' && showAutoComplete) {
+                e.preventDefault();
+                onNavigateAutoComplete?.('up');
+              } else if (e.key === 'Enter' && showAutoComplete) {
+                e.preventDefault();
+                onApplyAutoComplete?.();
+              } else if (e.key === 'Escape' && showAutoComplete) {
+                e.preventDefault();
+                onClearAutoComplete?.();
+              }
+            }}
             data-placeholder="Mesajınızı yazın... (@ ile mention yapabilirsiniz)"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px] max-h-[120px] overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:pointer-events-none"
             style={{ minHeight: '44px', maxHeight: '120px' }}
           />
+          
+          {/* Otomatik Tamamlama Önerileri */}
+          {showAutoComplete && autoCompleteSuggestions.length > 0 && (
+            <div className="absolute bottom-full left-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[300px] max-h-48 overflow-y-auto">
+              <div className="p-2">
+                <div className="text-xs text-gray-500 mb-2 px-2">Sık kullanılan cümleler:</div>
+                {autoCompleteSuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => onSelectAutoComplete?.(suggestion)}
+                    className={`w-full flex items-center space-x-2 p-2 rounded hover:bg-gray-100 transition-colors text-left ${
+                      index === autoCompleteIndex ? 'bg-blue-50 border border-blue-200' : ''
+                    }`}
+                  >
+                    <span className="text-sm text-gray-900">{suggestion}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           
           {/* Mention Suggestions */}
           {showMentionSuggestions && filteredUsers.length > 0 && (
@@ -925,6 +1008,112 @@ const MessageInput: React.FC<MessageInputProps> = ({
               <span>İptal Et</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Alıntı Göstergesi */}
+      {replyingTo && (
+        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                {replyingTo.senderName} mesajına yanıt veriyorsunuz
+              </span>
+            </div>
+            <button
+              onClick={cancelReply}
+              className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
+              title="Yanıtlamayı iptal et"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="mt-1 text-sm text-blue-600 dark:text-blue-400 line-clamp-2">
+            {replyingTo.content.length > 100
+              ? `${replyingTo.content.substring(0, 100)}...`
+              : replyingTo.content
+            }
+          </p>
+        </div>
+      )}
+
+      {/* HIZLI YANITLAR ÖZELLİĞİ */}
+      {showQuickReplies && quickReplies.length > 0 && (
+        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Hızlı Yanıtlar</h4>
+            <button
+              onClick={onToggleQuickReplies}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              Gizle
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {quickReplies.map((reply, index) => (
+              <div key={index} className="flex items-center group">
+                <button
+                  onClick={() => onSendQuickReply?.(reply)}
+                  className="px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  {reply}
+                </button>
+                {onRemoveQuickReply && (
+                  <button
+                    onClick={() => onRemoveQuickReply(reply)}
+                    className="ml-1 p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Kaldır"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {onAddQuickReply && (
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  placeholder="Yeni hızlı yanıt ekle..."
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                      onAddQuickReply(e.currentTarget.value.trim());
+                      e.currentTarget.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={(e) => {
+                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                    if (input.value.trim()) {
+                      onAddQuickReply(input.value.trim());
+                      input.value = '';
+                    }
+                  }}
+                  className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  Ekle
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Hızlı Yanıtlar Toggle Butonu */}
+      {!showQuickReplies && quickReplies.length > 0 && (
+        <div className="mt-2">
+          <button
+            onClick={onToggleQuickReplies}
+            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Hızlı yanıtları göster ({quickReplies.length})
+          </button>
         </div>
       )}
     </div>
