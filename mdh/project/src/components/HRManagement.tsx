@@ -10,6 +10,7 @@ import CareerPlanning from './hr/CareerPlanning';
 import ProductivityAnalysis from './hr/ProductivityAnalysis';
 import DevelopmentActivities from './hr/DevelopmentActivities';
 import LeaveApprovalManager from './hr/LeaveApprovalManager';
+import PayrollManagement from './hr/PayrollManagement';
 import { 
   BarChart3, 
   Brain, 
@@ -47,7 +48,9 @@ import {
   XCircle,
   PieChart,
   List,
-  CheckSquare
+  CheckSquare,
+  DollarSign,
+  Settings
 } from 'lucide-react';
 import { ArrowRight } from 'lucide-react';
 
@@ -68,6 +71,7 @@ interface Employee {
   leave_balance: number;
   career_goals: string[];
   status: string;
+  salary?: number; // Added for payroll
 }
 
 interface Skill {
@@ -492,6 +496,7 @@ const HRManagement: React.FC = () => {
       { id: 'managers', name: 'Müdürler', icon: Award }
     ] : []),
     { id: 'employees', name: 'Çalışan Yönetimi', icon: Users },
+    { id: 'payroll', name: 'Bordro ve Maaş', icon: DollarSign },
     { id: 'skills', name: 'Beceri Yönetimi', icon: Brain },
     { id: 'performance', name: 'Performans Takibi', icon: Target },
     { id: 'career', name: 'Kariyer Planlama', icon: GraduationCap },
@@ -755,20 +760,38 @@ const HRManagement: React.FC = () => {
                 </div>
         )}
         {activeTab === 'employees' && (
-          <EmployeeManagement 
-            employees={employees}
-            onEmployeeUpdate={fetchEmployees}
-            onViewEmployee={(employeeId: string) => {
-              const employee = employees.find(emp => emp.id === employeeId);
-              navigate('/employee-profile', { 
-                state: { 
-                  employeeId: employeeId, 
-                  employeeName: employee?.name || '',
-                  from: location.pathname 
-                } 
-              });
-            }}
-          />
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                  <Users className="w-5 h-5 mr-2 text-blue-500" />
+                  Çalışan Yönetimi
+                </h2>
+                <button
+                  onClick={() => setShowAddEmployee(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Çalışan Ekle</span>
+                </button>
+              </div>
+              
+              <EmployeeManagement 
+                employees={employees}
+                onEmployeeUpdate={fetchEmployees}
+                onViewEmployee={(employeeId: string) => {
+                  const employee = employees.find(emp => emp.id === employeeId);
+                  navigate('/employee-profile', { 
+                    state: { 
+                      employeeId: employeeId, 
+                      employeeName: employee?.name || '',
+                      from: location.pathname 
+                    } 
+                  });
+                }}
+              />
+            </div>
+          </div>
         )}
         {activeTab === 'skills' && (
           <SkillManagement 
@@ -790,12 +813,15 @@ const HRManagement: React.FC = () => {
             onCareerUpdate={fetchCareerPlans}
           />
         )}
-        {activeTab === 'leave' && (
+                {activeTab === 'leave' && (
           <LeaveManagement 
             leaveRequests={leaveRequests}
             employees={employees}
             onLeaveUpdate={fetchLeaveRequests}
           />
+        )}
+        {activeTab === 'payroll' && (
+          <PayrollManagement />
         )}
         {activeTab === 'productivity' && (
           <ProductivityAnalysis 
