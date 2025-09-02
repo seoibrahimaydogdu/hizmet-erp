@@ -40,6 +40,7 @@ import {
 import { useSupabase } from '../hooks/useSupabase';
 import { toast } from 'react-hot-toast';
 import EmployeeChat from './EmployeeChat';
+import FeedbackButton from './common/FeedbackButton';
 
 interface Project {
   id: string;
@@ -1707,13 +1708,20 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Akıllı Proje Yönetimi</h1>
           <p className="text-gray-600 dark:text-gray-400">Proje performansını optimize edin ve riskleri önceden tahmin edin</p>
         </div>
-        <button
-          onClick={loadData}
-          className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Yenile
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadData}
+            className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Yenile
+          </button>
+          <FeedbackButton 
+            pageSource="smart-project-management" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
+        </div>
       </div>
 
       {/* Tab Navigation */}

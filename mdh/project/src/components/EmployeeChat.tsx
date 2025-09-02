@@ -21,6 +21,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useUIUX } from '../contexts/UIUXContext';
+import FeedbackButton from './common/FeedbackButton';
 import NotificationPanel from './notifications/NotificationPanel';
 import UIUXSettingsPanel from './uiux/UIUXSettingsPanel';
 import DataMigration from './DataMigration';
@@ -2846,6 +2847,12 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
             
             {/* Header Icons */}
             <div className="flex items-center space-x-3">
+              {/* Feedback Button */}
+              <FeedbackButton 
+                pageSource="employee-chat" 
+                position="inline"
+                className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+              />
               {/* Notifications */}
               <button 
                 onClick={() => setShowNotificationPanel(true)}

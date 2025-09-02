@@ -24,6 +24,7 @@ import {
   Tag
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useUser } from '../contexts/UserContext';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { formatCurrency } from '../lib/currency';
@@ -40,6 +41,8 @@ import ChatHistory from './ChatHistory';
 import CustomerPromotions from './CustomerPromotions';
 import RichTextEditor from './RichTextEditor';
 import InteractiveTutorial from './InteractiveTutorial';
+import FeedbackButton from './common/FeedbackButton';
+import FeedbackRequestsPage from './FeedbackRequestsPage';
 
 interface CustomerPortalProps {
   onBackToAdmin?: () => void;
@@ -47,6 +50,7 @@ interface CustomerPortalProps {
 
 const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
   const { theme, setTheme, isDark } = useTheme();
+  const { updateUserProfile } = useUser();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [customerData, setCustomerData] = useState<any>(null);
 
@@ -96,6 +100,20 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
       
       if (customer) {
         console.log('Müşteri bulundu:', customer.name);
+        
+        // UserContext'e Ayşe Demir profilini set et
+        updateUserProfile({
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone || '+90 532 123 45 67',
+          company: customer.company || 'Müşteri',
+          role: 'Müşteri',
+          department: 'Müşteri Hizmetleri',
+          joinDate: customer.created_at || '2024-01-01',
+          bio: 'Müşteri portalı kullanıcısı',
+          avatar: null
+        });
         setCustomerData(customer);
       } else {
         console.log('Müşteri bulunamadı, varsayılan müşteri kullanılıyor...');
@@ -366,6 +384,11 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
           </div>
           
           <div className="flex items-center space-x-3">
+            <FeedbackButton 
+              pageSource={`CustomerPortal-${currentPage}`}
+              position="inline"
+              className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+            />
             <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
               <Bell className="w-5 h-5" />
             </button>
@@ -897,6 +920,17 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
                     <p className="text-sm text-gray-600 dark:text-gray-400">İndirimler & Referans</p>
                   </div>
                 </button>
+
+                <button
+                  onClick={() => setCurrentPage('feedback-requests')}
+                  className="flex items-center space-x-3 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                >
+                  <MessageSquare className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                  <div className="text-left">
+                    <p className="font-medium text-gray-900 dark:text-white">Geri Bildirimlerim</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Taleplerimi takip et</p>
+                  </div>
+                </button>
               </div>
             </div>
           </div>
@@ -970,12 +1004,30 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
             onBack={() => setCurrentPage('dashboard')}
           />
         )}
+
+        {currentPage === 'feedback-requests' && (
+          <div className="h-full">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Geri Bildirim Taleplerim</h1>
+                <p className="text-gray-600 dark:text-gray-400">Gönderdiğiniz geri bildirimlerin durumunu takip edin</p>
+              </div>
+              <button
+                onClick={() => setCurrentPage('dashboard')}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+              >
+                ← Geri Dön
+              </button>
+            </div>
+            <FeedbackRequestsPage />
+          </div>
+        )}
       </main>
 
-      {/* Interactive Tutorial System */}
-      <InteractiveTutorial />
-    </div>
-  );
-};
-
-export default CustomerPortal;
+             {/* Interactive Tutorial System */}
+       <InteractiveTutorial />
+     </div>
+   );
+ };
+ 
+ export default CustomerPortal;

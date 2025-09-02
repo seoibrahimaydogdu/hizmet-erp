@@ -53,6 +53,7 @@ import {
   Settings
 } from 'lucide-react';
 import { ArrowRight } from 'lucide-react';
+import FeedbackButton from './common/FeedbackButton';
 
 interface Employee {
   id: string;
@@ -517,9 +518,16 @@ const HRManagement: React.FC = () => {
 
   return (
     <div className="p-4 max-w-full overflow-hidden">
-      <div className="mb-4">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">İK Yönetimi</h1>
-        <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">Çalışan yönetimi ve performans takibi</p>
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">İK Yönetimi</h1>
+          <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">Çalışan yönetimi ve performans takibi</p>
+        </div>
+        <FeedbackButton 
+          pageSource="hr-management" 
+          position="inline"
+          className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+        />
       </div>
 
       {/* Tab Navigation */}

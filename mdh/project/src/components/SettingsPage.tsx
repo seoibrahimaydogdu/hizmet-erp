@@ -19,6 +19,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useSettings } from '../contexts/SettingsContext';
 import ColorPreview from './ColorPreview';
 import toast from 'react-hot-toast';
+import FeedbackButton from './common/FeedbackButton';
 
 const SettingsPage: React.FC = () => {
   const { theme, setTheme, primaryColor, setPrimaryColor } = useTheme();
@@ -478,13 +479,20 @@ const SettingsPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ayarlar</h1>
           <p className="text-gray-600 dark:text-gray-400">Sistem ayarlarını yönetin</p>
         </div>
-        <button
-          onClick={handleSave}
-          className="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg text-sm font-medium"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          Kaydet
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            className="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg text-sm font-medium"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Kaydet
+          </button>
+          <FeedbackButton 
+            pageSource="settings" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

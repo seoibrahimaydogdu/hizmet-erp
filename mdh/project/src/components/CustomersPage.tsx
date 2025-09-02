@@ -25,6 +25,7 @@ import { toast } from 'react-hot-toast';
 import { MessageSquare, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import AdvancedSearch, { SearchFilters } from './AdvancedSearch';
 import RealTimeHintSystem from './RealTimeHintSystem';
+import FeedbackButton from './common/FeedbackButton';
 
 interface CustomersPageProps {
   onViewCustomer?: (customerId: string) => void;
@@ -267,6 +268,11 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
             <Plus className="w-4 h-4 mr-2" />
             Yeni Müşteri
           </button>
+          <FeedbackButton 
+            pageSource="customers" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
         </div>
       </div>
 

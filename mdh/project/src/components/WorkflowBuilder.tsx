@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import FeedbackButton from './common/FeedbackButton';
 
 interface WorkflowNode {
   id: string;
@@ -1385,6 +1386,12 @@ const WorkflowBuilder: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-4">
+            {/* Feedback Button */}
+            <FeedbackButton 
+              pageSource="workflow-builder" 
+              position="inline"
+              className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+            />
             {/* Tool Mode Selector - Fotoğrafta gösterilen araç çubuğu */}
                          <div className="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
                <button

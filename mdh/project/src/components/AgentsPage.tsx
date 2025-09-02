@@ -24,6 +24,7 @@ import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
 import { toast } from 'react-hot-toast';
+import FeedbackButton from './common/FeedbackButton';
 
 const AgentsPage: React.FC = () => {
   const {
@@ -224,6 +225,11 @@ const AgentsPage: React.FC = () => {
             <Plus className="w-4 h-4 mr-2" />
             Yeni Temsilci
           </button>
+          <FeedbackButton 
+            pageSource="agents" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
         </div>
       </div>
 

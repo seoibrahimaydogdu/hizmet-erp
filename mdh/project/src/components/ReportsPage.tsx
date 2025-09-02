@@ -6,6 +6,7 @@ import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
 import RealTimeHintSystem from './RealTimeHintSystem';
 import AutoReportManager from './AutoReportManager';
+import FeedbackButton from './common/FeedbackButton';
 import SmartAlertManager from './SmartAlertManager';
 import RealtimeDashboard from './RealtimeDashboard';
 import { toast } from 'react-hot-toast';
@@ -420,6 +421,11 @@ const ReportsPage = () => {
               Rapor İndir
             </button>
           )}
+          <FeedbackButton 
+            pageSource="reports" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
         </div>
       </div>
 

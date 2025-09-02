@@ -44,6 +44,7 @@ import FinancialModals from './financial/FinancialModals';
 import ReferralManagement from './ReferralManagement';
 import RealTimeHintSystem from './RealTimeHintSystem';
 import ChurnAnalysis from './ChurnAnalysis';
+import FeedbackButton from './common/FeedbackButton';
 
 interface FinancialManagementProps {
   onViewCustomer?: (customerId: string) => void;
@@ -1287,11 +1288,18 @@ Saygılarımızla,
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Finansal Yönetim</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Gelir, gider, abonelik ve müşteri yönetimi
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Finansal Yönetim</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-400">
+              Gelir, gider, abonelik ve müşteri yönetimi
+            </p>
+          </div>
+          <FeedbackButton 
+            pageSource="financial-management" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
         </div>
 
         {/* Müşteri Filtresi Bildirimi */}

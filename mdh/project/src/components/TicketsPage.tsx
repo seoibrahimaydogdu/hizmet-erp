@@ -8,6 +8,7 @@ import AISmartAssignment from './AISmartAssignment';
 import SmartPriorityEngine from './SmartPriorityEngine';
 import SLAMonitor from './SLAMonitor';
 import RevertHistory from './RevertHistory';
+import FeedbackTab from './FeedbackTab';
 import { useUser } from '../contexts/UserContext';
 import { useSupabase } from '../hooks/useSupabase';
 import { toast } from 'react-hot-toast';
@@ -23,7 +24,7 @@ const TicketsPage: React.FC<TicketsPageProps> = ({ onNavigateToPage }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('all'); // all, open, in_progress, resolved, reminders
+  const [activeTab, setActiveTab] = useState('all'); // all, open, in_progress, resolved, reminders, feedback
 
   const [showAutoCategorization, setShowAutoCategorization] = useState(false);
 
@@ -424,6 +425,16 @@ const TicketsPage: React.FC<TicketsPageProps> = ({ onNavigateToPage }) => {
               <RotateCcw className="w-4 h-4 mr-2" />
               Geri Alınış Geçmişi
             </button>
+            <button
+              onClick={() => setActiveTab('feedback')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'feedback'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Geri Bildirimler
+            </button>
           </nav>
         </div>
       </div>
@@ -486,8 +497,14 @@ const TicketsPage: React.FC<TicketsPageProps> = ({ onNavigateToPage }) => {
         </div>
       )}
 
+      {activeTab === 'feedback' && (
+        <div className="space-y-6">
+          <FeedbackTab />
+        </div>
+      )}
+
       {/* Ticket List - Flex-1 ile kalan alanı kapla */}
-      {!['priority', 'sla', 'revert-history'].includes(activeTab) && (
+      {!['priority', 'sla', 'revert-history', 'feedback'].includes(activeTab) && (
         <div className="flex-1 min-h-0">
           <TicketList
             onViewTicket={handleViewTicket}

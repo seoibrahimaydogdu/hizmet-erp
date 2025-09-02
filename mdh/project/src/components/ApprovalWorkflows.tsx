@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import FeedbackButton from './common/FeedbackButton';
 
 interface ApprovalWorkflow {
   id?: string;
@@ -277,6 +278,11 @@ const ApprovalWorkflows: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-2">
+            <FeedbackButton 
+              pageSource="approval-workflows" 
+              position="inline"
+              className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+            />
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
               <input
