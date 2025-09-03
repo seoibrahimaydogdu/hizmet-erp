@@ -8,7 +8,11 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   server: {
-    port: 5173,
+    port: 3000, // Farklı port kullanın
     host: true,
+    strictPort: false, // Port meşgulse otomatik olarak başka port seçsin
+    hmr: {
+      overlay: false, // HMR overlay'i kapatın
+    },
   },
 });

@@ -30,11 +30,37 @@ Bu dokümantasyon, Admin Panel için geliştirilen gelişmiş arama ve filtrelem
 - **Görsel Etiket Gösterimi**: Renkli etiketler ile kolay tanıma
 - **Kolay Etiket Kaldırma**: X butonu ile tek tıkla kaldırma
 
+## 🆕 YENİ EKLENEN ÖZELLİKLER
+
+### ⚡ Gelişmiş Arama Operatörleri
+- **Boolean Operatörler**: AND, OR, NOT mantığı ile karmaşık sorgular
+- **Regex Arama**: Düzenli ifadeler ile gelişmiş pattern matching
+- **Wildcard Arama**: * ve ? karakterleri ile esnek arama
+- **Phrase Search**: Tırnak içinde tam cümle arama
+- **Alan Bazlı Arama**: Belirli alanlarda arama yapma
+
+### 📚 Arama Geçmişi ve Kayıtlı Filtreler
+- **Arama Geçmişi**: Son 50 aramayı görüntüleme
+- **Favori Aramalar**: Sık kullanılan aramaları yıldızla işaretleme
+- **Kayıtlı Filtreler**: Filtre kombinasyonlarını kaydetme
+- **Kategori Sistemi**: Filtreleri kategorilere ayırma
+- **Kullanım İstatistikleri**: Filtre kullanım sayısı ve son kullanım tarihi
+
+### 🔧 Gelişmiş Filtreleme
+- **Çoklu Seçim**: Birden fazla seçenek seçebilme
+- **Hiyerarşik Filtreler**: Ana kategori ve alt kategoriler
+- **Dinamik Filtre Oluşturma**: Özel filtre tanımlama
+- **Filtre Sıralama**: Filtre gruplarını yeniden düzenleme
+- **Görünürlük Kontrolü**: Filtre gruplarını gizleme/gösterme
+
 ## 📦 Kurulum
 
 ### 1. Bileşen İçe Aktarma
 ```tsx
 import AdvancedSearch, { SearchFilters } from './components/AdvancedSearch';
+import AdvancedSearchOperators from './components/AdvancedSearchOperators';
+import SearchHistoryAndSavedFilters from './components/SearchHistoryAndSavedFilters';
+import AdvancedFiltering from './components/AdvancedFiltering';
 ```
 
 ### 2. State Tanımlama
@@ -54,6 +80,7 @@ const [advancedFilters, setAdvancedFilters] = useState<SearchFilters>({
 
 ### 3. Bileşen Kullanımı
 ```tsx
+// Temel Gelişmiş Arama
 <AdvancedSearch
   onSearch={(filters) => {
     setAdvancedFilters(filters);
@@ -73,6 +100,40 @@ const [advancedFilters, setAdvancedFilters] = useState<SearchFilters>({
     });
   }}
   searchTypes={['tickets', 'customers', 'payments']}
+/>
+
+// Gelişmiş Operatörler
+<AdvancedSearchOperators
+  onSearch={(operators) => {
+    // Operatör tabanlı arama
+    console.log('Operatörler:', operators);
+  }}
+  onClear={() => {
+    // Operatörleri temizle
+  }}
+/>
+
+// Arama Geçmişi ve Kayıtlı Filtreler
+<SearchHistoryAndSavedFilters
+  onLoadSearch={(query, filters) => {
+    // Kayıtlı arama/filtreyi yükle
+    console.log('Yüklenen:', { query, filters });
+  }}
+  onSaveFilter={(name, description, filters, category) => {
+    // Filtreyi kaydet
+    console.log('Kaydedilen:', { name, description, filters, category });
+  }}
+/>
+
+// Gelişmiş Filtreleme
+<AdvancedFiltering
+  onFiltersChange={(filters) => {
+    // Filtre değişikliklerini yakala
+    console.log('Filtreler:', filters);
+  }}
+  onClearAll={() => {
+    // Tüm filtreleri temizle
+  }}
 />
 ```
 
@@ -129,160 +190,129 @@ const filteredData = data.filter(item => {
 
   // Tutar aralığı kontrolü
   const matchesAmountRange = (filters.amountRange.min === '' || item.amount >= filters.amountRange.min) &&
-                           (filters.amountRange.max === '' || item.amount <= filters.amountRange.max);
+                            (filters.amountRange.max === '' || item.amount <= filters.amountRange.max);
 
   // Etiket kontrolü
   const matchesTags = filters.tags.length === 0 || 
-    filters.tags.some(tag => 
-      item.title.toLowerCase().includes(tag.toLowerCase()) ||
-      item.description.toLowerCase().includes(tag.toLowerCase())
-    );
+    filters.tags.some(tag => item.tags.includes(tag));
 
   return matchesDateRange && matchesAmountRange && matchesTags;
 });
 ```
 
-## 🎨 UI/UX Özellikleri
-
-### Responsive Tasarım
-- **Mobil Uyumlu**: Küçük ekranlarda optimize edilmiş görünüm
-- **Tablet Desteği**: Orta boyutlu ekranlarda ideal düzen
-- **Desktop Optimizasyonu**: Büyük ekranlarda maksimum verimlilik
-
-### Dark Mode Desteği
-- **Otomatik Tema**: Sistem temasına göre otomatik değişim
-- **Manuel Kontrol**: Kullanıcı tarafından tema değiştirme
-- **Tutarlı Renkler**: Tüm temalarda tutarlı görünüm
-
-### Erişilebilirlik
-- **Klavye Navigasyonu**: Tab tuşu ile gezinme
-- **Screen Reader Desteği**: ARIA etiketleri ile uyumluluk
-- **Yüksek Kontrast**: Görme engelli kullanıcılar için optimize
-
-## 🔍 Kullanım Örnekleri
-
-### Müşteri Arama
+### Operatör Tabanlı Arama
 ```tsx
-// Premium müşterileri bul
-<AdvancedSearch
-  searchTypes={['customers']}
-  onSearch={(filters) => {
-    // Premium müşterileri filtrele
-    const premiumCustomers = customers.filter(customer => 
-      customer.plan === 'premium' && 
-      customer.name.toLowerCase().includes(filters.searchTerm.toLowerCase())
-    );
-  }}
-/>
-```
-
-### Talep Arama
-```tsx
-// Yüksek öncelikli açık talepleri bul
-<AdvancedSearch
-  searchTypes={['tickets']}
-  onSearch={(filters) => {
-    const urgentTickets = tickets.filter(ticket => 
-      ticket.priority === 'high' && 
-      ticket.status === 'open' &&
-      ticket.title.toLowerCase().includes(filters.searchTerm.toLowerCase())
-    );
-  }}
-/>
-```
-
-### Ödeme Arama
-```tsx
-// Belirli tarih aralığındaki ödemeleri bul
-<AdvancedSearch
-  searchTypes={['payments']}
-  onSearch={(filters) => {
-    const dateFilteredPayments = payments.filter(payment => 
-      new Date(payment.createdAt) >= new Date(filters.dateRange.start) &&
-      new Date(payment.createdAt) <= new Date(filters.dateRange.end) &&
-      payment.amount >= filters.amountRange.min
-    );
-  }}
-/>
-```
-
-## 🚀 Performans Optimizasyonu
-
-### Debouncing
-```tsx
-import { useDebounce } from 'use-debounce';
-
-const [debouncedSearchTerm] = useDebounce(searchTerm, 300);
-
-useEffect(() => {
-  // Arama işlemi sadece 300ms sonra çalışır
-  performSearch(debouncedSearchTerm);
-}, [debouncedSearchTerm]);
-```
-
-### Memoization
-```tsx
-import { useMemo } from 'react';
-
-const filteredData = useMemo(() => {
-  return data.filter(item => {
-    // Filtreleme mantığı
+const applyOperators = (data: any[], operators: any[]) => {
+  let results = [...data];
+  
+  operators.forEach(operator => {
+    if (operator.type === 'boolean') {
+      if (operator.operator === 'AND') {
+        // Hem operatör 1 hem operatör 2 sağlanmalı
+        results = results.filter(item => {
+          const text = `${item.title} ${item.description}`.toLowerCase();
+          return text.includes(operator.value.toLowerCase());
+        });
+      } else if (operator.operator === 'OR') {
+        // Operatör 1 veya operatör 2 sağlanmalı
+        const matchingItems = data.filter(item => {
+          const text = `${item.title} ${item.description}`.toLowerCase();
+          return text.includes(operator.value.toLowerCase());
+        });
+        results = [...new Set([...results, ...matchingItems])];
+      } else if (operator.operator === 'NOT') {
+        // Operatör sağlanmamalı
+        results = results.filter(item => {
+          const text = `${item.title} ${item.description}`.toLowerCase();
+          return !text.includes(operator.value.toLowerCase());
+        });
+      }
+    } else if (operator.type === 'regex') {
+      try {
+        const regex = new RegExp(operator.value, 'i');
+        results = results.filter(item => {
+          const text = `${item.title} ${item.description}`;
+          return regex.test(text);
+        });
+      } catch (error) {
+        console.error('Regex hatası:', error);
+      }
+    }
   });
-}, [data, filters]);
+  
+  return results;
+};
 ```
 
-## 🐛 Sorun Giderme
+## 🎯 Kullanım Örnekleri
 
-### Yaygın Sorunlar
-
-1. **Filtreler Çalışmıyor**
-   - `onSearch` callback'inin doğru tanımlandığından emin olun
-   - State güncellemelerinin doğru yapıldığını kontrol edin
-
-2. **Tarih Filtreleri Çalışmıyor**
-   - Tarih formatının `YYYY-MM-DD` olduğundan emin olun
-   - `createdAt` alanının doğru formatta olduğunu kontrol edin
-
-3. **Etiketler Eklenmiyor**
-   - `onKeyPress` event'inin doğru çalıştığını kontrol edin
-   - Boş etiket eklenmesini engelleyin
-
-### Debug İpuçları
+### Boolean Operatörler
 ```tsx
-// Filtreleri konsola yazdır
-console.log('Current filters:', advancedFilters);
-
-// Filtrelenmiş veriyi kontrol et
-console.log('Filtered data:', filteredData);
-
-// Performans ölçümü
-console.time('filtering');
-const result = performFiltering(data, filters);
-console.timeEnd('filtering');
+// "hata" AND "ödeme" → Hem hata hem ödeme içeren kayıtlar
+// "teknik" OR "destek" → Teknik veya destek içeren kayıtlar
+// "kapalı" NOT "eski" → Kapalı ama eski olmayan kayıtlar
 ```
 
-## 📈 Gelecek Geliştirmeler
+### Regex Arama
+```tsx
+// ^[A-Z]{2}-\d{4}$ → İki büyük harf + tire + 4 rakam
+// \d{3}-\d{3}-\d{4} → Telefon numarası formatı
+// [A-Za-z]+@[A-Za-z]+\.[A-Za-z]+ → E-posta formatı
+```
 
-### Planlanan Özellikler
-- [ ] **Kayıtlı Filtreler**: Sık kullanılan filtreleri kaydetme
-- [ ] **Filtre Geçmişi**: Son kullanılan filtreleri hatırlama
-- [ ] **Gelişmiş Operatörler**: AND, OR, NOT operatörleri
-- [ ] **Fuzzy Search**: Yazım hatalarını tolere eden arama
-- [ ] **Otomatik Tamamlama**: Akıllı öneriler sistemi
+### Wildcard Arama
+```tsx
+// hata* → hata ile başlayan
+// *sistem → sistem ile biten
+// hata? → hata + tek karakter
+```
 
-### API Entegrasyonu
-- [ ] **Backend Filtreleme**: Sunucu tarafında filtreleme
-- [ ] **Pagination**: Sayfalama desteği
-- [ ] **Real-time Updates**: Gerçek zamanlı güncellemeler
+### Phrase Search
+```tsx
+// "ödeme sorunu" → Tam cümle arama
+// "teknik destek" → Kelime sırası önemli
+```
 
-## 📞 Destek
+## 🚀 Demo Sayfası
 
-Herhangi bir sorun yaşarsanız veya önerileriniz varsa:
+Yeni özellikleri test etmek için demo sayfasını kullanın:
 
-1. **GitHub Issues**: Proje repository'sinde issue açın
-2. **Dokümantasyon**: Bu README dosyasını güncelleyin
-3. **Code Review**: Pull request ile katkıda bulunun
+```tsx
+import AdvancedSearch from './components/AdvancedSearch';
 
----
+// App.tsx veya router'da
+<Route path="/advanced-search-demo" element={<AdvancedSearch />} />
+```
 
-**Not**: Bu gelişmiş arama sistemi, modern web standartlarına uygun olarak geliştirilmiştir ve sürekli olarak iyileştirilmektedir.
+## 📱 Responsive Tasarım
+
+Tüm bileşenler mobil, tablet ve desktop cihazlarda optimize edilmiştir:
+
+- **Mobil**: Dikey düzen, touch-friendly butonlar
+- **Tablet**: Orta boyut düzen, optimize edilmiş spacing
+- **Desktop**: Tam genişlik, gelişmiş hover efektleri
+
+## 🌙 Dark Mode Desteği
+
+Tüm bileşenler otomatik dark mode desteği ile gelir:
+
+```tsx
+// Tailwind CSS sınıfları otomatik olarak dark mode'a uyum sağlar
+className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+```
+
+## 🔧 Gelecek Özellikler
+
+- **AI Destekli Arama**: Semantic search ve otomatik öneriler
+- **Görsel Arama**: Drag & drop filtre düzenleme
+- **Real-time Collaboration**: Takım üyeleri arası filtre paylaşımı
+- **Advanced Analytics**: Arama performans metrikleri
+- **Export/Import**: Filtre konfigürasyonlarını dışa/içe aktarma
+
+## 📝 Notlar
+
+- Tüm bileşenler TypeScript ile yazılmıştır
+- Tailwind CSS kullanılarak stillendirilmiştir
+- Lucide React ikonları kullanılmıştır
+- LocalStorage ile veri kalıcılığı sağlanmıştır
+- Responsive tasarım prensipleri uygulanmıştır

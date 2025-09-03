@@ -85,6 +85,7 @@ import SmartFormDemo from './components/SmartFormDemo';
 import SmartOnboardingSystem from './components/SmartOnboardingSystem';
 import SmartProjectManagement from './components/SmartProjectManagement';
 import HRManagement from './components/HRManagement';
+import AdvancedSearch from './components/AdvancedSearch';
 import WorkflowBuilder from './components/WorkflowBuilder';
 import ApprovalWorkflows from './components/ApprovalWorkflows';
 import EmployeeChat from './components/EmployeeChat';
@@ -172,6 +173,20 @@ function App() {
     try { fetchPromotions(); } catch (e) { console.log('promotions tablosu yok'); }
     try { fetchBudgets(); } catch (e) { console.log('budgets tablosu yok'); }
     try { fetchFinancialReports(); } catch (e) { console.log('financial_reports tablosu yok'); }
+  }, []);
+
+  // Kısayol tuşu: Ctrl + Shift + F ile detaylı arama
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key === 'F') {
+        event.preventDefault();
+        setCurrentPage('advanced-search-demo');
+        toast.success('🔍 Detaylı arama sayfası açıldı');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
 
@@ -719,6 +734,18 @@ function App() {
       case 'smart-form-demo':
         return <SmartFormDemo />;
 
+              case 'advanced-search-demo':
+          return <AdvancedSearch 
+            onSearch={(filters) => {
+              console.log('Gelişmiş arama filtreleri:', filters);
+              // Burada arama işlemi yapılabilir
+            }}
+            onClear={() => {
+              console.log('Filtreler temizlendi');
+              // Burada temizleme işlemi yapılabilir
+            }}
+          />;
+
       case 'reports':
         return <ReportsPage />;
 
@@ -988,10 +1015,9 @@ function App() {
                 <Lightbulb className="w-5 h-5" /><span>Temsilci Özellikleri Demo</span>
               </button>
               
-              {/* Akıllı Form Asistanı Demo */}
-              <button onClick={() => setCurrentPage('smart-form-demo')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'smart-form-demo' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
-                <FileText className="w-5 h-5" /><span>Akıllı Form Asistanı</span>
-              </button>
+
+              
+
             </nav>
             
             {/* Müşteri Portalı Erişimi */}
@@ -1009,7 +1035,7 @@ function App() {
           {/* Main Content */}
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Header */}
-            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 pt-3 flex-shrink-0 lg:pl-5">
+                        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 pt-3 flex-shrink-0 lg:pl-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <button
@@ -1035,44 +1061,91 @@ function App() {
                         className=""
                       />
                     </div>
-                    {showSearchResults && searchResults.length > 0 && (
+                    
+                    {/* Arama Sonuçları Dropdown */}
+                    {showSearchResults && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto">
-                        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-                          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {searchResults.length} sonuç bulundu
-                          </p>
-                        </div>
-                        {searchResults.map((result, index) => (
-                          <button
-                            key={`${result.type}-${result.id}-${index}`}
-                            onClick={() => handleSearchResultClick(result)}
-                            className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-600 last:border-b-0"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="flex-shrink-0">
-                                {result.type === 'ticket' && <MessageSquare className="w-4 h-4 text-blue-600" />}
-                                {result.type === 'customer' && <User className="w-4 h-4 text-green-600" />}
-                                {result.type === 'agent' && <UserCheck className="w-4 h-4 text-purple-600" />}
-                                {result.type === 'payment' && <CreditCard className="w-4 h-4 text-orange-600" />}
-                                {result.type === 'invoice' && <FileText className="w-4 h-4 text-red-600" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                  {result.title}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                  {result.subtitle}
-                                </p>
-                                <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                                  {result.description}
-                                </p>
-                              </div>
+                        {searchResults.length > 0 ? (
+                          <>
+                            <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+                              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {searchResults.length} sonuç bulundu
+                              </p>
                             </div>
+                            {searchResults.map((result, index) => (
+                              <button
+                                key={`${result.type}-${result.id}-${index}`}
+                                onClick={() => handleSearchResultClick(result)}
+                                className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-shrink-0">
+                                    {result.type === 'ticket' && <MessageSquare className="w-4 h-4 text-blue-600" />}
+                                    {result.type === 'customer' && <User className="w-4 h-4 text-green-600" />}
+                                    {result.type === 'agent' && <UserCheck className="w-4 h-4 text-purple-600" />}
+                                    {result.type === 'payment' && <CreditCard className="w-4 h-4 text-orange-600" />}
+                                    {result.type === 'invoice' && <FileText className="w-4 h-4 text-red-600" />}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                      {result.title}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                      {result.subtitle}
+                                    </p>
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                                      {result.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          <div className="p-4 text-center">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                              "{globalSearchTerm}" için sonuç bulunamadı
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Detaylı Arama Linki - Her zaman görünür */}
+                        <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+                          <button
+                            onClick={() => {
+                              // Arama terimini localStorage'a kaydet
+                              if (globalSearchTerm.trim()) {
+                                localStorage.setItem('globalSearchTerm', globalSearchTerm.trim());
+                              }
+                              setCurrentPage('advanced-search-demo');
+                              setShowSearchResults(false);
+                              setGlobalSearchTerm('');
+                            }}
+                            className="w-full flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 py-2 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          >
+                            <Search className="w-4 h-4" />
+                            <span>🔍 Detaylı Arama Yap</span>
+                            <span className="ml-auto text-xs text-gray-500">→</span>
                           </button>
-                        ))}
+                        </div>
                       </div>
                     )}
                   </div>
+                  
+                  {/* Detaylı Arama Butonu */}
+                  <button
+                    onClick={() => {
+                      if (globalSearchTerm.trim()) {
+                        localStorage.setItem('globalSearchTerm', globalSearchTerm.trim());
+                      }
+                      setCurrentPage('advanced-search-demo');
+                      setShowSearchResults(false);
+                    }}
+                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    title="Detaylı Arama (Ctrl + Shift + F)"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
