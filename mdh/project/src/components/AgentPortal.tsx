@@ -43,9 +43,10 @@ import EmployeeChat from './EmployeeChat';
 import FeedbackButton from './common/FeedbackButton';
 
 interface AgentPortalProps {
+  onBackToAdmin?: () => void;
 }
 
-const AgentPortal: React.FC<AgentPortalProps> = () => {
+const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
   const { setTheme, isDark } = useTheme();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [agentData, setAgentData] = useState<any>(null);
@@ -237,7 +238,7 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {agentTickets.slice(0, 5).map((ticket: any) => (
+            {agentTickets.slice(0, 3).map((ticket: any) => (
               <div key={ticket.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3">
@@ -414,7 +415,7 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {agentTickets.map((ticket: any) => {
+              {agentTickets.slice(0, 10).map((ticket: any) => {
                 // SLA hesaplama
                 const createdDate = new Date(ticket.created_at);
                 const now = new Date();
@@ -559,7 +560,7 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
 
             {/* Müşteri Listesi */}
             <div className="flex-1 overflow-y-auto">
-              {agentTickets.filter(t => t.status === 'open' || t.status === 'pending').map((ticket: any) => (
+              {agentTickets.filter(t => t.status === 'open' || t.status === 'pending').slice(0, 5).map((ticket: any) => (
                 <div
                   key={ticket.id}
                   className="p-4 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
@@ -781,7 +782,7 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
                 </span>
               </div>
               <div className="space-y-2">
-                {customers.filter(c => c.plan === 'premium' || c.plan === 'vip').slice(0, 3).map((customer, index) => (
+                {customers.filter(c => c.plan === 'premium' || c.plan === 'vip').slice(0, 2).map((customer, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
@@ -826,7 +827,7 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
                   const weekAgo = new Date();
                   weekAgo.setDate(weekAgo.getDate() - 7);
                   return createdDate > weekAgo;
-                }).slice(0, 2).map((customer, index) => (
+                }).slice(0, 1).map((customer, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
@@ -1463,6 +1464,16 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
               <Settings className="w-5 h-5" />
               <span>Ayarlar</span>
             </button>
+
+            {onBackToAdmin && (
+              <button
+                onClick={onBackToAdmin}
+                className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 mt-4"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Admin Panel'e Dön</span>
+              </button>
+            )}
           </nav>
 
         </div>
