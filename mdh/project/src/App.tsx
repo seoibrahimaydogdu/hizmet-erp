@@ -971,7 +971,7 @@ function App() {
               
               {/* Çalışan Mesajlaşma Sistemi */}
               <button onClick={() => setShowEmployeeChat(true)} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700`}>
-                <MessageSquare className="w-5 h-5" /><span>Takım Mesajları</span>
+                <MessageSquare className="w-5 h-5" /><span>Takım İletişimi</span>
                 <span className="ml-auto px-2 py-0.5 text-xs bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded-full">
                   3
                 </span>

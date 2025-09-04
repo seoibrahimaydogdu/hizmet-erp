@@ -927,6 +927,23 @@ function EmployeeChat() {
       setMessages(prev => [...prev, message]);
       setNewMessage('');
       
+      // Takım mesajı senkronizasyonu için localStorage'a kaydet
+      const teamMessage = {
+        id: message.id,
+        sender: message.senderName,
+        message: message.content,
+        time: message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+        avatar: message.senderAvatar,
+        timestamp: message.timestamp
+      };
+      
+      const existingMessages = JSON.parse(localStorage.getItem('teamMessages') || '[]');
+      existingMessages.push(teamMessage);
+      localStorage.setItem('teamMessages', JSON.stringify(existingMessages));
+      
+      // AgentPortal'a event gönder
+      window.dispatchEvent(new CustomEvent('teamMessageSent', { detail: teamMessage }));
+      
       // Update channel last message
       setChannels(prev => prev.map(ch => 
         ch.id === selectedChannel.id 
@@ -2719,7 +2736,35 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
           console.error('Veri taşıma hatası:', error);
         });
     }
-  }, [user]);
+
+    // AgentPortal'dan gelen takım mesajlarını dinle
+    const handleTeamMessage = (event: any) => {
+      const teamMessage = event.detail;
+      
+      // Eğer genel kanal seçiliyse mesajı ekle
+      if (selectedChannel && selectedChannel.name === 'Genel') {
+        const chatMessage: ChatMessage = {
+          id: teamMessage.id,
+          content: teamMessage.message,
+          senderId: 'agent-' + teamMessage.sender,
+          senderName: teamMessage.sender,
+          senderRole: 'agent',
+          senderAvatar: teamMessage.avatar,
+          channelId: selectedChannel.id,
+          messageType: 'text',
+          timestamp: teamMessage.timestamp
+        };
+        
+        setMessages(prev => [...prev, chatMessage]);
+      }
+    };
+
+    window.addEventListener('teamMessageSent', handleTeamMessage);
+
+    return () => {
+      window.removeEventListener('teamMessageSent', handleTeamMessage);
+    };
+  }, [user, selectedChannel]);
 
   useEffect(() => {
     if (selectedChannel) {
