@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, useNavigate, useLocation } from 'react-router-dom';
 import VoiceSearch from './components/common/VoiceSearch';
 
 import { Toaster, toast } from 'react-hot-toast';
-import { ThemeProvider } from './contexts/ThemeContext';
 
 import {
   LayoutDashboard,
@@ -18,7 +17,6 @@ import {
   X,
   User,
   CreditCard,
-  TrendingDown,
   DollarSign,
   FileText,
   AlertTriangle,
@@ -28,21 +26,12 @@ import {
   RefreshCw,
   Maximize2,
   Lightbulb,
-  BookOpen,
   GanttChart,
   Briefcase,
-  Target,
-  Award,
-  Calendar,
-  TrendingUp,
-  Brain,
-  GraduationCap,
-  UserPlus,
-  Activity,
   GitBranch
 } from 'lucide-react';
 
-import { formatDistanceToNow, format, subDays, startOfDay } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
 import { useSupabase } from './hooks/useSupabase';
@@ -54,15 +43,6 @@ import { formatCurrency } from './lib/currency';
 
 
 
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from 'recharts';
 
 // Import components
 import TicketsPage from './components/TicketsPage';
@@ -73,16 +53,15 @@ import SettingsPage from './components/SettingsPage';
 
 import ProfilePage from './components/ProfilePage';
 
-import CustomerProfile from './components/CustomerProfile';
 import AdminCustomerProfile from './components/AdminCustomerProfile';
 import FinancialManagement from './components/FinancialManagement';
 import CustomerPortal from './components/CustomerPortal';
+import AgentPortal from './components/AgentPortal';
 import ErrorBoundary from './components/ErrorBoundary';
 import PaymentReminder from './components/PaymentReminder';
 import AgentFeaturesDemo from './components/AgentFeaturesDemo';
 import RealTimeHintSystem from './components/RealTimeHintSystem';
 import SmartFormDemo from './components/SmartFormDemo';
-import SmartOnboardingSystem from './components/SmartOnboardingSystem';
 import SmartProjectManagement from './components/SmartProjectManagement';
 import HRManagement from './components/HRManagement';
 import AdvancedSearch from './components/AdvancedSearch';
@@ -103,10 +82,8 @@ function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showCustomerPortal, setShowCustomerPortal] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showEmployeeChat, setShowEmployeeChat] = useState(false);
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -174,6 +151,7 @@ function App() {
     try { fetchBudgets(); } catch (e) { console.log('budgets tablosu yok'); }
     try { fetchFinancialReports(); } catch (e) { console.log('financial_reports tablosu yok'); }
   }, []);
+
 
   // Kısayol tuşu: Ctrl + Shift + F ile detaylı arama
   useEffect(() => {
@@ -750,8 +728,7 @@ function App() {
         return <ReportsPage />;
 
       case 'smart-project-management':
-        return <SmartProjectManagement onChannelSelect={(channelId) => {
-          setSelectedChannelId(channelId);
+        return <SmartProjectManagement onChannelSelect={() => {
           setShowEmployeeChat(true);
         }} />;
 
@@ -814,8 +791,6 @@ function App() {
       case 'payment-reminder':
         return <PaymentReminder currentUser={userProfile} />;
       // BulkOperations artık TicketList içinde entegre edildi
-      case 'customer-portal':
-        return <CustomerPortal onBackToAdmin={() => setShowCustomerPortal(false)} />;
       default:
         return <div>Sayfa bulunamadı</div>;
     }
@@ -914,26 +889,16 @@ function App() {
 
 
 
-  const generateChartData = () => {
-    const data = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = subDays(new Date(), i);
-      const dayTickets = tickets.filter(ticket => {
-        const ticketDate = startOfDay(new Date(ticket.created_at));
-        return ticketDate.getTime() === startOfDay(date).getTime();
-      });
-      data.push({
-        date: format(date, 'MMM dd', { locale: tr }),
-        tickets: dayTickets.length
-      });
-    }
-    return data;
-  };
 
   // Müşteri portalı gösteriliyorsa
   // Check if we're on the customers route
   if (location.pathname === '/customers') {
     return <CustomerPortal onBackToAdmin={() => navigate('/')} />;
+  }
+
+  // Temsilci portalı gösteriliyorsa
+  if (location.pathname === '/agents') {
+    return <AgentPortal onBackToAdmin={() => navigate('/')} />;
   }
 
   // Çalışan profili gösteriliyorsa
@@ -1020,14 +985,22 @@ function App() {
 
             </nav>
             
-            {/* Müşteri Portalı Erişimi */}
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 bg-white dark:bg-gray-800 flex-shrink-0 p-6">
+            {/* Portal Erişimleri */}
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 bg-white dark:bg-gray-800 flex-shrink-0 p-6 space-y-2">
               <button 
                 onClick={() => navigate('/customers')}
                 className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
               >
                 <User className="w-5 h-5" />
                 <span>Müşteri Portalı</span>
+              </button>
+              
+              <button 
+                onClick={() => navigate('/agents')}
+                className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20"
+              >
+                <UserCheck className="w-5 h-5" />
+                <span>Temsilci Portalı</span>
               </button>
             </div>
           </div>
@@ -1276,7 +1249,6 @@ function App() {
                   <button
                     onClick={() => {
                       setShowEmployeeChat(false);
-                      setSelectedChannelId(null);
                     }}
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     title="Kapat"
@@ -1285,19 +1257,7 @@ function App() {
                   </button>
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <EmployeeChat
-                    currentUserId={userProfile.id || '1'}
-                    currentUserName={userProfile.name || 'Kullanıcı'}
-                    currentUserRole={userProfile.role || 'Admin'}
-                    currentUserDepartment={userProfile.department || 'Yönetim'}
-                    className="h-full"
-                    initialChannelId={selectedChannelId || undefined}
-                    onNotification={(notification) => {
-                      // Dashboard bildirimlerine ekle
-                      console.log('Chat bildirimi:', notification);
-                      // Burada Supabase'e bildirim eklenebilir
-                    }}
-                  />
+                  <EmployeeChat />
                 </div>
               </div>
             </div>

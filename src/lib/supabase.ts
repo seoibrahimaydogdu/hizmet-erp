@@ -3,7 +3,20 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Supabase URL ve key kontrolü
+if (!supabaseUrl) {
+  console.warn('VITE_SUPABASE_URL environment variable is not defined');
+}
+
+if (!supabaseAnonKey) {
+  console.warn('VITE_SUPABASE_ANON_KEY environment variable is not defined');
+}
+
+// Fallback değerler ile Supabase client oluştur
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder-key'
+);
 
 // Database types
 export interface Customer {
