@@ -69,6 +69,7 @@ import WorkflowBuilder from './components/WorkflowBuilder';
 import ApprovalWorkflows from './components/ApprovalWorkflows';
 import EmployeeChat from './components/EmployeeChat';
 import EmployeeProfile from './components/EmployeeProfile';
+import EmployeePortal from './components/EmployeePortal';
 
 
 // BulkOperations artık TicketList içinde entegre edildi
@@ -901,6 +902,11 @@ function App() {
     return <AgentPortal onBackToAdmin={() => navigate('/')} />;
   }
 
+  // Çalışan portalı gösteriliyorsa
+  if (location.pathname === '/employee') {
+    return <EmployeePortal onBackToAdmin={() => navigate('/')} />;
+  }
+
   // Çalışan profili gösteriliyorsa
   if (location.pathname === '/employee-profile') {
     return <EmployeeProfile />;
@@ -1001,6 +1007,14 @@ function App() {
               >
                 <UserCheck className="w-5 h-5" />
                 <span>Temsilci Portalı</span>
+              </button>
+              
+              <button 
+                onClick={() => navigate('/employee')}
+                className="w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors text-purple-600 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-900/20"
+              >
+                <Briefcase className="w-5 h-5" />
+                <span>Çalışan Portalı</span>
               </button>
             </div>
           </div>
