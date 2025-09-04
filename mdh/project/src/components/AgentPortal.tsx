@@ -56,6 +56,7 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
 
   const {
     tickets,
+    customers,
     fetchAgents,
     fetchTickets,
     fetchCustomers
@@ -703,7 +704,7 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Müşteri</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">1,247</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{customers.length}</p>
             </div>
             <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
               <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -715,7 +716,9 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">VIP Müşteriler</p>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">89</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                {customers.filter(c => c.plan === 'premium' || c.plan === 'vip').length}
+              </p>
             </div>
             <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
               <Star className="w-6 h-6 text-purple-600 dark:text-purple-400" />
@@ -727,7 +730,9 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Aktif Müşteriler</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">892</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {customers.filter(c => c.plan === 'premium' || c.plan === 'standard').length}
+              </p>
             </div>
             <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
               <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
@@ -772,15 +777,11 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
                   <h4 className="font-semibold text-purple-900 dark:text-purple-100">VIP Müşteriler</h4>
                 </div>
                 <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full text-sm">
-                  89 müşteri
+                  {customers.filter(c => c.plan === 'premium' || c.plan === 'vip').length} müşteri
                 </span>
               </div>
               <div className="space-y-2">
-                {[
-                  { name: 'Ahmet Yılmaz', company: 'ABC Teknoloji', value: '₺125,000', status: 'online' },
-                  { name: 'Fatma Demir', company: 'XYZ İnşaat', value: '₺98,500', status: 'away' },
-                  { name: 'Mehmet Kaya', company: 'DEF Lojistik', value: '₺87,200', status: 'online' }
-                ].map((customer, index) => (
+                {customers.filter(c => c.plan === 'premium' || c.plan === 'vip').slice(0, 3).map((customer, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
@@ -788,14 +789,14 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{customer.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{customer.company}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{customer.company || 'Şirket bilgisi yok'}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{customer.value}</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{customer.plan || 'Premium'}</p>
                       <div className="flex items-center space-x-1">
-                        <div className={`w-2 h-2 rounded-full ${customer.status === 'online' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{customer.status}</span>
+                        <div className={`w-2 h-2 rounded-full ${customer.plan === 'premium' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{customer.plan || 'standard'}</span>
                       </div>
                     </div>
                   </div>
@@ -811,14 +812,21 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
                   <h4 className="font-semibold text-green-900 dark:text-green-100">Yeni Müşteriler</h4>
                 </div>
                 <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm">
-                  23 müşteri
+                  {customers.filter(c => {
+                    const createdDate = new Date(c.created_at);
+                    const weekAgo = new Date();
+                    weekAgo.setDate(weekAgo.getDate() - 7);
+                    return createdDate > weekAgo;
+                  }).length} müşteri
                 </span>
               </div>
               <div className="space-y-2">
-                {[
-                  { name: 'Can Özkan', company: 'GHI Ticaret', joinDate: '2 gün önce', status: 'online' },
-                  { name: 'Zeynep Arslan', company: 'JKL Hizmetler', joinDate: '5 gün önce', status: 'away' }
-                ].map((customer, index) => (
+                {customers.filter(c => {
+                  const createdDate = new Date(c.created_at);
+                  const weekAgo = new Date();
+                  weekAgo.setDate(weekAgo.getDate() - 7);
+                  return createdDate > weekAgo;
+                }).slice(0, 2).map((customer, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
                     <div className="flex items-center space-x-3">
                       <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
@@ -826,14 +834,16 @@ const AgentPortal: React.FC<AgentPortalProps> = () => {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{customer.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{customer.company}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{customer.company || 'Şirket bilgisi yok'}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{customer.joinDate}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {new Date(customer.created_at).toLocaleDateString('tr-TR')}
+                      </p>
                       <div className="flex items-center space-x-1">
-                        <div className={`w-2 h-2 rounded-full ${customer.status === 'online' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{customer.status}</span>
+                        <div className={`w-2 h-2 rounded-full ${customer.plan === 'premium' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 capitalize">{customer.plan || 'standard'}</span>
                       </div>
                     </div>
                   </div>
