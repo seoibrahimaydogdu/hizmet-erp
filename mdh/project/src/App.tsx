@@ -28,6 +28,7 @@ import {
   RefreshCw,
   Maximize2,
   Lightbulb,
+  Eye,
   GanttChart,
   Briefcase,
   GitBranch,
@@ -78,7 +79,6 @@ import EmployeeChat from './components/EmployeeChat';
 import EmployeeProfile from './components/EmployeeProfile';
 import EmployeePortal from './components/EmployeePortal';
 import ManagerPortal from './components/ManagerPortal';
-import CustomizableDashboards from './components/common/CustomizableDashboards';
 
 
 // BulkOperations artık TicketList içinde entegre edildi
@@ -103,15 +103,13 @@ function App() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [isVoiceSearchListening, setIsVoiceSearchListening] = useState(false);
+  const [hoveredResult, setHoveredResult] = useState<any>(null);
+  const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
   const [isRefreshingBilling, setIsRefreshingBilling] = useState(false);
   const [isRefreshingSupport, setIsRefreshingSupport] = useState(false);
   const [lastBillingUpdate, setLastBillingUpdate] = useState(new Date());
   const [lastSupportUpdate, setLastSupportUpdate] = useState(new Date());
   
-  // Dashboard state
-  const [dashboardLayout, setDashboardLayout] = useState('default');
-  const [dashboardWidgets, setDashboardWidgets] = useState([]);
-  const [isDashboardEditMode, setIsDashboardEditMode] = useState(false);
 
   const {
     notifications,
@@ -210,6 +208,45 @@ function App() {
     handleGlobalSearch(transcript, true);
   };
 
+  // Keyboard navigation için
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSearchResults || searchResults.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedResultIndex(prev => 
+          prev < searchResults.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedResultIndex(prev => 
+          prev > 0 ? prev - 1 : searchResults.length - 1
+        );
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedResultIndex >= 0 && selectedResultIndex < searchResults.length) {
+          handleSearchResultClick(searchResults[selectedResultIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowSearchResults(false);
+        setSelectedResultIndex(-1);
+        break;
+    }
+  };
+
+  // Hover önizleme için
+  const handleResultHover = (result: any) => {
+    setHoveredResult(result);
+  };
+
+  const handleResultLeave = () => {
+    setHoveredResult(null);
+  };
+
   const handleGlobalSearch = (searchTerm: string, showDropdown: boolean = true) => {
     setGlobalSearchTerm(searchTerm);
     if (!searchTerm.trim()) {
@@ -245,6 +282,13 @@ function App() {
           title: ticket.title,
           subtitle: customer?.name || 'Bilinmeyen Müşteri',
           description: `Talep #${ticket.id.slice(0, 8)} - ${ticket.status}`,
+          details: {
+            status: ticket.status === 'open' ? 'Açık' : ticket.status === 'in_progress' ? 'İşlemde' : 'Kapalı',
+            priority: ticket.priority === 'high' ? 'Yüksek' : ticket.priority === 'medium' ? 'Orta' : 'Düşük',
+            created: new Date(ticket.created_at).toLocaleDateString('tr-TR'),
+            customer: customer?.name || 'Bilinmiyor',
+            category: ticket.category || 'Genel'
+          },
           action: () => {
             setCurrentPage('tickets');
             localStorage.setItem('selectedTicketId', ticket.id);
@@ -267,6 +311,13 @@ function App() {
           title: customer.name,
           subtitle: customer.email,
           description: customer.company || 'Şirket bilgisi yok',
+          details: {
+            plan: customer.plan || 'Standart',
+            totalSpent: '₺0', // Mock data - gerçek uygulamada customer.total_spent kullanılır
+            lastActivity: 'Bilinmiyor', // Mock data - gerçek uygulamada customer.last_activity kullanılır
+            tickets: 0, // Mock data - gerçek uygulamada customer.ticket_count kullanılır
+            status: 'Aktif' // Mock data - gerçek uygulamada customer.status kullanılır
+          },
           action: () => {
             localStorage.setItem('previousPage', 'dashboard');
             setSelectedCustomerId(customer.id);
@@ -288,6 +339,13 @@ function App() {
           title: agent.name,
           subtitle: agent.email,
           description: `Temsilci - ${agent.status || 'Aktif'}`,
+          details: {
+            department: 'Müşteri Destek',
+            experience: '2 yıl',
+            rating: '4.5/5',
+            activeTickets: 0,
+            status: agent.status || 'Online'
+          },
           action: () => {
             setCurrentPage('agents');
           }
@@ -311,6 +369,13 @@ function App() {
             title: `Ödeme #${payment.invoice_number || payment.id.slice(0, 8)}`,
             subtitle: customer?.name || 'Bilinmeyen Müşteri',
             description: `${payment.amount} ${payment.currency} - ${payment.status}`,
+            details: {
+              method: payment.payment_method || 'Kredi Kartı',
+              date: new Date(payment.created_at).toLocaleDateString('tr-TR'),
+              customer: customer?.name || 'Bilinmiyor',
+              invoice: payment.invoice_number || 'Yok',
+              status: payment.status === 'completed' ? 'Tamamlandı' : payment.status === 'pending' ? 'Bekleyen' : 'Başarısız'
+            },
             action: () => {
               setCurrentPage('financial-management');
             }
@@ -334,6 +399,13 @@ function App() {
             title: `Fatura #${subscription.invoice_number || subscription.id.slice(0, 8)}`,
             subtitle: customer?.name || 'Bilinmeyen Müşteri',
             description: `${subscription.amount} ${subscription.currency} - ${subscription.status}`,
+            details: {
+              dueDate: subscription.due_date ? new Date(subscription.due_date).toLocaleDateString('tr-TR') : 'Bilinmiyor',
+              customer: customer?.name || 'Bilinmiyor',
+              items: subscription.items_count || 1,
+              status: subscription.status === 'paid' ? 'Ödendi' : subscription.status === 'pending' ? 'Bekleyen' : 'Gecikmiş',
+              created: new Date(subscription.created_at).toLocaleDateString('tr-TR')
+            },
             action: () => {
               setCurrentPage('financial-management');
             }
@@ -1173,7 +1245,7 @@ function App() {
           {/* Main Content */}
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Header */}
-                        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 pt-3 flex-shrink-0 lg:pl-5">
+            <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 pt-3 flex-shrink-0 lg:pl-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <button
@@ -1182,7 +1254,7 @@ function App() {
                   >
                     <Menu className="w-4 h-4" />
                   </button>
-                  <div className="relative flex items-center">
+                  <div className="relative flex items-center" style={{ position: 'relative' }}>
                     <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       type="text"
@@ -1190,6 +1262,7 @@ function App() {
                       onChange={(e) => handleGlobalSearch(e.target.value, true)}
                       onFocus={() => setShowSearchResults(true)}
                       onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+                      onKeyDown={handleKeyDown}
                       placeholder={
                         isVoiceSearchListening 
                           ? 'Dinleniyor... Konuşun'
@@ -1219,7 +1292,13 @@ function App() {
                               <button
                                 key={`${result.type}-${result.id}-${index}`}
                                 onClick={() => handleSearchResultClick(result)}
-                                className="w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+                                onMouseEnter={() => handleResultHover(result)}
+                                onMouseLeave={handleResultLeave}
+                                className={`w-full px-3 py-2 text-left border-b border-gray-100 dark:border-gray-600 last:border-b-0 transition-colors ${
+                                  selectedResultIndex === index 
+                                    ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700' 
+                                    : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                                }`}
                               >
                                 <div className="flex items-center gap-3">
                                   <div className="flex-shrink-0">
@@ -1239,6 +1318,9 @@ function App() {
                                     <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                                       {result.description}
                                     </p>
+                                  </div>
+                                  <div className="flex-shrink-0">
+                                    <Eye className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                                   </div>
                                 </div>
                               </button>
@@ -1273,10 +1355,154 @@ function App() {
                         </div>
                       </div>
                     )}
-                  </div>
+                    
+                    {/* Hover Önizleme Modal */}
+                    {hoveredResult && (
+                      <div 
+                        className="fixed top-20 left-1/2 transform -translate-x-1/2 w-96 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[60] p-4"
+                        onMouseEnter={() => setHoveredResult(hoveredResult)}
+                        onMouseLeave={() => setHoveredResult(null)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0">
+                          {hoveredResult.type === 'ticket' && <MessageSquare className="w-5 h-5 text-blue-600" />}
+                          {hoveredResult.type === 'customer' && <User className="w-5 h-5 text-green-600" />}
+                          {hoveredResult.type === 'agent' && <UserCheck className="w-5 h-5 text-purple-600" />}
+                          {hoveredResult.type === 'payment' && <CreditCard className="w-5 h-5 text-orange-600" />}
+                          {hoveredResult.type === 'invoice' && <FileText className="w-5 h-5 text-red-600" />}
+                          </div>
+                          <div className="flex-1">
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                            {hoveredResult.title}
+                          </h3>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                            {hoveredResult.subtitle}
+                          </p>
+                          
+                          {/* Detaylı bilgiler */}
+                          {hoveredResult.details && (
+                            <div className="space-y-2">
+                              {hoveredResult.type === 'ticket' && (
+                                <>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Durum:</span>
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      hoveredResult.details.status === 'Açık' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+                                      hoveredResult.details.status === 'İşlemde' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                                      'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                    }`}>
+                                      {hoveredResult.details.status}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Öncelik:</span>
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      hoveredResult.details.priority === 'Yüksek' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+                                      hoveredResult.details.priority === 'Orta' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                                      'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                    }`}>
+                                      {hoveredResult.details.priority}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Müşteri:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.customer}</span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              {hoveredResult.type === 'customer' && (
+                                <>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Plan:</span>
+                                    <span className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 rounded text-xs">
+                                      {hoveredResult.details.plan}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Toplam Harcama:</span>
+                                    <span className="text-gray-900 dark:text-white font-medium">{hoveredResult.details.totalSpent}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Talep Sayısı:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.tickets}</span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              {hoveredResult.type === 'agent' && (
+                                <>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Departman:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.department}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Deneyim:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.experience}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Puan:</span>
+                                    <span className="text-gray-900 dark:text-white font-medium">{hoveredResult.details.rating}</span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              {hoveredResult.type === 'payment' && (
+                                <>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Yöntem:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.method}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Tarih:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.date}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Durum:</span>
+                                    <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 rounded text-xs">
+                                      {hoveredResult.details.status}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                              
+                              {hoveredResult.type === 'invoice' && (
+                                <>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Vade Tarihi:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.dueDate}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Müşteri:</span>
+                                    <span className="text-gray-900 dark:text-white">{hoveredResult.details.customer}</span>
+                                  </div>
+                                  <div className="flex justify-between text-xs">
+                                    <span className="text-gray-500 dark:text-gray-400">Durum:</span>
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      hoveredResult.details.status === 'Bekleyen' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                                      'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                    }`}>
+                                      {hoveredResult.details.status}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          
+                          <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Detayları görmek için tıklayın
+                            </p>
+                          </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   
                 </div>
-                <div className="flex items-center space-x-2">
+              </div>
+              <div className="flex items-center space-x-2">
                   <button
                     onClick={() => {
                       if (theme === 'auto') {
@@ -1382,6 +1608,8 @@ function App() {
               {renderContent()}
             </main>
           </div>
+        </div>
+      </div>
 
           {/* Overlay for mobile sidebar */}
           {sidebarOpen && (
@@ -1569,8 +1797,6 @@ function App() {
               }
             }}
           />
-        </div>
-      </div>
     </ErrorBoundary>
   );
 }
