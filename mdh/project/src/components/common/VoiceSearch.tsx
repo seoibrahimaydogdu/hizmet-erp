@@ -3,14 +3,14 @@ import { Mic, MicOff, Loader2 } from 'lucide-react';
 
 interface VoiceSearchProps {
   onTranscript: (text: string) => void;
-  placeholder?: string;
+  onListeningChange?: (isListening: boolean) => void;
   className?: string;
   disabled?: boolean;
 }
 
 const VoiceSearch: React.FC<VoiceSearchProps> = ({
   onTranscript,
-  placeholder = "Sesli arama...",
+  onListeningChange,
   className = "",
   disabled = false
 }) => {
@@ -23,32 +23,37 @@ const VoiceSearch: React.FC<VoiceSearchProps> = ({
     // Web Speech API desteğini kontrol et
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       setIsSupported(true);
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'tr-TR';
+      recognitionRef.current.lang = 'tr-TR,en-US'; // Hem Türkçe hem İngilizce
 
       recognitionRef.current.onstart = () => {
         setIsListening(true);
         setError(null);
+        onListeningChange?.(true);
       };
 
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
+        // Mevcut metni temizle ve yeni transcript'i gönder
         onTranscript(transcript);
         setIsListening(false);
+        onListeningChange?.(false);
       };
 
       recognitionRef.current.onerror = (event: any) => {
         console.error('Sesli arama hatası:', event.error);
         setError('Sesli arama sırasında bir hata oluştu');
         setIsListening(false);
+        onListeningChange?.(false);
       };
 
       recognitionRef.current.onend = () => {
         setIsListening(false);
+        onListeningChange?.(false);
       };
     } else {
       setIsSupported(false);
@@ -103,7 +108,6 @@ const VoiceSearch: React.FC<VoiceSearchProps> = ({
       {isListening && (
         <div className="ml-1.5 flex items-center text-xs text-gray-600">
           <Loader2 size={10} className="animate-spin mr-1" />
-          Dinleniyor...
         </div>
       )}
       

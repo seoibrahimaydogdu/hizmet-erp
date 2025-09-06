@@ -383,7 +383,10 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
         
         <div className="space-y-3">
           <button 
-            onClick={() => setCurrentPage('tasks')}
+            onClick={() => {
+              // Admin paneldeki görevler sayfasına yönlendir
+              window.location.href = '/#tasks';
+            }}
             className="w-full flex items-center space-x-3 p-3 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-lg transition-colors group"
           >
             <Target className="w-5 h-5 text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform" />

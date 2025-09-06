@@ -3267,8 +3267,8 @@ Oy vermek için mesajı yanıtlayın ve seçenek numarasını yazın!
           <div className="space-y-1">
             <button 
               onClick={() => {
-                // Görevler sayfasına yönlendirme - EmployeePortal'a geçiş
-                window.location.href = '/employee';
+                // Görevler sayfasına yönlendirme - Admin paneldeki görevler sayfasına geçiş
+                window.location.href = '/#tasks';
               }}
               className="w-full flex items-center space-x-2 px-2 py-1 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"
             >

@@ -746,7 +746,10 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
             
             <div className="space-y-3">
               <button 
-                onClick={() => setCurrentPage('tasks')}
+                onClick={() => {
+                  // Admin paneldeki görevler sayfasına yönlendir
+                  window.location.href = '/#tasks';
+                }}
                 className="w-full flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors group"
               >
                 <Plus className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />

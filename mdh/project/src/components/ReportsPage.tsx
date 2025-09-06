@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart, Legend, LineChart, Line } from 'recharts';
-import { Download, MessageSquare, CheckCircle, Clock, Star, Users, AlertCircle, TrendingUp, TrendingDown, DollarSign, UserCheck, UserX, Activity, Calendar, Filter } from 'lucide-react';
-import { format, endOfMonth, subMonths, startOfMonth, endOfDay, startOfDay, subDays, differenceInHours, differenceInDays } from 'date-fns';
+import { useEffect, useMemo, useState } from 'react';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart } from 'recharts';
+import { Download, MessageSquare, CheckCircle, Clock, Star, Users, DollarSign, UserCheck, UserX, Activity, Filter, ChevronDown } from 'lucide-react';
+import { format, endOfMonth, subMonths, startOfMonth, endOfDay, subDays, differenceInHours } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
 import RealTimeHintSystem from './RealTimeHintSystem';
@@ -9,6 +9,7 @@ import AutoReportManager from './AutoReportManager';
 import FeedbackButton from './common/FeedbackButton';
 import SmartAlertManager from './SmartAlertManager';
 import RealtimeDashboard from './RealtimeDashboard';
+import SmartReportingSystem from './SmartReportingSystem';
 import { toast } from 'react-hot-toast';
 
 const ReportsPage = () => {
@@ -31,7 +32,9 @@ const ReportsPage = () => {
 
   const [dateRange, setDateRange] = useState('30'); // days
   const [selectedPeriod, setSelectedPeriod] = useState('current'); // current, previous, custom
-  const [activeTab, setActiveTab] = useState<'analytics' | 'auto-reports' | 'alerts' | 'dashboard'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'auto-reports' | 'alerts' | 'dashboard' | 'smart-reporting'>('analytics');
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Tarih aralığı hesaplama
   const getDateRange = () => {
@@ -67,6 +70,20 @@ const ReportsPage = () => {
     fetchSubscriptionPlans();
     fetchExpenses();
   }, []);
+
+  // Export menüsünü kapat
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showExportMenu) {
+        setShowExportMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showExportMenu]);
 
   // Analitik verileri hesapla
   const analyticsData = useMemo(() => {
@@ -361,22 +378,144 @@ const ReportsPage = () => {
 
   const formatCurrency = (n: number) => `₺${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const handleExportReport = () => {
-    const reportData = {
-      generatedAt: new Date().toISOString(),
-      period: `${dateRange} gün`,
-      analyticsData
-    };
+  const handleExportReport = async (format: 'json' | 'csv' = 'json') => {
+    setIsExporting(true);
+    try {
+      // Veri doğrulama
+      if (!analyticsData || Object.keys(analyticsData).length === 0) {
+        toast.error('Rapor verileri henüz yüklenmedi. Lütfen bekleyin ve tekrar deneyin.');
+        return;
+      }
 
-    const dataStr = JSON.stringify(reportData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      // Rapor verilerini hazırla
+      const reportData = {
+        generatedAt: new Date().toISOString(),
+        period: `${dateRange} gün`,
+        selectedPeriod: selectedPeriod,
+        summary: {
+          totalTickets: analyticsData.ticketStats?.total || 0,
+          totalRevenue: analyticsData.financialAnalytics?.totalRevenue || 0,
+          totalCustomers: analyticsData.customerAnalytics?.totalCustomers || 0,
+          slaCompliance: analyticsData.slaAnalytics?.slaCompliance || 0
+        },
+        analyticsData: {
+          ticketStats: analyticsData.ticketStats,
+          financialAnalytics: analyticsData.financialAnalytics,
+          customerAnalytics: analyticsData.customerAnalytics,
+          slaAnalytics: analyticsData.slaAnalytics,
+          agentPerformance: analyticsData.agentPerformance?.slice(0, 10) || [], // İlk 10 temsilci
+          categoryAnalytics: analyticsData.categoryAnalytics?.slice(0, 10) || [] // İlk 10 kategori
+        }
+      };
+
+      let dataStr: string;
+      let mimeType: string;
+      let fileExtension: string;
+
+      if (format === 'csv') {
+        // CSV formatında export
+        const csvData = generateCSVReport(reportData);
+        dataStr = csvData;
+        mimeType = 'text/csv;charset=utf-8';
+        fileExtension = 'csv';
+      } else {
+        // JSON formatında export
+        try {
+          dataStr = JSON.stringify(reportData, null, 2);
+        } catch (jsonError) {
+          console.error('JSON stringify hatası:', jsonError);
+          toast.error('Rapor verileri işlenirken hata oluştu. Lütfen daha az veri seçin.');
+          return;
+        }
+        mimeType = 'application/json;charset=utf-8';
+        fileExtension = 'json';
+      }
+
+      // Veri boyutunu kontrol et (10MB limit)
+      const dataSize = new Blob([dataStr]).size;
+      if (dataSize > 10 * 1024 * 1024) {
+        toast.error('Rapor çok büyük. Lütfen daha kısa bir tarih aralığı seçin.');
+        return;
+      }
+
+      // Dosya indirme işlemi
+      const dataUri = `data:${mimeType},` + encodeURIComponent(dataStr);
+      const exportFileDefaultName = `analitik-raporu-${new Date().toISOString().split('T')[0]}.${fileExtension}`;
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.style.display = 'none';
+      
+      document.body.appendChild(linkElement);
+      linkElement.click();
+      document.body.removeChild(linkElement);
+
+      toast.success(`${format.toUpperCase()} raporu başarıyla indirildi!`);
+      
+    } catch (error) {
+      console.error('Rapor indirme hatası:', error);
+      toast.error('Rapor indirilirken bir hata oluştu. Lütfen tekrar deneyin.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // CSV rapor oluşturma fonksiyonu
+  const generateCSVReport = (reportData: any) => {
+    const lines: string[] = [];
     
-    const exportFileDefaultName = `analitik-raporu-${new Date().toISOString().split('T')[0]}.json`;
+    // Başlık bilgileri
+    lines.push('Analitik Raporu');
+    lines.push(`Oluşturulma Tarihi,${reportData.generatedAt}`);
+    lines.push(`Dönem,${reportData.period}`);
+    lines.push(`Seçilen Dönem,${reportData.selectedPeriod}`);
+    lines.push('');
     
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+    // Özet bilgiler
+    lines.push('ÖZET BİLGİLER');
+    lines.push('Metrik,Değer');
+    lines.push(`Toplam Talep,${reportData.summary.totalTickets}`);
+    lines.push(`Toplam Gelir,${reportData.summary.totalRevenue}`);
+    lines.push(`Toplam Müşteri,${reportData.summary.totalCustomers}`);
+    lines.push(`SLA Uyumluluğu,${reportData.summary.slaCompliance}%`);
+    lines.push('');
+    
+    // Talep istatistikleri
+    if (reportData.analyticsData.ticketStats) {
+      lines.push('TALEP İSTATİSTİKLERİ');
+      lines.push('Metrik,Değer');
+      lines.push(`Toplam,${reportData.analyticsData.ticketStats.total}`);
+      lines.push(`Açık,${reportData.analyticsData.ticketStats.open}`);
+      lines.push(`Devam Eden,${reportData.analyticsData.ticketStats.inProgress}`);
+      lines.push(`Çözülen,${reportData.analyticsData.ticketStats.resolved}`);
+      lines.push(`Kapatılan,${reportData.analyticsData.ticketStats.closed}`);
+      lines.push(`Yüksek Öncelik,${reportData.analyticsData.ticketStats.highPriority}`);
+      lines.push(`SLA İhlali,${reportData.analyticsData.ticketStats.overdue}`);
+      lines.push(`Ortalama Çözüm Süresi,${reportData.analyticsData.ticketStats.avgResolutionTime} saat`);
+      lines.push('');
+    }
+    
+    // Temsilci performansı
+    if (reportData.analyticsData.agentPerformance && reportData.analyticsData.agentPerformance.length > 0) {
+      lines.push('TEMSiLCİ PERFORMANSI');
+      lines.push('Temsilci,Çözülen,Ortalama Süre,Memnuniyet,Aktif,Başarı Oranı');
+      reportData.analyticsData.agentPerformance.forEach((agent: any) => {
+        lines.push(`${agent.name},${agent.resolved},${agent.avgResolutionTime},${agent.satisfactionScore},${agent.activeTickets},${agent.successRate}%`);
+      });
+      lines.push('');
+    }
+    
+    // Kategori analizi
+    if (reportData.analyticsData.categoryAnalytics && reportData.analyticsData.categoryAnalytics.length > 0) {
+      lines.push('KATEGORİ ANALİZİ');
+      lines.push('Kategori,Sayı,Ortalama Çözüm Süresi,Memnuniyet Skoru,Yüzde');
+      reportData.analyticsData.categoryAnalytics.forEach((category: any) => {
+        lines.push(`${category.category},${category.count},${category.avgResolutionTime},${category.satisfactionScore},${category.percentage}%`);
+      });
+    }
+    
+    return lines.join('\n');
   };
 
   return (
@@ -413,13 +552,40 @@ const ReportsPage = () => {
             </div>
           )}
           {activeTab === 'analytics' && (
-            <button
-              onClick={handleExportReport}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Rapor İndir
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                disabled={isExporting}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="w-4 h-4" />
+                {isExporting ? 'İndiriliyor...' : 'Rapor İndir'}
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                  <button
+                    onClick={() => {
+                      handleExportReport('json');
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 first:rounded-t-lg"
+                  >
+                    JSON Formatında İndir
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleExportReport('csv');
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 last:rounded-b-lg"
+                  >
+                    CSV Formatında İndir
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           <FeedbackButton 
             pageSource="reports" 
@@ -471,6 +637,16 @@ const ReportsPage = () => {
             }`}
           >
             Gerçek Zamanlı Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('smart-reporting')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'smart-reporting'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Akıllı Raporlama
           </button>
         </nav>
       </div>
@@ -583,7 +759,7 @@ const ReportsPage = () => {
                 dataKey="count"
                 label={({ category, percentage }) => `${category} ${percentage}%`}
               >
-                {analyticsData.categoryAnalytics.map((entry, index) => (
+                {analyticsData.categoryAnalytics.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={`hsl(${index * 60}, 70%, 50%)`} />
                 ))}
               </Pie>
@@ -609,7 +785,7 @@ const ReportsPage = () => {
               </tr>
             </thead>
             <tbody>
-              {analyticsData.agentPerformance.slice(0, 5).map((agent, index) => (
+              {analyticsData.agentPerformance.slice(0, 5).map((agent) => (
                 <tr key={agent.id} className="border-b border-gray-100">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
@@ -806,6 +982,11 @@ const ReportsPage = () => {
       {/* Gerçek Zamanlı Dashboard Tab */}
       {activeTab === 'dashboard' && (
         <RealtimeDashboard />
+      )}
+
+      {/* Akıllı Raporlama Tab */}
+      {activeTab === 'smart-reporting' && (
+        <SmartReportingSystem />
       )}
     </div>
   );

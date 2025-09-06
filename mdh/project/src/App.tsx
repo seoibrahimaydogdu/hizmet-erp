@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, useNavigate, useLocation } from 'react-router-dom';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import VoiceSearch from './components/common/VoiceSearch';
 
 import { Toaster, toast } from 'react-hot-toast';
@@ -28,7 +30,9 @@ import {
   Lightbulb,
   GanttChart,
   Briefcase,
-  GitBranch
+  GitBranch,
+  Target,
+  Zap
 } from 'lucide-react';
 
 import { formatDistanceToNow, format } from 'date-fns';
@@ -66,6 +70,7 @@ import RealTimeHintSystem from './components/RealTimeHintSystem';
 import SmartFormDemo from './components/SmartFormDemo';
 import SmartProjectManagement from './components/SmartProjectManagement';
 import HRManagement from './components/HRManagement';
+import TasksManagement from './components/TasksManagement';
 import AdvancedSearch from './components/AdvancedSearch';
 import WorkflowBuilder from './components/WorkflowBuilder';
 import ApprovalWorkflows from './components/ApprovalWorkflows';
@@ -96,6 +101,7 @@ function App() {
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isVoiceSearchListening, setIsVoiceSearchListening] = useState(false);
   const [isRefreshingBilling, setIsRefreshingBilling] = useState(false);
   const [isRefreshingSupport, setIsRefreshingSupport] = useState(false);
   const [lastBillingUpdate, setLastBillingUpdate] = useState(new Date());
@@ -192,11 +198,22 @@ function App() {
 
 
 
-  const handleGlobalSearch = (searchTerm: string) => {
+  // Sesli arama için özel handler - mevcut metni temizler
+  const handleVoiceSearch = (transcript: string) => {
+    setGlobalSearchTerm(transcript);
+    handleGlobalSearch(transcript, true);
+  };
+
+  const handleGlobalSearch = (searchTerm: string, showDropdown: boolean = true) => {
     setGlobalSearchTerm(searchTerm);
     if (!searchTerm.trim()) {
       setSearchResults([]);
       setShowSearchResults(false);
+      return;
+    }
+
+    // Eğer dropdown gösterilmemesi isteniyorsa, sadece arama terimini kaydet
+    if (!showDropdown) {
       return;
     }
 
@@ -704,6 +721,50 @@ function App() {
               </div>
 
             </div>
+
+            {/* Hızlı Aksiyonlar */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
+                  <Zap className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Hızlı Aksiyonlar</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                <button 
+                  onClick={() => setCurrentPage('tasks')}
+                  className="flex items-center space-x-3 p-3 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-lg transition-colors group"
+                >
+                  <Target className="w-5 h-5 text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-medium text-orange-900 dark:text-orange-100">Görevler</span>
+                </button>
+                
+                <button 
+                  onClick={() => setCurrentPage('tickets')}
+                  className="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors group"
+                >
+                  <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Yeni Talep</span>
+                </button>
+                
+                <button 
+                  onClick={() => setCurrentPage('customers')}
+                  className="flex items-center space-x-3 p-3 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors group"
+                >
+                  <Users className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-medium text-green-900 dark:text-green-100">Yeni Müşteri</span>
+                </button>
+                
+                <button 
+                  onClick={() => setCurrentPage('financial-management')}
+                  className="flex items-center space-x-3 p-3 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors group"
+                >
+                  <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-sm font-medium text-purple-900 dark:text-purple-100">Ödeme</span>
+                </button>
+              </div>
+            </div>
           </div>
         );
       case 'tickets':
@@ -723,18 +784,78 @@ function App() {
 
               case 'advanced-search-demo':
           return <AdvancedSearch 
+            data={{
+              tickets: tickets,
+              customers: customers,
+              payments: payments,
+              agents: agents
+            }}
             onSearch={(filters) => {
-              console.log('Gelişmiş arama filtreleri:', filters);
-              // Burada arama işlemi yapılabilir
+              try {
+                console.log('Gelişmiş arama filtreleri:', filters);
+                
+                // Gelişmiş arama kendi sonuçlarını gösteriyor, global search dropdown'ını gösterme
+                // Sadece arama terimini global search'e kaydet (dropdown göstermeden)
+                if (filters.searchTerm.trim()) {
+                  setGlobalSearchTerm(filters.searchTerm);
+                  // handleGlobalSearch çağrısını kaldırdık - dropdown göstermesin
+                }
+                
+                // Filtrelere göre sayfa yönlendirmesi (isteğe bağlı)
+                if (filters.searchType === 'tickets') {
+                  // localStorage'a filtreleri kaydet
+                  localStorage.setItem('ticketFilters', JSON.stringify(filters));
+                  toast.success('Talep filtreleri uygulandı');
+                } else if (filters.searchType === 'customers') {
+                  localStorage.setItem('customerFilters', JSON.stringify(filters));
+                  toast.success('Müşteri filtreleri uygulandı');
+                } else if (filters.searchType === 'payments') {
+                  localStorage.setItem('paymentFilters', JSON.stringify(filters));
+                  toast.success('Ödeme filtreleri uygulandı');
+                } else if (filters.searchType === 'agents') {
+                  localStorage.setItem('agentFilters', JSON.stringify(filters));
+                  toast.success('Temsilci filtreleri uygulandı');
+                } else {
+                  // Genel arama - sadece toast göster, sayfa yönlendirme yapma
+                  if (filters.searchTerm.trim()) {
+                    toast.success(`"${filters.searchTerm}" için arama yapıldı`);
+                  } else {
+                    toast('Arama yapmak için en az bir kriter belirtin', { icon: 'ℹ️' });
+                  }
+                }
+              } catch (error) {
+                console.error('Arama sırasında hata:', error);
+                toast.error('Arama sırasında bir hata oluştu');
+              }
             }}
             onClear={() => {
-              console.log('Filtreler temizlendi');
-              // Burada temizleme işlemi yapılabilir
+              try {
+                console.log('Filtreler temizlendi');
+                
+                // Global search'i temizle
+                setGlobalSearchTerm('');
+                setSearchResults([]);
+                setShowSearchResults(false);
+                
+                // LocalStorage'daki filtreleri temizle
+                localStorage.removeItem('ticketFilters');
+                localStorage.removeItem('customerFilters');
+                localStorage.removeItem('paymentFilters');
+                localStorage.removeItem('agentFilters');
+                localStorage.removeItem('globalSearchTerm');
+                
+                toast.success('Tüm filtreler temizlendi');
+              } catch (error) {
+                console.error('Filtre temizleme hatası:', error);
+                toast.error('Filtreler temizlenirken hata oluştu');
+              }
             }}
           />;
 
       case 'reports':
         return <ReportsPage />;
+      case 'tasks':
+        return <TasksManagement />;
 
       case 'smart-project-management':
         return <SmartProjectManagement onChannelSelect={() => {
@@ -958,6 +1079,9 @@ function App() {
               <button onClick={() => setCurrentPage('reports')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'reports' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                 <BarChart3 className="w-5 h-5" /><span>Raporlar</span>
               </button>
+              <button onClick={() => setCurrentPage('tasks')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'tasks' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
+                <Target className="w-5 h-5" /><span>Görevler</span>
+              </button>
 
               <button onClick={() => setCurrentPage('smart-project-management')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'smart-project-management' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                 <GanttChart className="w-5 h-5" /><span>Akıllı Proje Yönetimi</span>
@@ -1057,15 +1181,20 @@ function App() {
                     <input
                       type="text"
                       value={globalSearchTerm}
-                      onChange={(e) => handleGlobalSearch(e.target.value)}
+                      onChange={(e) => handleGlobalSearch(e.target.value, true)}
                       onFocus={() => setShowSearchResults(true)}
                       onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
-                      placeholder="Talep no, müşteri adı, fatura no, e-posta, şirket..."
+                      placeholder={
+                        isVoiceSearchListening 
+                          ? 'Dinleniyor... Konuşun'
+                          : "Talep no, müşteri adı, fatura no, e-posta, şirket..."
+                      }
                       className="pl-8 pr-12 py-1.5 w-72 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <div className="absolute right-1.5 top-1/2 transform -translate-y-1/2">
                       <VoiceSearch
-                        onTranscript={(text) => handleGlobalSearch(text)}
+                        onTranscript={handleVoiceSearch}
+                        onListeningChange={setIsVoiceSearchListening}
                         className=""
                       />
                     </div>
@@ -1127,7 +1256,7 @@ function App() {
                               }
                               setCurrentPage('advanced-search-demo');
                               setShowSearchResults(false);
-                              setGlobalSearchTerm('');
+                              // Global search terimini temizleme - gelişmiş arama kendi sonuçlarını gösterecek
                             }}
                             className="w-full flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 py-2 px-2 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                           >
@@ -1140,20 +1269,6 @@ function App() {
                     )}
                   </div>
                   
-                  {/* Detaylı Arama Butonu */}
-                  <button
-                    onClick={() => {
-                      if (globalSearchTerm.trim()) {
-                        localStorage.setItem('globalSearchTerm', globalSearchTerm.trim());
-                      }
-                      setCurrentPage('advanced-search-demo');
-                      setShowSearchResults(false);
-                    }}
-                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                    title="Detaylı Arama (Ctrl + Shift + F)"
-                  >
-                    <Search className="w-4 h-4" />
-                  </button>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -1458,13 +1573,15 @@ function App() {
 const AppWithProviders: React.FC = () => {
   return (
     <Router>
-      <SettingsProvider>
-        <UserProvider>
-          <AnimationProvider>
-            <App />
-          </AnimationProvider>
-        </UserProvider>
-      </SettingsProvider>
+      <DndProvider backend={HTML5Backend}>
+        <SettingsProvider>
+          <UserProvider>
+            <AnimationProvider>
+              <App />
+            </AnimationProvider>
+          </UserProvider>
+        </SettingsProvider>
+      </DndProvider>
     </Router>
   );
 };
