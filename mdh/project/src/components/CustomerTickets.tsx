@@ -3,12 +3,8 @@ import {
   MessageSquare, 
   Plus, 
   Search, 
-  Filter, 
   Calendar, 
-  Clock, 
-  CheckCircle, 
   AlertCircle, 
-  XCircle, 
   Settings, 
   Eye, 
   X, 
@@ -18,9 +14,13 @@ import {
   RefreshCw,
   FileText,
   BarChart3,
-  Share2,
-  Mail,
-  Loader2
+  Loader2,
+  List,
+  Grid3X3,
+  GripVertical,
+  Trash2,
+  Save,
+  RotateCcw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -29,7 +29,8 @@ import { useSupabase } from '../hooks/useSupabase';
 import { supabase } from '../lib/supabase';
 import CreateTicket from './CreateTicket';
 import TicketDetail from './TicketDetail';
-import TicketTimeline from './TicketTimeline';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 interface CustomerTicketsProps {
   customerData: any;
@@ -40,10 +41,23 @@ interface CustomerTicketsProps {
   currentUser: any;
 }
 
+interface ColumnConfig {
+  id: string;
+  label: string;
+  visible: boolean;
+  width?: number;
+  order: number;
+}
+
+interface DraggedItem {
+  type: string;
+  id: string;
+  index: number;
+}
+
 const CustomerTickets: React.FC<CustomerTicketsProps> = ({
   customerData,
   tickets,
-  payments,
   onBack,
   onRefresh,
   currentUser
@@ -54,24 +68,337 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [sortBy] = useState('created_at');
+  const [sortOrder] = useState<'asc' | 'desc'>('desc');
   const [ticketMessageCounts, setTicketMessageCounts] = useState<{[key: string]: number}>({});
   const [isLoading, setIsLoading] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportFormat, setExportFormat] = useState<'json' | 'csv' | 'pdf'>('json');
+  
+  // Yeni state'ler - görünüm ve sütun yönetimi
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  const [newColumnData, setNewColumnData] = useState({
+    label: '',
+    id: '',
+    width: 150
+  });
+  
+  // Sütun yönetimi state'leri
+  const [columns, setColumns] = useState<ColumnConfig[]>([
+    { id: 'ticket_id', label: 'Talep No', visible: true, order: 0 },
+    { id: 'title', label: 'Başlık', visible: true, order: 1 },
+    { id: 'status', label: 'Durum', visible: true, order: 2 },
+    { id: 'priority', label: 'Öncelik', visible: true, order: 3 },
+    { id: 'category', label: 'Kategori', visible: true, order: 4 },
+    { id: 'created_at', label: 'Oluşturulma Tarihi', visible: true, order: 5 },
+    { id: 'messages', label: 'Mesajlar', visible: true, order: 6 },
+    { id: 'actions', label: 'İşlemler', visible: true, order: 7 }
+  ]);
 
   const { updateTicketStatus, deleteTicket } = useSupabase();
+
+  // Sütun yönetimi fonksiyonları
+  const moveColumn = (dragIndex: number, hoverIndex: number) => {
+    setColumns(prevColumns => {
+      const newColumns = [...prevColumns];
+      const draggedColumn = newColumns[dragIndex];
+      newColumns.splice(dragIndex, 1);
+      newColumns.splice(hoverIndex, 0, draggedColumn);
+      
+      // Sıralama numaralarını güncelle
+      return newColumns.map((col, index) => ({
+        ...col,
+        order: index
+      }));
+    });
+  };
+
+  const toggleColumnVisibility = (columnId: string) => {
+    setColumns(prevColumns => 
+      prevColumns.map(col => 
+        col.id === columnId ? { ...col, visible: !col.visible } : col
+      )
+    );
+  };
+
+  const resetColumns = () => {
+    setColumns([
+      { id: 'ticket_id', label: 'Talep No', visible: true, order: 0 },
+      { id: 'title', label: 'Başlık', visible: true, order: 1 },
+      { id: 'status', label: 'Durum', visible: true, order: 2 },
+      { id: 'priority', label: 'Öncelik', visible: true, order: 3 },
+      { id: 'category', label: 'Kategori', visible: true, order: 4 },
+      { id: 'created_at', label: 'Oluşturulma Tarihi', visible: true, order: 5 },
+      { id: 'messages', label: 'Mesajlar', visible: true, order: 6 },
+      { id: 'actions', label: 'İşlemler', visible: true, order: 7 }
+    ]);
+    toast.success('Sütunlar varsayılan ayarlara sıfırlandı');
+  };
+
+  const saveColumnSettings = () => {
+    localStorage.setItem('customer-tickets-columns', JSON.stringify(columns));
+    setShowColumnSettings(false);
+    toast.success('Sütun ayarları kaydedildi');
+  };
+
+  const addNewColumn = () => {
+    if (!newColumnData.label.trim() || !newColumnData.id.trim()) {
+      toast.error('Sütun adı ve ID gerekli');
+      return;
+    }
+
+    // ID'nin benzersiz olduğunu kontrol et
+    if (columns.some(col => col.id === newColumnData.id)) {
+      toast.error('Bu ID zaten kullanılıyor');
+      return;
+    }
+
+    const newColumn: ColumnConfig = {
+      id: newColumnData.id,
+      label: newColumnData.label,
+      visible: true,
+      width: newColumnData.width,
+      order: columns.length
+    };
+
+    setColumns(prev => [...prev, newColumn]);
+    setNewColumnData({ label: '', id: '', width: 150 });
+    setShowAddColumnModal(false);
+    toast.success('Yeni sütun eklendi');
+  };
+
+  const removeColumn = (columnId: string) => {
+    // Varsayılan sütunları silmeyi engelle
+    const defaultColumns = ['ticket_id', 'title', 'status', 'actions'];
+    if (defaultColumns.includes(columnId)) {
+      toast.error('Bu sütun silinemez');
+      return;
+    }
+
+    setColumns(prev => prev.filter(col => col.id !== columnId));
+    toast.success('Sütun silindi');
+  };
+
+  // Sıralı sütunları al
+  const sortedColumns = columns
+    .filter(col => col.visible)
+    .sort((a, b) => a.order - b.order);
+
+  // Kanban için talep durumunu güncelle
+  const updateTicketStatusKanban = async (ticketId: string, newStatus: string) => {
+    try {
+      await updateTicketStatus(ticketId, newStatus);
+      toast.success('Talep durumu güncellendi');
+      onRefresh();
+    } catch (error) {
+      console.error('Durum güncelleme hatası:', error);
+      toast.error('Durum güncellenirken hata oluştu');
+    }
+  };
+
+  // Kanban bileşenleri
+  const DraggableTicketCard: React.FC<{ ticket: any; statusId: string }> = ({ ticket, statusId }) => {
+    const [{ isDragging }, drag] = useDrag({
+      type: 'ticket',
+      item: { type: 'ticket', id: ticket.id, statusId },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drag}
+        className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700 cursor-move transition-all hover:shadow-md ${
+          isDragging ? 'opacity-50 rotate-2' : ''
+        }`}
+        onClick={() => handleViewTicket(ticket)}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              #{ticket.id.slice(0, 8)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
+              {getPriorityText(ticket.priority)}
+            </span>
+          </div>
+        </div>
+        
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 line-clamp-2">
+          {ticket.title || 'Başlıksız Talep'}
+        </h4>
+        
+        {ticket.description && (
+          <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
+            {ticket.description}
+          </p>
+        )}
+        
+        <div className="space-y-2">
+          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+            <Calendar className="w-3 h-3 mr-1" />
+            {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              {getCategoryIcon(ticket.category)}
+              <span className="text-xs text-gray-600 dark:text-gray-400 ml-1">
+                {getCategoryText(ticket.category)}
+              </span>
+            </div>
+            <span className="text-xs text-blue-600 dark:text-blue-400">
+              {ticketMessageCounts[ticket.id] || 0} mesaj
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const DroppableStatusColumn: React.FC<{ status: any }> = ({ status }) => {
+    const [{ isOver }, drop] = useDrop({
+      accept: 'ticket',
+      drop: (item: any) => {
+        if (item.statusId !== status.id) {
+          updateTicketStatusKanban(item.id, status.id);
+        }
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drop}
+        className={`flex-1 min-w-0 bg-gray-50 dark:bg-gray-700 rounded-lg p-4 transition-colors ${
+          isOver ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 border-dashed' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+              {status.label}
+            </span>
+            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+              ({status.tickets.length})
+            </span>
+          </div>
+        </div>
+        
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {status.tickets.map((ticket: any) => (
+            <DraggableTicketCard
+              key={ticket.id}
+              ticket={ticket}
+              statusId={status.id}
+            />
+          ))}
+          {status.tickets.length === 0 && (
+            <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Bu durumda talep yok</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Sürükle-bırak bileşenleri
+  const DraggableColumn: React.FC<{ column: ColumnConfig; index: number }> = ({ column, index }) => {
+    const [{ isDragging }, drag] = useDrag({
+      type: 'column',
+      item: { type: 'column', id: column.id, index },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    });
+
+    const isDefaultColumn = ['ticket_id', 'title', 'status', 'actions'].includes(column.id);
+
+    return (
+      <div
+        ref={drag}
+        className={`flex items-center gap-2 p-2 rounded-lg border cursor-move transition-all ${
+          isDragging 
+            ? 'bg-blue-100 border-blue-300 opacity-50' 
+            : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+        }`}
+      >
+        <GripVertical className="w-4 h-4 text-gray-400" />
+        <span className="text-sm font-medium text-gray-900 dark:text-white">
+          {column.label}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => toggleColumnVisibility(column.id)}
+            className={`px-2 py-1 text-xs rounded ${
+              column.visible 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+            }`}
+          >
+            {column.visible ? 'Görünür' : 'Gizli'}
+          </button>
+          {!isDefaultColumn && (
+            <button
+              onClick={() => removeColumn(column.id)}
+              className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-400"
+              title="Sütunu Sil"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const DroppableColumnList: React.FC = () => {
+    const [{ isOver }, drop] = useDrop({
+      accept: 'column',
+      drop: (item: DraggedItem) => {
+        if (item.index !== undefined) {
+          const dragIndex = item.index;
+          const hoverIndex = columns.findIndex(col => col.id === item.id);
+          if (dragIndex !== hoverIndex) {
+            moveColumn(dragIndex, hoverIndex);
+          }
+        }
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drop}
+        className={`space-y-2 p-4 rounded-lg border-2 border-dashed transition-colors ${
+          isOver 
+            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+            : 'border-gray-200 dark:border-gray-600'
+        }`}
+      >
+        {columns
+          .sort((a, b) => a.order - b.order)
+          .map((column, index) => (
+            <DraggableColumn key={column.id} column={column} index={index} />
+          ))}
+      </div>
+    );
+  };
 
   // Müşteriye ait talepleri filtrele (ödeme hatırlatmaları hariç)
   const customerTickets = tickets.filter(t => 
     t.customer_id === customerData?.id && t.category !== 'payment_reminder'
   );
 
-  // Ödeme hatırlatması talepleri (sadece Canlı Destek için)
-  const paymentReminderTickets = tickets.filter(t => 
-    t.customer_id === customerData?.id && t.category === 'payment_reminder'
-  );
 
   // Filtreleme ve arama
   const filteredTickets = customerTickets.filter(ticket => {
@@ -105,6 +432,21 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
     
     return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
   });
+
+  // Kanban için durum türlerini tanımla
+  const statusTypes = [
+    { id: 'open', label: 'Açık', color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' },
+    { id: 'in_progress', label: 'İşlemde', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' },
+    { id: 'resolved', label: 'Çözüldü', color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' },
+    { id: 'closed', label: 'Kapalı', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400' },
+    { id: 'draft', label: 'Taslak', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' }
+  ];
+
+  // Kanban için talepleri durum türlerine göre grupla
+  const ticketsByStatus = statusTypes.map(status => ({
+    ...status,
+    tickets: filteredTickets.filter(ticket => ticket.status === status.id)
+  }));
 
   // Kategori metni döndürme fonksiyonu
   const getCategoryText = (category: string) => {
@@ -206,22 +548,6 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
     }
   };
 
-  // Talep tıklama
-  const handleTicketClick = (ticket: any) => {
-    handleViewTicket(ticket);
-  };
-
-  // Talep durumu güncelleme
-  const handleStatusUpdate = async (ticketId: string, newStatus: string) => {
-    try {
-      await updateTicketStatus(ticketId, newStatus);
-      toast.success('Talep durumu güncellendi');
-      onRefresh();
-    } catch (error) {
-      console.error('Durum güncelleme hatası:', error);
-      toast.error('Durum güncellenirken hata oluştu');
-    }
-  };
 
   // Mesaj sayılarını hesapla
   useEffect(() => {
@@ -392,12 +718,10 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
 
       let blob: Blob;
       let filename: string;
-      let mimeType: string;
 
       if (exportFormat === 'json') {
         blob = new Blob([JSON.stringify(ticketHistory, null, 2)], { type: 'application/json' });
         filename = `talep-gecmisi-${customerData?.name || 'user'}-${new Date().toISOString().split('T')[0]}.json`;
-        mimeType = 'application/json';
       } else if (exportFormat === 'csv') {
         const csvContent = [
           ['ID', 'Başlık', 'Durum', 'Öncelik', 'Kategori', 'Oluşturulma Tarihi', 'Güncellenme Tarihi', 'Çözülme Tarihi'],
@@ -415,7 +739,6 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
         
         blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         filename = `talep-gecmisi-${customerData?.name || 'user'}-${new Date().toISOString().split('T')[0]}.csv`;
-        mimeType = 'text/csv';
       } else {
         // PDF için HTML içeriği oluştur
         const htmlContent = `
@@ -491,7 +814,6 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
         
         blob = new Blob([htmlContent], { type: 'text/html' });
         filename = `talep-gecmisi-${customerData?.name || 'user'}-${new Date().toISOString().split('T')[0]}.html`;
-        mimeType = 'text/html';
       }
 
       const url = URL.createObjectURL(blob);
@@ -724,7 +1046,8 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
 
   // Hızlı İşlemler bölümünü güncelle
   return (
-    <div className="space-y-6">
+    <DndProvider backend={HTML5Backend}>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -744,6 +1067,45 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
         </div>
         
         <div className="flex items-center space-x-3">
+          {/* Görünüm Seçenekleri */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+              title="Liste Görünümü"
+            >
+              <List className="w-4 h-4 mr-2" />
+              Liste
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+              title="Kanban Görünümü"
+            >
+              <Grid3X3 className="w-4 h-4 mr-2" />
+              Kanban
+            </button>
+          </div>
+          
+          {viewMode === 'kanban' && (
+            <button
+              onClick={() => setShowColumnSettings(true)}
+              className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              title="Sütun Ayarları"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Sütunlar
+            </button>
+          )}
+          
           <button
             onClick={onRefresh}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -828,120 +1190,178 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
         </div>
       </div>
 
-      {/* Talep Listesi */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
-        {sortedTickets.length === 0 ? (
-          <div className="text-center py-12">
-            <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              Talep Bulunamadı
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all'
-                ? 'Arama kriterlerinize uygun talep bulunamadı.'
-                : 'Henüz talep oluşturmadınız.'}
-            </p>
-            <button
-              onClick={() => setCurrentView('create')}
-              className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              <span>İlk Talebinizi Oluşturun</span>
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="divide-y divide-gray-200 dark:divide-gray-700">
-              {sortedTickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                  onClick={() => handleViewTicket(ticket)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          #{ticket.id.slice(0, 8)}
-                        </span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
-                          {getStatusText(ticket.status)}
-                        </span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
-                          {getPriorityText(ticket.priority)}
-                        </span>
-                        <div className="flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded-full">
-                          {getCategoryIcon(ticket.category)}
-                          <span className="text-xs text-gray-700 dark:text-gray-300">
-                            {getCategoryText(ticket.category)}
-                          </span>
-                        </div>
-                      </div>
-                      
+      {/* Talep Görünümü */}
+      {viewMode === 'list' ? (
+        /* Liste Görünümü */
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                <tr>
+                  {sortedColumns.map((column) => (
+                    <th 
+                      key={column.id}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                    >
+                      {column.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {sortedTickets.length === 0 ? (
+                  <tr>
+                    <td colSpan={sortedColumns.length} className="px-6 py-12 text-center">
+                      <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-400" />
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                        {ticket.title || 'Başlıksız Talep'}
+                        Talep Bulunamadı
                       </h3>
-                      
-                      {ticket.description && (
-                        <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 mb-3">
-                          {ticket.description}
-                        </p>
-                      )}
-                      
-                      <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>{format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <MessageSquare className="w-4 h-4" />
-                          <span className={`font-medium ${
-                            (ticketMessageCounts[ticket.id] || 0) > 0 
-                              ? 'text-blue-600 dark:text-blue-400' 
-                              : 'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            {ticketMessageCounts[ticket.id] || 0} {(ticketMessageCounts[ticket.id] || 0) === 1 ? 'yanıt' : 'yanıt'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      {ticket.status === 'draft' && (
-                        <>
-                          <button 
-                            className="p-2 text-orange-400 hover:text-orange-600 dark:hover:text-orange-300"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditDraft(ticket);
-                            }}
-                            title="Taslağı düzenle"
-                          >
-                            <Settings className="w-5 h-5" />
-                          </button>
-                          <button 
-                            className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 rounded-lg"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteDraft(ticket);
-                            }}
-                            title="Taslağı sil"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </>
-                      )}
-                      <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                        <Eye className="w-5 h-5" />
+                      <p className="text-gray-600 dark:text-gray-400 mb-6">
+                        {searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all'
+                          ? 'Arama kriterlerinize uygun talep bulunamadı.'
+                          : 'Henüz talep oluşturmadınız.'}
+                      </p>
+                      <button
+                        onClick={() => setCurrentView('create')}
+                        className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                      >
+                        <Plus className="w-5 h-5" />
+                        <span>İlk Talebinizi Oluşturun</span>
                       </button>
-                    </div>
-                  </div>
-                </div>
+                    </td>
+                  </tr>
+                ) : (
+                  sortedTickets.map((ticket) => (
+                    <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={() => handleViewTicket(ticket)}>
+                      {sortedColumns.map((column) => (
+                        <td key={column.id} className="px-6 py-4">
+                          {column.id === 'ticket_id' && (
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              #{ticket.id.slice(0, 8)}
+                            </span>
+                          )}
+                          {column.id === 'title' && (
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                                {ticket.title || 'Başlıksız Talep'}
+                              </h3>
+                              {ticket.description && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 mt-1">
+                                  {ticket.description}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {column.id === 'status' && (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(ticket.status)}`}>
+                              {getStatusText(ticket.status)}
+                            </span>
+                          )}
+                          {column.id === 'priority' && (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
+                              {getPriorityText(ticket.priority)}
+                            </span>
+                          )}
+                          {column.id === 'category' && (
+                            <div className="flex items-center gap-1">
+                              {getCategoryIcon(ticket.category)}
+                              <span className="text-xs text-gray-700 dark:text-gray-300">
+                                {getCategoryText(ticket.category)}
+                              </span>
+                            </div>
+                          )}
+                          {column.id === 'created_at' && (
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {format(new Date(ticket.created_at), 'dd MMM yyyy', { locale: tr })}
+                            </span>
+                          )}
+                          {column.id === 'messages' && (
+                            <span className={`text-sm font-medium ${
+                              (ticketMessageCounts[ticket.id] || 0) > 0 
+                                ? 'text-blue-600 dark:text-blue-400' 
+                                : 'text-gray-500 dark:text-gray-400'
+                            }`}>
+                              {ticketMessageCounts[ticket.id] || 0} mesaj
+                            </span>
+                          )}
+                          {column.id === 'actions' && (
+                            <div className="flex items-center gap-2">
+                              {ticket.status === 'draft' && (
+                                <>
+                                  <button 
+                                    className="p-1 text-orange-400 hover:text-orange-600 dark:hover:text-orange-300"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditDraft(ticket);
+                                    }}
+                                    title="Taslağı düzenle"
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    className="p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteDraft(ticket);
+                                    }}
+                                    title="Taslağı sil"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                              <button 
+                                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewTicket(ticket);
+                                }}
+                                title="Görüntüle"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Kanban Görünümü */
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          {sortedTickets.length === 0 ? (
+            <div className="text-center py-12">
+              <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Talep Bulunamadı
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                {searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || categoryFilter !== 'all'
+                  ? 'Arama kriterlerinize uygun talep bulunamadı.'
+                  : 'Henüz talep oluşturmadınız.'}
+              </p>
+              <button
+                onClick={() => setCurrentView('create')}
+                className="inline-flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                <span>İlk Talebinizi Oluşturun</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-6 overflow-x-auto pb-4">
+              {ticketsByStatus.map((status) => (
+                <DroppableStatusColumn key={status.id} status={status} />
               ))}
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Hızlı İşlemler */}
       {sortedTickets.length > 0 && (
@@ -1051,11 +1471,6 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
                 <button
                   onClick={() => {
                     // PDF formatında indir
-                    const ticketHistory = {
-                      customer: customerData,
-                      tickets: filteredTickets,
-                      exportDate: new Date().toISOString()
-                    };
                     
                     // PDF oluştur
                     const pdfContent = `
@@ -1153,7 +1568,152 @@ const CustomerTickets: React.FC<CustomerTicketsProps> = ({
           </div>
         </div>
       )}
-    </div>
+
+      {/* Sütun Ayarları Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sütun Ayarları</h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowAddColumnModal(true)}
+                  className="inline-flex items-center px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Sütun Ekle
+                </button>
+                <button
+                  onClick={() => setShowColumnSettings(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Sütunları sürükleyerek sıralayın ve görünürlüklerini ayarlayın
+                </h4>
+                <DndProvider backend={HTML5Backend}>
+                  <DroppableColumnList />
+                </DndProvider>
+              </div>
+              
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-600">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={resetColumns}
+                    className="inline-flex items-center px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Varsayılana Sıfırla
+                  </button>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {columns.filter(col => col.visible).length} sütun görünür
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowColumnSettings(false)}
+                    className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={saveColumnSettings}
+                    className="inline-flex items-center px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Kaydet
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Sütun Ekleme Modal */}
+      {showAddColumnModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Sütun Ekle</h3>
+              <button
+                onClick={() => setShowAddColumnModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun Adı *
+                </label>
+                <input
+                  type="text"
+                  value={newColumnData.label}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, label: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Örn: Atanan Kişi, Son Güncelleme..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun ID *
+                </label>
+                <input
+                  type="text"
+                  value={newColumnData.id}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, id: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Örn: assigned_to, last_update..."
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Boşluklar otomatik olarak alt çizgi (_) ile değiştirilir
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun Genişliği (px)
+                </label>
+                <input
+                  type="number"
+                  value={newColumnData.width}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, width: parseInt(e.target.value) || 150 })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="100"
+                  max="400"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setShowAddColumnModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={addNewColumn}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Sütun Ekle
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    </DndProvider>
   );
 };
 

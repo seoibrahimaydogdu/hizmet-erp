@@ -27,7 +27,9 @@ import {
   X,
   AlertTriangle,
   Megaphone,
-  Zap
+  Zap,
+  List,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -52,6 +54,26 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
     avatar: 'AY',
     status: 'active'
   });
+
+  // Görev yönetimi için state'ler
+  const [taskView, setTaskView] = useState<'list' | 'kanban'>('list');
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [customColumns, setCustomColumns] = useState([
+    { id: 'pending', name: 'Beklemede', color: 'bg-yellow-100 border-yellow-300', tasks: [] },
+    { id: 'in_progress', name: 'Devam Ediyor', color: 'bg-blue-100 border-blue-300', tasks: [] },
+    { id: 'completed', name: 'Tamamlandı', color: 'bg-green-100 border-green-300', tasks: [] },
+    { id: 'cancelled', name: 'İptal Edildi', color: 'bg-red-100 border-red-300', tasks: [] }
+  ]);
+
+  // İzin yönetimi için state'ler
+  const [leaveView, setLeaveView] = useState<'list' | 'kanban'>('list');
+  const [showLeaveColumnSettings, setShowLeaveColumnSettings] = useState(false);
+  const [leaveColumns, setLeaveColumns] = useState([
+    { id: 'pending', name: 'Beklemede', color: 'bg-yellow-100 border-yellow-300', requests: [] },
+    { id: 'approved', name: 'Onaylandı', color: 'bg-green-100 border-green-300', requests: [] },
+    { id: 'rejected', name: 'Reddedildi', color: 'bg-red-100 border-red-300', requests: [] },
+    { id: 'cancelled', name: 'İptal Edildi', color: 'bg-gray-100 border-gray-300', requests: [] }
+  ]);
 
   const [dashboardStats, setDashboardStats] = useState({
     totalWorkDays: 22,
@@ -734,14 +756,232 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
     </div>
   );
 
+  const renderGoals = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hedef Yönetimi</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Kişisel hedeflerinizi belirleyin ve takip edin
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <button className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
+            <Plus className="w-4 h-4 mr-2" />
+            Yeni Hedef
+          </button>
+        </div>
+      </div>
+
+      {/* Hedef İstatistikleri */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Hedef</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{goalsData.smartGoals.length}</p>
+            </div>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <Target className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Devam Eden</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                {goalsData.smartGoals.filter(g => g.status === 'in_progress').length}
+              </p>
+            </div>
+            <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-full">
+              <Clock className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Tamamlanan</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {goalsData.smartGoals.filter(g => g.status === 'completed').length}
+              </p>
+            </div>
+            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Bekleyen</p>
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                {goalsData.smartGoals.filter(g => g.status === 'pending').length}
+              </p>
+            </div>
+            <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+              <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SMART Hedefler */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">🎯 SMART Hedefler</h3>
+        <div className="space-y-6">
+          {goalsData.smartGoals.map((goal) => (
+            <div key={goal.id} className="p-6 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white">{goal.title}</h4>
+                <span className={`px-3 py-1 text-sm rounded-full ${
+                  goal.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                  goal.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                  'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                }`}>
+                  {goal.status === 'in_progress' ? 'Devam Ediyor' :
+                   goal.status === 'completed' ? 'Tamamlandı' : 'Bekliyor'}
+                </span>
+              </div>
+              
+              <p className="text-gray-600 dark:text-gray-400 mb-4">{goal.description}</p>
+              
+              {/* SMART Kriterleri */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400 text-sm">S:</span>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Spesifik</span>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{goal.specific}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="font-semibold text-green-600 dark:text-green-400 text-sm">M:</span>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Ölçülebilir</span>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{goal.measurable}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="font-semibold text-yellow-600 dark:text-yellow-400 text-sm">A:</span>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Ulaşılabilir</span>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{goal.achievable}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-start space-x-2">
+                    <span className="font-semibold text-purple-600 dark:text-purple-400 text-sm">R:</span>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">İlgili</span>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{goal.relevant}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <span className="font-semibold text-red-600 dark:text-red-400 text-sm">T:</span>
+                    <div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Zaman Sınırlı</span>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">{goal.timebound}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* İlerleme */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">İlerleme</span>
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">%{goal.progress}</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-300"
+                    style={{ width: `${goal.progress}%` }}
+                  ></div>
+                </div>
+                <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                  <span>Başlangıç: {format(new Date(goal.deadline), 'dd.MM.yyyy', { locale: tr })}</span>
+                  <span>Bitiş: {format(new Date(goal.deadline), 'dd.MM.yyyy', { locale: tr })}</span>
+                </div>
+              </div>
+
+              {/* İşlemler */}
+              <div className="flex items-center justify-end space-x-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <button className="px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+                  Düzenle
+                </button>
+                <button className="px-3 py-1 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
+                  Görüntüle
+                </button>
+                <button className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                  Rapor
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   const renderLeaveManagement = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">İzin Yönetimi</h2>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">İzin Yönetimi</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            İzin taleplerinizi organize edin ve takip edin
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          {/* Görünüm Değiştirme Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setLeaveView('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                leaveView === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setLeaveView('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                leaveView === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+
+          {/* Sütun Ayarları Butonu (Sadece Kanban Görünümünde) */}
+          {leaveView === 'kanban' && (
+            <button
+              onClick={() => setShowLeaveColumnSettings(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Sütun Ayarları</span>
+            </button>
+          )}
+
         <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
           <Plus className="w-4 h-4 mr-2" />
           Yeni İzin Talebi
         </button>
+        </div>
       </div>
 
       {/* İzin Bakiyesi */}
@@ -763,55 +1003,277 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
 
-      {/* İzin Talepleri */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">İzin Talepleri</h3>
+      {/* İzin İstatistikleri */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Talep</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{leaveRequests.length}</p>
+            </div>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
         </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Bekleyen</p>
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                {leaveRequests.filter(r => r.status === 'pending').length}
+              </p>
+            </div>
+            <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+              <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Onaylandı</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {leaveRequests.filter(r => r.status === 'approved').length}
+              </p>
+            </div>
+            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Reddedildi</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                {leaveRequests.filter(r => r.status === 'rejected').length}
+              </p>
+            </div>
+            <div className="p-3 bg-red-100 dark:bg-red-900 rounded-full">
+              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* İzin Görünümü */}
+      {leaveView === 'list' ? (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">İzin Talepleri Listesi</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium">
+                  {leaveRequests.length}
+                </span>
+        </div>
+            </div>
+          </div>
+        
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">İzin Türü</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Başlangıç</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Bitiş</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Gün</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Durum</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">İşlemler</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    İzin Türü
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Başlangıç
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Bitiş
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Gün
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Durum
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    İşlemler
+                  </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {leaveRequests.map((request) => (
-                <tr key={request.id}>
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{request.type}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{format(new Date(request.startDate), 'dd.MM.yyyy', { locale: tr })}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{format(new Date(request.endDate), 'dd.MM.yyyy', { locale: tr })}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{request.days}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      request.status === 'approved' 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                    }`}>
-                      {request.status === 'approved' ? 'Onaylandı' : 'Beklemede'}
+                {leaveRequests.map((request) => {
+                  const getStatusColor = (status: string) => {
+                    switch (status) {
+                      case 'pending': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                      case 'approved': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                      case 'rejected': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                      case 'cancelled': return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const getTypeColor = (type: string) => {
+                    switch (type) {
+                      case 'Yıllık İzin': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+                      case 'Hastalık İzni': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                      case 'Doğum İzni': return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
+                      case 'Babalık İzni': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const formatDate = (dateString: string) => {
+                    return new Date(dateString).toLocaleDateString('tr-TR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    });
+                  };
+
+                  return (
+                    <tr key={request.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getTypeColor(request.type)}`}>
+                          {request.type}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                        <Eye className="w-4 h-4" />
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(request.startDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(request.endDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {request.days} gün
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(request.status)}`}>
+                          {request.status === 'pending' ? 'Beklemede' :
+                           request.status === 'approved' ? 'Onaylandı' :
+                           request.status === 'rejected' ? 'Reddedildi' : 'İptal Edildi'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+                            Düzenle
                       </button>
-                      <button className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300">
-                        <Edit className="w-4 h-4" />
+                          <button className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
+                            Görüntüle
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
+                  );
+                })}
             </tbody>
           </table>
+          </div>
+        </div>
+      ) : (
+        /* Kanban Görünümü */
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Kanban Görünümü</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium">
+                  {leaveRequests.length}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="flex space-x-6 overflow-x-auto">
+              {leaveColumns.map((column) => {
+                const columnRequests = leaveRequests.filter(request => request.status === column.id);
+
+                return (
+                  <div key={column.id} className="flex-shrink-0 w-80">
+                    <div className={`${column.color} border-2 rounded-lg p-4 min-h-96`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                          {column.name}
+                        </h4>
+                        <span className="px-2 py-1 bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full text-sm font-medium">
+                          {columnRequests.length}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {columnRequests.map((request) => {
+                          const getTypeColor = (type: string) => {
+                            switch (type) {
+                              case 'Yıllık İzin': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+                              case 'Hastalık İzni': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                              case 'Doğum İzni': return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
+                              case 'Babalık İzni': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                              default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={request.id}
+                              className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow cursor-pointer"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <h5 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                  {request.type}
+                                </h5>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(request.type)}`}>
+                                  {request.days} gün
+                                </span>
+                              </div>
+                              
+                              <div className="space-y-2 mb-3">
+                                <div className="flex items-center text-xs text-gray-600 dark:text-gray-400">
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  <span>{new Date(request.startDate).toLocaleDateString('tr-TR')}</span>
+                                  <span className="mx-1">-</span>
+                                  <span>{new Date(request.endDate).toLocaleDateString('tr-TR')}</span>
+                                </div>
+                                {request.reason && (
+                                  <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
+                                    {request.reason}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {request.type}
+                                </span>
+                                <div className="flex items-center space-x-1">
+                                  <button className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                                    <Eye className="w-3 h-3" />
+                                  </button>
+                                  <button className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400">
+                                    <Edit className="w-3 h-3" />
+                                  </button>
         </div>
       </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {columnRequests.length === 0 && (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Bu sütunda talep yok</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 
@@ -1396,7 +1858,7 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">📅 Bu Ay vs Geçen Ay</h3>
           <div className="space-y-3">
             {Object.entries(analyticsData.monthlyComparison.current).map(([key, currentValue]) => {
-              const previousValue = analyticsData.monthlyComparison.previous[key];
+              const previousValue = analyticsData.monthlyComparison.previous[key as keyof typeof analyticsData.monthlyComparison.previous];
               const change = currentValue - previousValue;
               const changePercent = previousValue > 0 ? ((change / previousValue) * 100).toFixed(1) : 0;
               
@@ -1490,11 +1952,53 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
     </div>
   );
 
-  const renderGoalsTasks = () => (
-    <div className="space-y-4">
+  const renderTasks = () => (
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Hedef ve Görev Yönetimi</h2>
-        <div className="flex items-center space-x-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Görev Yönetimi</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Kişisel görevlerinizi organize edin ve takip edin
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          {/* Görünüm Değiştirme Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setTaskView('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                taskView === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setTaskView('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                taskView === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+
+          {/* Sütun Ayarları Butonu (Sadece Kanban Görünümünde) */}
+          {taskView === 'kanban' && (
+            <button
+              onClick={() => setShowColumnSettings(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Sütun Ayarları</span>
+            </button>
+          )}
+
           <button className="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
             <Plus className="w-4 h-4 mr-1" />
             Yeni Hedef
@@ -1506,71 +2010,295 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
 
-      {/* SMART Hedefler */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">🎯 SMART Hedefler</h3>
-        <div className="space-y-3">
-          {goalsData.smartGoals.map((goal) => (
-            <div key={goal.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-gray-900 dark:text-white text-sm">{goal.title}</h4>
-                <span className={`text-xs px-2 py-1 rounded-full ${
-                  goal.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                  goal.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                  'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'
-                }`}>
-                  {goal.status === 'in_progress' ? 'Devam Ediyor' :
-                   goal.status === 'completed' ? 'Tamamlandı' : 'Bekliyor'}
-                </span>
+      {/* Görev İstatistikleri */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Görev</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{goalsData.tasks.length}</p>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">{goal.description}</p>
-              
-              {/* SMART Kriterleri */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
-                <div className="text-xs">
-                  <span className="font-medium text-gray-700 dark:text-gray-300">S:</span>
-                  <span className="text-gray-600 dark:text-gray-400 ml-1">{goal.specific}</span>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <Target className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Aktif Görevler</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                {goalsData.tasks.filter(t => t.status === 'in_progress').length}
+              </p>
                 </div>
-                <div className="text-xs">
-                  <span className="font-medium text-gray-700 dark:text-gray-300">M:</span>
-                  <span className="text-gray-600 dark:text-gray-400 ml-1">{goal.measurable}</span>
+            <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-full">
+              <Clock className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 </div>
-                <div className="text-xs">
-                  <span className="font-medium text-gray-700 dark:text-gray-300">A:</span>
-                  <span className="text-gray-600 dark:text-gray-400 ml-1">{goal.achievable}</span>
                 </div>
-                <div className="text-xs">
-                  <span className="font-medium text-gray-700 dark:text-gray-300">R:</span>
-                  <span className="text-gray-600 dark:text-gray-400 ml-1">{goal.relevant}</span>
                 </div>
-                <div className="text-xs col-span-2">
-                  <span className="font-medium text-gray-700 dark:text-gray-300">T:</span>
-                  <span className="text-gray-600 dark:text-gray-400 ml-1">{goal.timebound}</span>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Tamamlanan</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {goalsData.tasks.filter(t => t.status === 'completed').length}
+              </p>
+            </div>
+            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
                 </div>
               </div>
 
-              {/* İlerleme */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <div className="flex-1">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Bekleyen</p>
+              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                {goalsData.tasks.filter(t => t.status === 'pending').length}
+              </p>
+            </div>
+            <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-full">
+              <AlertTriangle className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Görev Görünümü */}
+      {taskView === 'list' ? (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Görev Listesi</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {goalsData.tasks.length}
+                </span>
+              </div>
+            </div>
+          </div>
+        
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Görev
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Öncelik
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Durum
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    İlerleme
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Bitiş Tarihi
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    İşlemler
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {goalsData.tasks.map((task) => {
+                  const getPriorityColor = (priority: string) => {
+                    switch (priority) {
+                      case 'high': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                      case 'medium': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                      case 'low': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const getStatusColor = (status: string) => {
+                    switch (status) {
+                      case 'pending': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                      case 'in_progress': return 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300';
+                      case 'completed': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                      case 'cancelled': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const formatDate = (dateString: string) => {
+                    return new Date(dateString).toLocaleDateString('tr-TR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    });
+                  };
+
+                  return (
+                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {task.title}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {task.description}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(task.priority)}`}>
+                          {task.priority === 'high' ? 'Yüksek' : task.priority === 'medium' ? 'Orta' : 'Düşük'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(task.status)}`}>
+                          {task.status === 'completed' ? 'Tamamlandı' :
+                           task.status === 'in_progress' ? 'Devam Ediyor' : 'Bekliyor'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-16 bg-gray-200 dark:bg-gray-600 rounded-full h-2 mr-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full"
+                              style={{ width: `${task.progress}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{task.progress}%</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(task.dueDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+                            Düzenle
+                          </button>
+                          <button className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
+                            Görüntüle
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        /* Kanban Görünümü */
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Kanban Görünümü</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {goalsData.tasks.length}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="flex space-x-6 overflow-x-auto">
+              {customColumns.map((column) => {
+                const columnTasks = goalsData.tasks.filter(task => {
+                  switch (column.id) {
+                    case 'pending': return task.status === 'pending';
+                    case 'in_progress': return task.status === 'in_progress';
+                    case 'completed': return task.status === 'completed';
+                    case 'cancelled': return task.status === 'cancelled';
+                    default: return false;
+                  }
+                });
+
+                return (
+                  <div key={column.id} className="flex-shrink-0 w-80">
+                    <div className={`${column.color} border-2 rounded-lg p-4 min-h-96`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                          {column.name}
+                        </h4>
+                        <span className="px-2 py-1 bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full text-sm font-medium">
+                          {columnTasks.length}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {columnTasks.map((task) => {
+                          const getPriorityColor = (priority: string) => {
+                            switch (priority) {
+                              case 'high': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                              case 'medium': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                              case 'low': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                              default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={task.id}
+                              className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow cursor-pointer"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <h5 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                  {task.title}
+                                </h5>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
+                                  {task.priority === 'high' ? 'Yüksek' : task.priority === 'medium' ? 'Orta' : 'Düşük'}
+                                </span>
+                              </div>
+                              
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                                {task.description}
+                              </p>
+                              
+                              <div className="mb-3">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-gray-600 dark:text-gray-400">İlerleme</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">%{goal.progress}</span>
+                                  <span className="font-semibold text-gray-900 dark:text-white">{task.progress}%</span>
                   </div>
                   <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
                     <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${goal.progress}%` }}
+                                    className="bg-blue-600 h-2 rounded-full"
+                                    style={{ width: `${task.progress}%` }}
                     ></div>
                   </div>
                 </div>
-                <div className="ml-3 text-xs text-gray-500 dark:text-gray-400">
-                  {format(new Date(goal.deadline), 'dd.MM.yyyy', { locale: tr })}
+                              
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {task.actualHours}h / {task.estimatedHours}h
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(task.dueDate).toLocaleDateString('tr-TR')}
+                                </span>
                 </div>
               </div>
+                          );
+                        })}
+                        
+                        {columnTasks.length === 0 && (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <Target className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Bu sütunda görev yok</p>
             </div>
-          ))}
+                        )}
         </div>
       </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Görevler */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
@@ -2009,9 +2737,9 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
       case 'calendar':
         return renderCalendar();
       case 'tasks':
-        return renderGoalsTasks(); // Görevler için aynı sayfayı kullan
-      case 'goals-tasks':
-        return renderGoalsTasks();
+        return renderTasks();
+      case 'goals':
+        return renderGoals();
       case 'analytics':
         return renderAnalytics();
       case 'personalization':
@@ -2106,9 +2834,9 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
               </button>
               
               <button
-                onClick={() => setCurrentPage('goals-tasks')}
+                onClick={() => setCurrentPage('goals')}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  currentPage === 'goals-tasks' 
+                  currentPage === 'goals' 
                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
                     : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                 }`}
@@ -2304,6 +3032,388 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sütun Ayarları Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sütun Ayarları</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Kanban sütunlarını düzenleyin</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Mevcut Sütunlar */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Mevcut Sütunlar</h3>
+                  <div className="space-y-3">
+                    {customColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={column.name}
+                            onChange={(e) => {
+                              const newColumns = [...customColumns];
+                              newColumns[index].name = e.target.value;
+                              setCustomColumns(newColumns);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={column.color.includes('yellow') ? '#fef3c7' : 
+                                   column.color.includes('blue') ? '#dbeafe' : 
+                                   column.color.includes('green') ? '#dcfce7' : '#fee2e2'}
+                            onChange={(e) => {
+                              const newColumns = [...customColumns];
+                              newColumns[index].color = `bg-[${e.target.value}] border-[${e.target.value}]`;
+                              setCustomColumns(newColumns);
+                            }}
+                            className="w-8 h-8 rounded border border-gray-300 dark:border-gray-600"
+                          />
+                          <button
+                            onClick={() => {
+                              if (customColumns.length > 1) {
+                                const newColumns = customColumns.filter((_, i) => i !== index);
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            disabled={customColumns.length <= 1}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Yeni Sütun Ekleme */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Yeni Sütun Ekle</h3>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="text"
+                      placeholder="Sütun adı..."
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            const newColumn = {
+                              id: `column_${Date.now()}`,
+                              name: input.value.trim(),
+                              color: 'bg-gray-100 border-gray-300',
+                              tasks: []
+                            };
+                            setCustomColumns([...customColumns, newColumn]);
+                            input.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="Sütun adı..."]') as HTMLInputElement;
+                        if (input && input.value.trim()) {
+                          const newColumn = {
+                            id: `column_${Date.now()}`,
+                            name: input.value.trim(),
+                            color: 'bg-gray-100 border-gray-300',
+                            tasks: []
+                          };
+                          setCustomColumns([...customColumns, newColumn]);
+                          input.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Ekle</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sütun Sıralama */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Sütun Sıralaması</h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Sütunları sürükleyip bırakarak sıralayabilirsiniz
+                  </div>
+                  <div className="space-y-2">
+                    {customColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="text-gray-400">
+                          <span className="text-sm font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{column.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              if (index > 0) {
+                                const newColumns = [...customColumns];
+                                [newColumns[index], newColumns[index - 1]] = [newColumns[index - 1], newColumns[index]];
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === 0}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (index < customColumns.length - 1) {
+                                const newColumns = [...customColumns];
+                                [newColumns[index], newColumns[index + 1]] = [newColumns[index + 1], newColumns[index]];
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === customColumns.length - 1}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => {
+                  setShowColumnSettings(false);
+                  // toast.success('Sütun ayarları kaydedildi');
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* İzin Sütun Ayarları Modal */}
+      {showLeaveColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">İzin Sütun Ayarları</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">İzin kanban sütunlarını düzenleyin</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLeaveColumnSettings(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Mevcut Sütunlar */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Mevcut Sütunlar</h3>
+                  <div className="space-y-3">
+                    {leaveColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={column.name}
+                            onChange={(e) => {
+                              const newColumns = [...leaveColumns];
+                              newColumns[index].name = e.target.value;
+                              setLeaveColumns(newColumns);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={column.color.includes('yellow') ? '#fef3c7' : 
+                                   column.color.includes('green') ? '#dcfce7' : 
+                                   column.color.includes('red') ? '#fee2e2' : '#f3f4f6'}
+                            onChange={(e) => {
+                              const newColumns = [...leaveColumns];
+                              newColumns[index].color = `bg-[${e.target.value}] border-[${e.target.value}]`;
+                              setLeaveColumns(newColumns);
+                            }}
+                            className="w-8 h-8 rounded border border-gray-300 dark:border-gray-600"
+                          />
+                          <button
+                            onClick={() => {
+                              if (leaveColumns.length > 1) {
+                                const newColumns = leaveColumns.filter((_, i) => i !== index);
+                                setLeaveColumns(newColumns);
+                              }
+                            }}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            disabled={leaveColumns.length <= 1}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Yeni Sütun Ekleme */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Yeni Sütun Ekle</h3>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="text"
+                      placeholder="Sütun adı..."
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            const newColumn = {
+                              id: `leave_column_${Date.now()}`,
+                              name: input.value.trim(),
+                              color: 'bg-gray-100 border-gray-300',
+                              requests: []
+                            };
+                            setLeaveColumns([...leaveColumns, newColumn]);
+                            input.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="Sütun adı..."]') as HTMLInputElement;
+                        if (input && input.value.trim()) {
+                          const newColumn = {
+                            id: `leave_column_${Date.now()}`,
+                            name: input.value.trim(),
+                            color: 'bg-gray-100 border-gray-300',
+                            requests: []
+                          };
+                          setLeaveColumns([...leaveColumns, newColumn]);
+                          input.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Ekle</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sütun Sıralama */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Sütun Sıralaması</h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Sütunları sürükleyip bırakarak sıralayabilirsiniz
+                  </div>
+                  <div className="space-y-2">
+                    {leaveColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="text-gray-400">
+                          <span className="text-sm font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{column.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              if (index > 0) {
+                                const newColumns = [...leaveColumns];
+                                [newColumns[index], newColumns[index - 1]] = [newColumns[index - 1], newColumns[index]];
+                                setLeaveColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === 0}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (index < leaveColumns.length - 1) {
+                                const newColumns = [...leaveColumns];
+                                [newColumns[index], newColumns[index + 1]] = [newColumns[index + 1], newColumns[index]];
+                                setLeaveColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === leaveColumns.length - 1}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowLeaveColumnSettings(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => {
+                  setShowLeaveColumnSettings(false);
+                  // toast.success('İzin sütun ayarları kaydedildi');
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                Kaydet
+              </button>
             </div>
           </div>
         </div>

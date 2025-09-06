@@ -53,7 +53,8 @@ import {
   Paperclip,
   Share,
   Copy,
-  Archive
+  Archive,
+  List
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSupabase } from '../hooks/useSupabase';
@@ -152,6 +153,211 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
       ]
     }
   };
+
+  // Görev yönetimi için state'ler
+  const [taskView, setTaskView] = useState<'list' | 'kanban'>('list');
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [customColumns, setCustomColumns] = useState([
+    { id: 'pending', name: 'Beklemede', color: 'bg-yellow-100 border-yellow-300', tasks: [] },
+    { id: 'in_progress', name: 'Devam Ediyor', color: 'bg-blue-100 border-blue-300', tasks: [] },
+    { id: 'completed', name: 'Tamamlandı', color: 'bg-green-100 border-green-300', tasks: [] },
+    { id: 'cancelled', name: 'İptal Edildi', color: 'bg-red-100 border-red-300', tasks: [] }
+  ]);
+
+  // Müşteri analizi için state'ler
+  const [customerView, setCustomerView] = useState<'list' | 'kanban'>('list');
+  const [showCustomerColumnSettings, setShowCustomerColumnSettings] = useState(false);
+  const [customerColumns, setCustomerColumns] = useState([
+    { id: 'vip', name: 'VIP Müşteriler', color: 'bg-green-100 border-green-300', customers: [] },
+    { id: 'active', name: 'Aktif Müşteriler', color: 'bg-blue-100 border-blue-300', customers: [] },
+    { id: 'at_risk', name: 'Risk Altında', color: 'bg-yellow-100 border-yellow-300', customers: [] },
+    { id: 'inactive', name: 'Pasif Müşteriler', color: 'bg-gray-100 border-gray-300', customers: [] }
+  ]);
+
+  // Müşteri verileri
+  const [customersData] = useState([
+    {
+      id: 1,
+      name: 'Ahmet Yılmaz',
+      company: 'Yılmaz Teknoloji',
+      email: 'ahmet@yilmaz.com',
+      phone: '+90 555 123 4567',
+      plan: 'premium',
+      satisfaction: 4.8,
+      lastActivity: '2024-01-15',
+      totalSpent: 15000,
+      status: 'vip',
+      riskLevel: 'low',
+      tags: ['VIP', 'Premium']
+    },
+    {
+      id: 2,
+      name: 'Ayşe Demir',
+      company: 'Demir İnşaat',
+      email: 'ayse@demir.com',
+      phone: '+90 555 234 5678',
+      plan: 'standard',
+      satisfaction: 4.2,
+      lastActivity: '2024-01-14',
+      totalSpent: 8500,
+      status: 'active',
+      riskLevel: 'low',
+      tags: ['Aktif', 'Standart']
+    },
+    {
+      id: 3,
+      name: 'Mehmet Özkan',
+      company: 'Özkan Ticaret',
+      email: 'mehmet@ozkan.com',
+      phone: '+90 555 345 6789',
+      plan: 'basic',
+      satisfaction: 3.1,
+      lastActivity: '2024-01-05',
+      totalSpent: 3200,
+      status: 'at_risk',
+      riskLevel: 'high',
+      tags: ['Risk', 'Temel']
+    },
+    {
+      id: 4,
+      name: 'Fatma Kaya',
+      company: 'Kaya Gıda',
+      email: 'fatma@kaya.com',
+      phone: '+90 555 456 7890',
+      plan: 'standard',
+      satisfaction: 4.5,
+      lastActivity: '2024-01-12',
+      totalSpent: 12000,
+      status: 'vip',
+      riskLevel: 'low',
+      tags: ['VIP', 'Standart']
+    },
+    {
+      id: 5,
+      name: 'Ali Veli',
+      company: 'Veli Otomotiv',
+      email: 'ali@veli.com',
+      phone: '+90 555 567 8901',
+      plan: 'basic',
+      satisfaction: 2.8,
+      lastActivity: '2023-12-20',
+      totalSpent: 1800,
+      status: 'inactive',
+      riskLevel: 'high',
+      tags: ['Pasif', 'Temel']
+    },
+    {
+      id: 6,
+      name: 'Zeynep Arslan',
+      company: 'Arslan Tekstil',
+      email: 'zeynep@arslan.com',
+      phone: '+90 555 678 9012',
+      plan: 'premium',
+      satisfaction: 4.9,
+      lastActivity: '2024-01-16',
+      totalSpent: 22000,
+      status: 'vip',
+      riskLevel: 'low',
+      tags: ['VIP', 'Premium']
+    },
+    {
+      id: 7,
+      name: 'Mustafa Çelik',
+      company: 'Çelik Metal',
+      email: 'mustafa@celik.com',
+      phone: '+90 555 789 0123',
+      plan: 'standard',
+      satisfaction: 3.9,
+      lastActivity: '2024-01-10',
+      totalSpent: 6500,
+      status: 'active',
+      riskLevel: 'medium',
+      tags: ['Aktif', 'Standart']
+    },
+    {
+      id: 8,
+      name: 'Elif Özkan',
+      company: 'Özkan Eğitim',
+      email: 'elif@ozkan.com',
+      phone: '+90 555 890 1234',
+      plan: 'basic',
+      satisfaction: 3.2,
+      lastActivity: '2024-01-08',
+      totalSpent: 2800,
+      status: 'at_risk',
+      riskLevel: 'high',
+      tags: ['Risk', 'Temel']
+    }
+  ]);
+
+  // Görev verileri
+  const [tasksData] = useState([
+    {
+      id: 1,
+      title: 'Müşteri Memnuniyet Anketi Geliştirme',
+      description: 'Yeni müşteri memnuniyet anketi sistemi geliştirilmesi',
+      assignee: 'Ahmet Yılmaz',
+      priority: 'high',
+      status: 'in_progress',
+      progress: 75,
+      dueDate: '2024-01-15',
+      estimatedHours: 40,
+      actualHours: 30,
+      tags: ['Frontend', 'React']
+    },
+    {
+      id: 2,
+      title: 'Yeni Destek Portalı Tasarımı',
+      description: 'Müşteri destek portalı için modern tasarım oluşturulması',
+      assignee: 'Ayşe Demir',
+      priority: 'medium',
+      status: 'pending',
+      progress: 0,
+      dueDate: '2024-01-20',
+      estimatedHours: 24,
+      actualHours: 0,
+      tags: ['UI/UX', 'Design']
+    },
+    {
+      id: 3,
+      title: 'Takım Performans Raporu',
+      description: 'Aylık takım performans raporu hazırlanması',
+      assignee: 'Mehmet Özkan',
+      priority: 'high',
+      status: 'completed',
+      progress: 100,
+      dueDate: '2024-01-10',
+      estimatedHours: 16,
+      actualHours: 16,
+      tags: ['Rapor', 'Analiz']
+    },
+    {
+      id: 4,
+      title: 'Müşteri Eğitim Materyalleri',
+      description: 'Yeni müşteriler için eğitim materyalleri hazırlanması',
+      assignee: 'Fatma Kaya',
+      priority: 'low',
+      status: 'in_progress',
+      progress: 45,
+      dueDate: '2024-01-25',
+      estimatedHours: 32,
+      actualHours: 14,
+      tags: ['Eğitim', 'Dokümantasyon']
+    },
+    {
+      id: 5,
+      title: 'Sistem Güvenlik Güncellemesi',
+      description: 'Sistem güvenlik açıklarının kapatılması',
+      assignee: 'Ali Veli',
+      priority: 'high',
+      status: 'pending',
+      progress: 0,
+      dueDate: '2024-01-18',
+      estimatedHours: 20,
+      actualHours: 0,
+      tags: ['Güvenlik', 'Backend']
+    }
+  ]);
 
   // Modal state'leri
   const [modals, setModals] = useState({
@@ -1255,6 +1461,43 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          {/* Görünüm Değiştirme Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setTaskView('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                taskView === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setTaskView('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                taskView === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+
+          {/* Sütun Ayarları Butonu (Sadece Kanban Görünümünde) */}
+          {taskView === 'kanban' && (
+            <button
+              onClick={() => setShowColumnSettings(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Sütun Ayarları</span>
+            </button>
+          )}
+
           <FeedbackButton 
             pageSource="ManagerPortal-tasks" 
             position="inline"
@@ -1278,12 +1521,12 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
               <Target className="w-6 h-6 text-white" />
             </div>
             <span className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2 py-1 rounded-full">
-              Aktif
+              Toplam
             </span>
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Toplam Görev</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">24</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{tasksData.length}</p>
           </div>
         </div>
 
@@ -1298,7 +1541,9 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Tamamlanan</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">18</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              {tasksData.filter(t => t.status === 'completed').length}
+            </p>
           </div>
         </div>
 
@@ -1313,92 +1558,270 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Devam Eden</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">4</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              {tasksData.filter(t => t.status === 'in_progress').length}
+            </p>
           </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-gradient-to-r from-red-500 to-red-600 rounded-lg">
-              <AlertCircle className="w-6 h-6 text-white" />
+            <div className="p-3 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg">
+              <AlertTriangle className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-2 py-1 rounded-full">
-              Gecikmiş
+            <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 px-2 py-1 rounded-full">
+              Bekleyen
             </span>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Gecikmiş</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">2</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Bekleyen</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              {tasksData.filter(t => t.status === 'pending').length}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Görev Listesi */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Aktif Görevler</h3>
+      {/* Görev Görünümü */}
+      {taskView === 'list' ? (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Görev Listesi</h3>
           <div className="flex items-center space-x-2">
-            <Search className="w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Görev ara..."
-              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {tasksData.length}
+                </span>
+              </div>
           </div>
         </div>
         
-        <div className="space-y-4">
-          {[
-            { title: 'Müşteri Memnuniyet Anketi Geliştirme', assignee: 'Ahmet Yılmaz', priority: 'high', status: 'in-progress', dueDate: '2024-01-15' },
-            { title: 'Yeni Destek Portalı Tasarımı', assignee: 'Ayşe Demir', priority: 'medium', status: 'pending', dueDate: '2024-01-20' },
-            { title: 'Takım Performans Raporu', assignee: 'Mehmet Özkan', priority: 'high', status: 'completed', dueDate: '2024-01-10' },
-            { title: 'Müşteri Eğitim Materyalleri', assignee: 'Fatma Kaya', priority: 'low', status: 'in-progress', dueDate: '2024-01-25' }
-          ].map((task, index) => (
-            <div key={index} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-white">{task.title}</h4>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      task.priority === 'high' 
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                        : task.priority === 'medium'
-                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
-                        : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                    }`}>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Görev
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Atanan
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Öncelik
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Durum
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    İlerleme
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Bitiş Tarihi
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    İşlemler
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {tasksData.map((task) => {
+                  const getPriorityColor = (priority: string) => {
+                    switch (priority) {
+                      case 'high': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                      case 'medium': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                      case 'low': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const getStatusColor = (status: string) => {
+                    switch (status) {
+                      case 'pending': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                      case 'in_progress': return 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300';
+                      case 'completed': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                      case 'cancelled': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const formatDate = (dateString: string) => {
+                    return new Date(dateString).toLocaleDateString('tr-TR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    });
+                  };
+
+                  return (
+                    <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {task.title}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {task.description}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">{task.assignee}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
                       {task.priority === 'high' ? 'Yüksek' : task.priority === 'medium' ? 'Orta' : 'Düşük'}
                     </span>
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      task.status === 'completed' 
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                        : task.status === 'in-progress'
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                        : 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'
-                    }`}>
-                      {task.status === 'completed' ? 'Tamamlandı' : task.status === 'in-progress' ? 'Devam Ediyor' : 'Beklemede'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
+                          {task.status === 'pending' ? 'Beklemede' : 
+                           task.status === 'in_progress' ? 'Devam Ediyor' : 
+                           task.status === 'completed' ? 'Tamamlandı' : 'İptal Edildi'}
                     </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2 mr-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full" 
+                              style={{ width: `${task.progress}%` }}
+                            ></div>
                   </div>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                    <span>Atanan: {task.assignee}</span>
-                    <span>Bitiş: {task.dueDate}</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{task.progress}%</span>
                   </div>
-                </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(task.dueDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <div className="flex items-center space-x-2">
-                  <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors">
-                    <Edit className="w-4 h-4 text-gray-500" />
+                          <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                            <Edit className="w-4 h-4" />
                   </button>
                   <button 
                     onClick={() => openModal('viewTaskDetails', task)}
-                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
                   >
-                    <Eye className="w-4 h-4 text-gray-500" />
+                            <Eye className="w-4 h-4" />
                   </button>
                 </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
               </div>
             </div>
-          ))}
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Kanban Görünümü</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {tasksData.length}
+                </span>
         </div>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="flex space-x-6 overflow-x-auto">
+              {customColumns.map((column) => {
+                const columnTasks = tasksData.filter(task => {
+                  switch (column.id) {
+                    case 'pending': return task.status === 'pending';
+                    case 'in_progress': return task.status === 'in_progress';
+                    case 'completed': return task.status === 'completed';
+                    case 'cancelled': return task.status === 'cancelled';
+                    default: return false;
+                  }
+                });
+
+                return (
+                  <div key={column.id} className="flex-shrink-0 w-80">
+                    <div className={`${column.color} border-2 rounded-lg p-4 min-h-96`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                          {column.name}
+                        </h4>
+                        <span className="px-2 py-1 bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full text-sm font-medium">
+                          {columnTasks.length}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {columnTasks.map((task) => {
+                          const getPriorityColor = (priority: string) => {
+                            switch (priority) {
+                              case 'high': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                              case 'medium': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                              case 'low': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                              default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={task.id}
+                              className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow cursor-pointer"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <h5 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                  {task.title}
+                                </h5>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
+                                  {task.priority === 'high' ? 'Yüksek' : task.priority === 'medium' ? 'Orta' : 'Düşük'}
+                                </span>
+                              </div>
+                              
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                                {task.description}
+                              </p>
+                              
+                              <div className="mb-3">
+                                <div className="flex justify-between text-xs mb-1">
+                                  <span className="text-gray-600 dark:text-gray-400">İlerleme</span>
+                                  <span className="font-semibold text-gray-900 dark:text-white">{task.progress}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                  <div 
+                                    className="bg-blue-600 h-2 rounded-full"
+                                    style={{ width: `${task.progress}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {task.actualHours}h / {task.estimatedHours}h
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(task.dueDate).toLocaleDateString('tr-TR')}
+                                </span>
       </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {columnTasks.length === 0 && (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <Target className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Bu sütunda görev yok</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1412,6 +1835,43 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          {/* Görünüm Değiştirme Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setCustomerView('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                customerView === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setCustomerView('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                customerView === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+
+          {/* Sütun Ayarları Butonu (Sadece Kanban Görünümünde) */}
+          {customerView === 'kanban' && (
+            <button
+              onClick={() => setShowCustomerColumnSettings(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Sütun Ayarları</span>
+            </button>
+          )}
+
           <FeedbackButton 
             pageSource="ManagerPortal-customers" 
             position="inline"
@@ -1424,7 +1884,7 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
 
-      {/* Müşteri Segmentasyonu */}
+      {/* Müşteri İstatistikleri */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
@@ -1437,8 +1897,12 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">VIP Müşteriler</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">45</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">%15 toplam müşteri</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              {customersData.filter(c => c.status === 'vip').length}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              %{Math.round((customersData.filter(c => c.status === 'vip').length / customersData.length) * 100)} toplam müşteri
+            </p>
           </div>
         </div>
 
@@ -1453,8 +1917,12 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Aktif Müşteriler</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">180</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">%60 toplam müşteri</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              {customersData.filter(c => c.status === 'active').length}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              %{Math.round((customersData.filter(c => c.status === 'active').length / customersData.length) * 100)} toplam müşteri
+            </p>
           </div>
         </div>
 
@@ -1468,9 +1936,13 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
             </span>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Churn Riski</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">12</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">%4 toplam müşteri</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Risk Altında</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              {customersData.filter(c => c.status === 'at_risk').length}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              %{Math.round((customersData.filter(c => c.status === 'at_risk').length / customersData.length) * 100)} toplam müşteri
+            </p>
           </div>
         </div>
 
@@ -1480,72 +1952,305 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <span className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-2 py-1 rounded-full">
-              +8.2%
+              Ortalama
             </span>
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Memnuniyet</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">4.7/5</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">
+              {(customersData.reduce((acc, c) => acc + c.satisfaction, 0) / customersData.length).toFixed(1)}/5
+            </p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Ortalama puan</p>
           </div>
         </div>
       </div>
 
-      {/* Müşteri Segmentasyonu Detayı */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Müşteri Segmentasyonu</h3>
+      {/* Müşteri Görünümü */}
+      {customerView === 'list' ? (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Müşteri Listesi</h3>
           <div className="flex items-center space-x-2">
-            <Filter className="w-4 h-4 text-gray-400" />
-            <select className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-              <option>Tüm Segmentler</option>
-              <option>VIP Müşteriler</option>
-              <option>Aktif Müşteriler</option>
-              <option>Riskli Müşteriler</option>
-            </select>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {customersData.length}
+                </span>
+              </div>
           </div>
         </div>
         
-        <div className="space-y-4">
-          {Object.values(customerSegments).map((segment, index) => {
-            const colorClasses = {
-              green: 'from-green-500 to-green-600',
-              blue: 'from-blue-500 to-blue-600',
-              purple: 'from-purple-500 to-purple-600',
-              red: 'from-red-500 to-red-600'
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Müşteri
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Şirket
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Plan
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Durum
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Memnuniyet
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Toplam Harcama
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Son Aktivite
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    İşlemler
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {customersData.map((customer) => {
+                  const getStatusColor = (status: string) => {
+                    switch (status) {
+                      case 'vip': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                      case 'active': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+                      case 'at_risk': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                      case 'inactive': return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const getPlanColor = (plan: string) => {
+                    switch (plan) {
+                      case 'premium': return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
+                      case 'standard': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+                      case 'basic': return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                    }
+                  };
+
+                  const formatDate = (dateString: string) => {
+                    return new Date(dateString).toLocaleDateString('tr-TR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    });
+                  };
+
+                  const getStatusText = (status: string) => {
+                    switch (status) {
+                      case 'vip': return 'VIP';
+                      case 'active': return 'Aktif';
+                      case 'at_risk': return 'Risk Altında';
+                      case 'inactive': return 'Pasif';
+                      default: return 'Bilinmiyor';
+                    }
+                  };
+
+                  const getPlanText = (plan: string) => {
+                    switch (plan) {
+                      case 'premium': return 'Premium';
+                      case 'standard': return 'Standart';
+                      case 'basic': return 'Temel';
+                      default: return 'Bilinmiyor';
+                    }
             };
             
             return (
-              <div 
-                key={index} 
-                className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                onClick={() => openModal('customerSegmentDetails', segment)}
-              >
-                <div className="flex items-center justify-between mb-3">
+                    <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap">
                   <div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white">{segment.segment}</h4>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{segment.description}</p>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {customer.name}
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">{segment.count} müşteri</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">₺{segment.revenue.toLocaleString('tr-TR')} gelir</p>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {customer.email}
                   </div>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
-                  <div 
-                    className={`bg-gradient-to-r ${colorClasses[segment.color as keyof typeof colorClasses]} h-3 rounded-full transition-all duration-500`}
-                    style={{ width: `${(segment.count / 302) * 100}%` }}
-                  ></div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">{customer.company}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{customer.phone}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPlanColor(customer.plan)}`}>
+                          {getPlanText(customer.plan)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(customer.status)}`}>
+                          {getStatusText(customer.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex items-center">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-4 h-4 ${
+                                  i < Math.floor(customer.satisfaction)
+                                    ? 'text-yellow-400'
+                                    : 'text-gray-300 dark:text-gray-600'
+                                }`}
+                                fill={i < Math.floor(customer.satisfaction) ? 'currentColor' : 'none'}
+                              />
+                            ))}
+                          </div>
+                          <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                            {customer.satisfaction}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        ₺{customer.totalSpent.toLocaleString('tr-TR')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDate(customer.lastActivity)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Kanban Görünümü</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {customersData.length}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="flex space-x-6 overflow-x-auto">
+              {customerColumns.map((column) => {
+                const columnCustomers = customersData.filter(customer => {
+                  switch (column.id) {
+                    case 'vip': return customer.status === 'vip';
+                    case 'active': return customer.status === 'active';
+                    case 'at_risk': return customer.status === 'at_risk';
+                    case 'inactive': return customer.status === 'inactive';
+                    default: return false;
+                  }
+                });
+
+                return (
+                  <div key={column.id} className="flex-shrink-0 w-80">
+                    <div className={`${column.color} border-2 rounded-lg p-4 min-h-96`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                          {column.name}
+                        </h4>
+                        <span className="px-2 py-1 bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full text-sm font-medium">
+                          {columnCustomers.length}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {columnCustomers.map((customer) => {
+                          const getPlanColor = (plan: string) => {
+                            switch (plan) {
+                              case 'premium': return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
+                              case 'standard': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+                              case 'basic': return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                              default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                            }
+                          };
+
+                          const getPlanText = (plan: string) => {
+                            switch (plan) {
+                              case 'premium': return 'Premium';
+                              case 'standard': return 'Standart';
+                              case 'basic': return 'Temel';
+                              default: return 'Bilinmiyor';
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={customer.id}
+                              className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow cursor-pointer"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <h5 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                  {customer.name}
+                                </h5>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPlanColor(customer.plan)}`}>
+                                  {getPlanText(customer.plan)}
+                                </span>
                 </div>
-                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center">
-                  <Eye className="w-3 h-3 mr-1" />
-                  Detayları görüntülemek için tıklayın
+                              
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                                {customer.company}
+                              </p>
+                              
+                              <div className="mb-3">
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-gray-600 dark:text-gray-400">Memnuniyet</span>
+                                  <span className="font-semibold text-gray-900 dark:text-white">{customer.satisfaction}/5</span>
+                                </div>
+                                <div className="flex items-center">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`w-3 h-3 ${
+                                        i < Math.floor(customer.satisfaction)
+                                          ? 'text-yellow-400'
+                                          : 'text-gray-300 dark:text-gray-600'
+                                      }`}
+                                      fill={i < Math.floor(customer.satisfaction) ? 'currentColor' : 'none'}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  ₺{customer.totalSpent.toLocaleString('tr-TR')}
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(customer.lastActivity).toLocaleDateString('tr-TR')}
+                                </span>
                 </div>
               </div>
             );
           })}
+                        
+                        {columnCustomers.length === 0 && (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Bu sütunda müşteri yok</p>
+                          </div>
+                        )}
         </div>
       </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -3857,6 +4562,388 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
               >
                 <Plus className="w-4 h-4" />
                 <span>Grup Oluştur</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sütun Ayarları Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sütun Ayarları</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Kanban sütunlarını düzenleyin</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Mevcut Sütunlar */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Mevcut Sütunlar</h3>
+                  <div className="space-y-3">
+                    {customColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={column.name}
+                            onChange={(e) => {
+                              const newColumns = [...customColumns];
+                              newColumns[index].name = e.target.value;
+                              setCustomColumns(newColumns);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={column.color.includes('yellow') ? '#fef3c7' : 
+                                   column.color.includes('blue') ? '#dbeafe' : 
+                                   column.color.includes('green') ? '#dcfce7' : '#fee2e2'}
+                            onChange={(e) => {
+                              const newColumns = [...customColumns];
+                              newColumns[index].color = `bg-[${e.target.value}] border-[${e.target.value}]`;
+                              setCustomColumns(newColumns);
+                            }}
+                            className="w-8 h-8 rounded border border-gray-300 dark:border-gray-600"
+                          />
+                          <button
+                            onClick={() => {
+                              if (customColumns.length > 1) {
+                                const newColumns = customColumns.filter((_, i) => i !== index);
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            disabled={customColumns.length <= 1}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Yeni Sütun Ekleme */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Yeni Sütun Ekle</h3>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="text"
+                      placeholder="Sütun adı..."
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            const newColumn = {
+                              id: `column_${Date.now()}`,
+                              name: input.value.trim(),
+                              color: 'bg-gray-100 border-gray-300',
+                              tasks: []
+                            };
+                            setCustomColumns([...customColumns, newColumn]);
+                            input.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="Sütun adı..."]') as HTMLInputElement;
+                        if (input && input.value.trim()) {
+                          const newColumn = {
+                            id: `column_${Date.now()}`,
+                            name: input.value.trim(),
+                            color: 'bg-gray-100 border-gray-300',
+                            tasks: []
+                          };
+                          setCustomColumns([...customColumns, newColumn]);
+                          input.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Ekle</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sütun Sıralama */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Sütun Sıralaması</h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Sütunları sürükleyip bırakarak sıralayabilirsiniz
+                  </div>
+                  <div className="space-y-2">
+                    {customColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="text-gray-400">
+                          <span className="text-sm font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{column.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              if (index > 0) {
+                                const newColumns = [...customColumns];
+                                [newColumns[index], newColumns[index - 1]] = [newColumns[index - 1], newColumns[index]];
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === 0}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (index < customColumns.length - 1) {
+                                const newColumns = [...customColumns];
+                                [newColumns[index], newColumns[index + 1]] = [newColumns[index + 1], newColumns[index]];
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === customColumns.length - 1}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => {
+                  setShowColumnSettings(false);
+                  // toast.success('Sütun ayarları kaydedildi');
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Müşteri Sütun Ayarları Modal */}
+      {showCustomerColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Müşteri Sütun Ayarları</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Müşteri kanban sütunlarını düzenleyin</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCustomerColumnSettings(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Mevcut Sütunlar */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Mevcut Sütunlar</h3>
+                  <div className="space-y-3">
+                    {customerColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={column.name}
+                            onChange={(e) => {
+                              const newColumns = [...customerColumns];
+                              newColumns[index].name = e.target.value;
+                              setCustomerColumns(newColumns);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={column.color.includes('green') ? '#dcfce7' : 
+                                   column.color.includes('blue') ? '#dbeafe' : 
+                                   column.color.includes('yellow') ? '#fef3c7' : '#f3f4f6'}
+                            onChange={(e) => {
+                              const newColumns = [...customerColumns];
+                              newColumns[index].color = `bg-[${e.target.value}] border-[${e.target.value}]`;
+                              setCustomerColumns(newColumns);
+                            }}
+                            className="w-8 h-8 rounded border border-gray-300 dark:border-gray-600"
+                          />
+                          <button
+                            onClick={() => {
+                              if (customerColumns.length > 1) {
+                                const newColumns = customerColumns.filter((_, i) => i !== index);
+                                setCustomerColumns(newColumns);
+                              }
+                            }}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            disabled={customerColumns.length <= 1}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Yeni Sütun Ekleme */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Yeni Sütun Ekle</h3>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="text"
+                      placeholder="Sütun adı..."
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            const newColumn = {
+                              id: `customer_column_${Date.now()}`,
+                              name: input.value.trim(),
+                              color: 'bg-gray-100 border-gray-300',
+                              customers: []
+                            };
+                            setCustomerColumns([...customerColumns, newColumn]);
+                            input.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="Sütun adı..."]') as HTMLInputElement;
+                        if (input && input.value.trim()) {
+                          const newColumn = {
+                            id: `customer_column_${Date.now()}`,
+                            name: input.value.trim(),
+                            color: 'bg-gray-100 border-gray-300',
+                            customers: []
+                          };
+                          setCustomerColumns([...customerColumns, newColumn]);
+                          input.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Ekle</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sütun Sıralama */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Sütun Sıralaması</h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Sütunları sürükleyip bırakarak sıralayabilirsiniz
+                  </div>
+                  <div className="space-y-2">
+                    {customerColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="text-gray-400">
+                          <span className="text-sm font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{column.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              if (index > 0) {
+                                const newColumns = [...customerColumns];
+                                [newColumns[index], newColumns[index - 1]] = [newColumns[index - 1], newColumns[index]];
+                                setCustomerColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === 0}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (index < customerColumns.length - 1) {
+                                const newColumns = [...customerColumns];
+                                [newColumns[index], newColumns[index + 1]] = [newColumns[index + 1], newColumns[index]];
+                                setCustomerColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === customerColumns.length - 1}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowCustomerColumnSettings(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => {
+                  setShowCustomerColumnSettings(false);
+                  // toast.success('Müşteri sütun ayarları kaydedildi');
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                Kaydet
               </button>
             </div>
           </div>

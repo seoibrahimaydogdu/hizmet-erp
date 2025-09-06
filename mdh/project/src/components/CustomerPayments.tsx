@@ -16,26 +16,43 @@ import {
   TrendingDown,
   Plus,
   Lock,
-  User,
-  Mail,
-  Phone,
-  Building,
-  CheckSquare,
   X,
   Copy,
   FileText,
-  BarChart3
+  BarChart3,
+  List,
+  Grid3X3,
+  GripVertical,
+  Trash2,
+  Save,
+  RotateCcw,
+  Settings
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
-import { getCurrencySymbol, formatCurrency } from '../lib/currency';
-import { supabase } from '../lib/supabase';
+import { formatCurrency } from '../lib/currency';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 interface CustomerPaymentsProps {
   customerData: any;
   payments: any[];
   onBack: () => void;
+}
+
+interface ColumnConfig {
+  id: string;
+  label: string;
+  visible: boolean;
+  width?: number;
+  order: number;
+}
+
+interface DraggedItem {
+  type: string;
+  id: string;
+  index: number;
 }
 
 const CustomerPayments: React.FC<CustomerPaymentsProps> = ({ 
@@ -55,6 +72,113 @@ const CustomerPayments: React.FC<CustomerPaymentsProps> = ({
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const [showExportModal, setShowExportModal] = useState(false);
+  
+  // Yeni state'ler - görünüm ve sütun yönetimi
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  const [newColumnData, setNewColumnData] = useState({
+    label: '',
+    id: '',
+    width: 150
+  });
+  
+  // Sütun yönetimi state'leri
+  const [columns, setColumns] = useState<ColumnConfig[]>([
+    { id: 'invoice_number', label: 'Fatura No', visible: true, order: 0 },
+    { id: 'description', label: 'Açıklama', visible: true, order: 1 },
+    { id: 'amount', label: 'Tutar', visible: true, order: 2 },
+    { id: 'status', label: 'Durum', visible: true, order: 3 },
+    { id: 'payment_method', label: 'Ödeme Yöntemi', visible: true, order: 4 },
+    { id: 'created_at', label: 'Tarih', visible: true, order: 5 },
+    { id: 'actions', label: 'İşlemler', visible: true, order: 6 }
+  ]);
+
+  // Sütun yönetimi fonksiyonları
+  const moveColumn = (dragIndex: number, hoverIndex: number) => {
+    setColumns(prevColumns => {
+      const newColumns = [...prevColumns];
+      const draggedColumn = newColumns[dragIndex];
+      newColumns.splice(dragIndex, 1);
+      newColumns.splice(hoverIndex, 0, draggedColumn);
+      
+      // Sıralama numaralarını güncelle
+      return newColumns.map((col, index) => ({
+        ...col,
+        order: index
+      }));
+    });
+  };
+
+  const toggleColumnVisibility = (columnId: string) => {
+    setColumns(prevColumns => 
+      prevColumns.map(col => 
+        col.id === columnId ? { ...col, visible: !col.visible } : col
+      )
+    );
+  };
+
+  const resetColumns = () => {
+    setColumns([
+      { id: 'invoice_number', label: 'Fatura No', visible: true, order: 0 },
+      { id: 'description', label: 'Açıklama', visible: true, order: 1 },
+      { id: 'amount', label: 'Tutar', visible: true, order: 2 },
+      { id: 'status', label: 'Durum', visible: true, order: 3 },
+      { id: 'payment_method', label: 'Ödeme Yöntemi', visible: true, order: 4 },
+      { id: 'created_at', label: 'Tarih', visible: true, order: 5 },
+      { id: 'actions', label: 'İşlemler', visible: true, order: 6 }
+    ]);
+    toast.success('Sütunlar varsayılan ayarlara sıfırlandı');
+  };
+
+  const saveColumnSettings = () => {
+    localStorage.setItem('customer-payments-columns', JSON.stringify(columns));
+    setShowColumnSettings(false);
+    toast.success('Sütun ayarları kaydedildi');
+  };
+
+  const addNewColumn = () => {
+    if (!newColumnData.label.trim() || !newColumnData.id.trim()) {
+      toast.error('Sütun adı ve ID gerekli');
+      return;
+    }
+
+    // ID'nin benzersiz olduğunu kontrol et
+    if (columns.some(col => col.id === newColumnData.id)) {
+      toast.error('Bu ID zaten kullanılıyor');
+      return;
+    }
+
+    const newColumn: ColumnConfig = {
+      id: newColumnData.id,
+      label: newColumnData.label,
+      visible: true,
+      width: newColumnData.width,
+      order: columns.length
+    };
+
+    setColumns(prev => [...prev, newColumn]);
+    setNewColumnData({ label: '', id: '', width: 150 });
+    setShowAddColumnModal(false);
+    toast.success('Yeni sütun eklendi');
+  };
+
+  const removeColumn = (columnId: string) => {
+    // Varsayılan sütunları silmeyi engelle
+    const defaultColumns = ['invoice_number', 'description', 'status', 'actions'];
+    if (defaultColumns.includes(columnId)) {
+      toast.error('Bu sütun silinemez');
+      return;
+    }
+
+    setColumns(prev => prev.filter(col => col.id !== columnId));
+    toast.success('Sütun silindi');
+  };
+
+  // Sıralı sütunları al
+  const sortedColumns = columns
+    .filter(col => col.visible)
+    .sort((a, b) => a.order - b.order);
 
   // Hızlı ödeme modalını dinle
   useEffect(() => {
@@ -107,6 +231,211 @@ const CustomerPayments: React.FC<CustomerPaymentsProps> = ({
     
     return matchesSearch && matchesStatus;
   });
+
+  // Kanban için durum türlerini tanımla
+  const statusTypes = [
+    { id: 'completed', label: 'Tamamlandı', color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' },
+    { id: 'pending', label: 'Bekliyor', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' },
+    { id: 'failed', label: 'Başarısız', color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' }
+  ];
+
+  // Kanban için ödemeleri durum türlerine göre grupla
+  const paymentsByStatus = statusTypes.map(status => ({
+    ...status,
+    payments: filteredPayments.filter(payment => payment.status === status.id)
+  }));
+
+  // Kanban bileşenleri
+  const DraggablePaymentCard: React.FC<{ payment: any; statusId: string }> = ({ payment, statusId }) => {
+    const [{ isDragging }, drag] = useDrag({
+      type: 'payment',
+      item: { type: 'payment', id: payment.id, statusId },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drag}
+        className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700 cursor-move transition-all hover:shadow-md ${
+          isDragging ? 'opacity-50 rotate-2' : ''
+        }`}
+        onClick={() => handleViewPayment(payment)}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              #{payment.invoice_number || payment.id.slice(0, 8)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            {getStatusIcon(payment.status)}
+          </div>
+        </div>
+        
+        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2 line-clamp-2">
+          {payment.description || 'Ödeme'}
+        </h4>
+        
+        <div className="space-y-2">
+          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+            <Calendar className="w-3 h-3 mr-1" />
+            {format(new Date(payment.created_at), 'dd MMM yyyy', { locale: tr })}
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <DollarSign className="w-3 h-3 text-green-600 dark:text-green-400 mr-1" />
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                {formatCurrency(parseFloat(payment.amount), payment.currency as any)}
+              </span>
+            </div>
+            {payment.payment_method && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {payment.payment_method}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const DroppableStatusColumn: React.FC<{ status: any }> = ({ status }) => {
+    const [{ isOver }, drop] = useDrop({
+      accept: 'payment',
+      drop: (item: any) => {
+        if (item.statusId !== status.id) {
+          // Ödeme durumunu güncelle (gerçek uygulamada API çağrısı yapılacak)
+          toast.success(`Ödeme durumu ${status.label} olarak güncellendi`);
+        }
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drop}
+        className={`flex-1 min-w-0 bg-gray-50 dark:bg-gray-700 rounded-lg p-4 transition-colors ${
+          isOver ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 border-dashed' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+              {status.label}
+            </span>
+            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+              ({status.payments.length})
+            </span>
+          </div>
+        </div>
+        
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {status.payments.map((payment: any) => (
+            <DraggablePaymentCard
+              key={payment.id}
+              payment={payment}
+              statusId={status.id}
+            />
+          ))}
+          {status.payments.length === 0 && (
+            <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+              <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Bu durumda ödeme yok</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Sürükle-bırak bileşenleri
+  const DraggableColumn: React.FC<{ column: ColumnConfig; index: number }> = ({ column, index }) => {
+    const [{ isDragging }, drag] = useDrag({
+      type: 'column',
+      item: { type: 'column', id: column.id, index },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    });
+
+    const isDefaultColumn = ['invoice_number', 'description', 'status', 'actions'].includes(column.id);
+
+    return (
+      <div
+        ref={drag}
+        className={`flex items-center gap-2 p-2 rounded-lg border cursor-move transition-all ${
+          isDragging 
+            ? 'bg-blue-100 border-blue-300 opacity-50' 
+            : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+        }`}
+      >
+        <GripVertical className="w-4 h-4 text-gray-400" />
+        <span className="text-sm font-medium text-gray-900 dark:text-white">
+          {column.label}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => toggleColumnVisibility(column.id)}
+            className={`px-2 py-1 text-xs rounded ${
+              column.visible 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+            }`}
+          >
+            {column.visible ? 'Görünür' : 'Gizli'}
+          </button>
+          {!isDefaultColumn && (
+            <button
+              onClick={() => removeColumn(column.id)}
+              className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-400"
+              title="Sütunu Sil"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const DroppableColumnList: React.FC = () => {
+    const [{ isOver }, drop] = useDrop({
+      accept: 'column',
+      drop: (item: DraggedItem) => {
+        if (item.index !== undefined) {
+          const dragIndex = item.index;
+          const hoverIndex = columns.findIndex(col => col.id === item.id);
+          if (dragIndex !== hoverIndex) {
+            moveColumn(dragIndex, hoverIndex);
+          }
+        }
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drop}
+        className={`space-y-2 p-4 rounded-lg border-2 border-dashed transition-colors ${
+          isOver 
+            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+            : 'border-gray-200 dark:border-gray-600'
+        }`}
+      >
+        {columns
+          .sort((a, b) => a.order - b.order)
+          .map((column, index) => (
+            <DraggableColumn key={column.id} column={column} index={index} />
+          ))}
+      </div>
+    );
+  };
 
   const handleViewPayment = (payment: any) => {
     setSelectedPayment(payment);
@@ -218,7 +547,7 @@ const CustomerPayments: React.FC<CustomerPaymentsProps> = ({
     }
   };
 
-  const handleDownloadInvoice = async (invoiceNumber: string) => {
+  const handleDownloadInvoice = async () => {
     try {
       // Test amaçlı - gerçek API hazır olduğunda bu kısmı değiştirin
       toast.success('Fatura indirme özelliği test modunda çalışıyor');
@@ -476,7 +805,7 @@ const CustomerPayments: React.FC<CustomerPaymentsProps> = ({
                 </button>
                
                 <button 
-                  onClick={() => handleDownloadInvoice(selectedPayment.invoice_number)}
+                  onClick={() => handleDownloadInvoice()}
                   className="w-full flex items-center space-x-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors"
                 >
                   <Download className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -591,29 +920,65 @@ Tarih: ${format(new Date(selectedPayment.created_at), 'dd.MM.yyyy HH:mm', { loca
 
   // Ana liste görünümü
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={onBack}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            ←
-          </button>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ödemelerim</h2>
+    <DndProvider backend={HTML5Backend}>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={onBack}
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              ←
+            </button>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Ödemelerim</h2>
+          </div>
+          <div className="flex items-center space-x-2">
+            {/* Görünüm Değiştirme Toggle */}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <List className="w-4 h-4 mr-2" />
+                Liste
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'kanban'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <Grid3X3 className="w-4 h-4 mr-2" />
+                Kanban
+              </button>
+            </div>
+
+            {/* Sütun Ayarları Butonu (Sadece Kanban Görünümünde) */}
+            {viewMode === 'kanban' && (
+              <button
+                onClick={() => setShowColumnSettings(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                <span>Sütunlar</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Ödeme Yap</span>
+            </button>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setShowPaymentModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Ödeme Yap</span>
-          </button>
-          
-          {/* Test verileri butonu kaldırıldı - Artık sadece gerçek veriler kullanılıyor */}
-        </div>
-      </div>
 
       {/* İstatistikler */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -755,62 +1120,124 @@ Tarih: ${format(new Date(selectedPayment.created_at), 'dd.MM.yyyy HH:mm', { loca
         </div>
       </div>
 
-      {/* Ödeme Listesi */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {filteredPayments.length === 0 ? (
-          <div className="text-center py-12">
-            <CreditCard className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              {searchTerm || statusFilter !== 'all' ? 'Arama kriterlerine uygun ödeme bulunamadı' : 'Henüz ödeme yapmadınız'}
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              {searchTerm || statusFilter !== 'all' ? 'Farklı arama kriterleri deneyin' : 'İlk ödemeniz burada görünecek'}
-            </p>
+        {/* Ödeme Görünümü */}
+        {viewMode === 'list' ? (
+          /* Liste Görünümü */
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {filteredPayments.length === 0 ? (
+              <div className="text-center py-12">
+                <CreditCard className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  {searchTerm || statusFilter !== 'all' ? 'Arama kriterlerine uygun ödeme bulunamadı' : 'Henüz ödeme yapmadınız'}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {searchTerm || statusFilter !== 'all' ? 'Farklı arama kriterleri deneyin' : 'İlk ödemeniz burada görünecek'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      {sortedColumns.map((column) => (
+                        <th
+                          key={column.id}
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                          style={{ width: column.width ? `${column.width}px` : 'auto' }}
+                        >
+                          {column.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredPayments.map((payment) => (
+                      <tr
+                        key={payment.id}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                        onClick={() => handleViewPayment(payment)}
+                      >
+                        {sortedColumns.map((column) => (
+                          <td key={column.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {column.id === 'invoice_number' && (
+                              <span className="font-medium">
+                                #{payment.invoice_number || payment.id.slice(0, 8)}
+                              </span>
+                            )}
+                            {column.id === 'description' && (
+                              <span>{payment.description || 'Ödeme'}</span>
+                            )}
+                            {column.id === 'amount' && (
+                              <span className="font-medium">
+                                {formatCurrency(parseFloat(payment.amount), payment.currency as any)}
+                              </span>
+                            )}
+                            {column.id === 'status' && (
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
+                                {getStatusText(payment.status)}
+                              </span>
+                            )}
+                            {column.id === 'payment_method' && (
+                              <span>{payment.payment_method || 'Belirtilmemiş'}</span>
+                            )}
+                            {column.id === 'created_at' && (
+                              <span>{format(new Date(payment.created_at), 'dd MMM yyyy', { locale: tr })}</span>
+                            )}
+                            {column.id === 'actions' && (
+                              <div className="flex items-center space-x-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleViewPayment(payment);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                {payment.status === 'failed' && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMakePayment(payment.id);
+                                    }}
+                                    className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-400"
+                                  >
+                                    <CreditCard className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {filteredPayments.map((payment) => (
-              <div
-                key={payment.id}
-                className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                onClick={() => handleViewPayment(payment)}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        #{payment.invoice_number || payment.id.slice(0, 8)}
-                      </span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
-                        {getStatusText(payment.status)}
-                      </span>
-                    </div>
-                    
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      {payment.description || 'Ödeme'}
-                    </h3>
-                    
-                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        <span>{format(new Date(payment.created_at), 'dd MMM yyyy', { locale: tr })}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <DollarSign className="w-4 h-4" />
-                        <span>{formatCurrency(parseFloat(payment.amount), payment.currency as any)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                    <Eye className="w-5 h-5" />
-                  </button>
-                </div>
+          /* Kanban Görünümü */
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            {filteredPayments.length === 0 ? (
+              <div className="text-center py-12">
+                <CreditCard className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  {searchTerm || statusFilter !== 'all' ? 'Arama kriterlerine uygun ödeme bulunamadı' : 'Henüz ödeme yapmadınız'}
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  {searchTerm || statusFilter !== 'all' ? 'Farklı arama kriterleri deneyin' : 'İlk ödemeniz burada görünecek'}
+                </p>
               </div>
-            ))}
+            ) : (
+              <div className="flex gap-6 overflow-x-auto pb-4">
+                {paymentsByStatus.map((status) => (
+                  <DroppableStatusColumn key={status.id} status={status} />
+                ))}
+              </div>
+            )}
           </div>
         )}
-      </div>
 
       {/* Hızlı İşlemler */}
       {filteredPayments.length > 0 && (
@@ -1215,11 +1642,6 @@ Tarih: ${format(new Date(selectedPayment.created_at), 'dd.MM.yyyy HH:mm', { loca
                 <button
                   onClick={() => {
                     // PDF formatında indir
-                    const paymentHistory = {
-                      customer: customerData,
-                      payments: filteredPayments,
-                      exportDate: new Date().toISOString()
-                    };
                     
                     // PDF oluştur
                     const pdfContent = `
@@ -1309,12 +1731,12 @@ Tarih: ${format(new Date(selectedPayment.created_at), 'dd.MM.yyyy HH:mm', { loca
                 <button
                   onClick={() => {
                     // JSON formatında indir
+                    
                     const paymentHistory = {
                       customer: customerData,
                       payments: filteredPayments,
                       exportDate: new Date().toISOString()
                     };
-                    
                     const blob = new Blob([JSON.stringify(paymentHistory, null, 2)], { type: 'application/json' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -1380,7 +1802,148 @@ Tarih: ${format(new Date(selectedPayment.created_at), 'dd.MM.yyyy HH:mm', { loca
           </div>
         </div>
       )}
+
+      {/* Sütun Ayarları Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Sütun Ayarları
+              </h3>
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Sütunları Sürükleyerek Yeniden Sıralayın
+                </h4>
+                <DroppableColumnList />
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setShowAddColumnModal(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Yeni Sütun Ekle</span>
+                  </button>
+                  
+                  <button
+                    onClick={resetColumns}
+                    className="flex items-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Sıfırla</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setShowColumnSettings(false)}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={saveColumnSettings}
+                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Kaydet</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Sütun Ekleme Modal */}
+      {showAddColumnModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Yeni Sütun Ekle
+              </h3>
+              <button
+                onClick={() => setShowAddColumnModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun Adı
+                </label>
+                <input
+                  type="text"
+                  value={newColumnData.label}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, label: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Örn: Özel Alan"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun ID (Teknik)
+                </label>
+                <input
+                  type="text"
+                  value={newColumnData.id}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, id: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="ozel_alan"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun Genişliği (px)
+                </label>
+                <input
+                  type="number"
+                  value={newColumnData.width}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, width: parseInt(e.target.value) || 150 })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="100"
+                  max="500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowAddColumnModal(false)}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white font-medium transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={addNewColumn}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Ekle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+    </DndProvider>
   );
 };
 

@@ -28,10 +28,12 @@ import {
   Building,
   Download,
   RefreshCw,
+  List,
+  X,
+  Trash2,
   Zap,
   TrendingDown,
   Activity,
-  X,
   LogOut
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
@@ -94,6 +96,37 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
       completedAt: '2024-01-10'
     }
   ]);
+
+  // Görünüm yönetimi için state'ler
+  const [taskView, setTaskView] = useState<'list' | 'kanban'>('list');
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  
+  // Talep görünüm yönetimi
+  const [ticketViewMode, setTicketViewMode] = useState<'list' | 'kanban'>('list');
+  
+  // CRM görünüm yönetimi
+  const [crmViewMode, setCrmViewMode] = useState<'list' | 'kanban'>('list');
+  
+  // Kanban sütunları
+  const kanbanColumns = [
+    { id: 'open', name: 'Yeni', color: 'bg-blue-100 border-blue-300', textColor: 'text-blue-800' },
+    { id: 'pending', name: 'İşlemde', color: 'bg-yellow-100 border-yellow-300', textColor: 'text-yellow-800' },
+    { id: 'resolved', name: 'Çözüldü', color: 'bg-green-100 border-green-300', textColor: 'text-green-800' }
+  ];
+  
+  // CRM Kanban sütunları
+  const crmKanbanColumns = [
+    { id: 'potential', name: 'Potansiyel', color: 'bg-gray-100 border-gray-300', textColor: 'text-gray-800' },
+    { id: 'active', name: 'Aktif', color: 'bg-green-100 border-green-300', textColor: 'text-green-800' },
+    { id: 'vip', name: 'VIP', color: 'bg-purple-100 border-purple-300', textColor: 'text-purple-800' },
+    { id: 'inactive', name: 'Pasif', color: 'bg-red-100 border-red-300', textColor: 'text-red-800' }
+  ];
+  const [customColumns, setCustomColumns] = useState([
+    { id: 'pending', name: 'Beklemede', color: 'bg-yellow-100 border-yellow-300', tasks: [] },
+    { id: 'in_progress', name: 'Devam Ediyor', color: 'bg-blue-100 border-blue-300', tasks: [] },
+    { id: 'completed', name: 'Tamamlandı', color: 'bg-green-100 border-green-300', tasks: [] },
+    { id: 'cancelled', name: 'İptal Edildi', color: 'bg-red-100 border-red-300', tasks: [] }
+  ]);
   
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
@@ -118,9 +151,11 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
   const {
     tickets,
     customers,
+    payments,
     fetchAgents,
     fetchTickets,
-    fetchCustomers
+    fetchCustomers,
+    fetchPayments
   } = useSupabase();
 
   useEffect(() => {
@@ -489,6 +524,43 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          {/* Görünüm Değiştirme Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setTaskView('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                taskView === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setTaskView('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                taskView === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+
+          {/* Sütun Ayarları Butonu (Sadece Kanban Görünümünde) */}
+          {taskView === 'kanban' && (
+            <button
+              onClick={() => setShowColumnSettings(true)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Sütun Ayarları</span>
+            </button>
+          )}
+
           <FeedbackButton 
             pageSource="AgentPortal-tasks" 
             position="inline"
@@ -592,19 +664,20 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
 
-      {/* Görev Listesi */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Görev Listesi</h3>
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
-              <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
-                {taskStats.total}
-              </span>
+      {/* Görev Görünümü */}
+      {taskView === 'list' ? (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Görev Listesi</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {taskStats.total}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
         
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -740,10 +813,304 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
           </table>
         </div>
       </div>
+      ) : (
+        /* Kanban Görünümü */
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white">Kanban Görünümü</h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+                <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                  {taskStats.total}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="flex space-x-6 overflow-x-auto">
+              {customColumns.map((column) => {
+                const columnTasks = tasks.filter(task => {
+                  switch (column.id) {
+                    case 'pending': return task.status === 'Beklemede';
+                    case 'in_progress': return task.status === 'Devam Ediyor';
+                    case 'completed': return task.status === 'Tamamlandı';
+                    case 'cancelled': return task.status === 'İptal Edildi';
+                    default: return false;
+                  }
+                });
+
+                return (
+                  <div key={column.id} className="flex-shrink-0 w-80">
+                    <div className={`${column.color} border-2 rounded-lg p-4 min-h-96`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                          {column.name}
+                        </h4>
+                        <span className="px-2 py-1 bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full text-sm font-medium">
+                          {columnTasks.length}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        {columnTasks.map((task) => {
+                          const getPriorityColor = (priority: string) => {
+                            switch (priority) {
+                              case 'Yüksek': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                              case 'Orta': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                              case 'Düşük': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                              default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                            }
+                          };
+
+                          const getCategoryColor = (category: string) => {
+                            switch (category) {
+                              case 'Raporlama': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+                              case 'Eğitim': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                              case 'Müşteri Takibi': return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
+                              case 'Proje': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300';
+                              default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={task.id}
+                              className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow cursor-pointer"
+                              onClick={() => openEditTask(task)}
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <h5 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                                  {task.title}
+                                </h5>
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(task.priority)}`}>
+                                  {task.priority}
+                                </span>
+                              </div>
+                              
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                                {task.description}
+                              </p>
+                              
+                              <div className="flex items-center justify-between">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(task.category)}`}>
+                                  {task.category}
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(task.dueDate).toLocaleDateString('tr-TR')}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        
+                        {columnTasks.length === 0 && (
+                          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <Target className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Bu sütunda görev yok</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
-  const renderTickets = () => (
+  // Kanban board render fonksiyonu
+  const renderKanbanBoard = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Kanban Board - Taleplerim</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Talepleri sürükle-bırak ile durumlarını güncelleyin
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          {/* Görünüm Toggle Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setTicketViewMode('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                ticketViewMode === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setTicketViewMode('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                ticketViewMode === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+          
+          <FeedbackButton 
+            pageSource="AgentPortal-tickets" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
+          <button className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+            <Target className="w-4 h-4" />
+            <span>Otomatik Atama</span>
+          </button>
+          <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" />
+            <span>Yeni Talep</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Kanban Board */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {kanbanColumns.map((column) => {
+          const columnTickets = agentTickets.filter(ticket => {
+            if (column.id === 'open') return ticket.status === 'open';
+            if (column.id === 'pending') return ticket.status === 'pending';
+            if (column.id === 'resolved') return ticket.status === 'resolved';
+            return false;
+          });
+
+          return (
+            <div key={column.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              {/* Sütun Başlığı */}
+              <div className={`p-4 border-b border-gray-200 dark:border-gray-700 ${column.color} dark:bg-gray-700`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`font-semibold ${column.textColor} dark:text-white`}>
+                    {column.name}
+                  </h3>
+                  <span className={`px-2 py-1 text-xs rounded-full ${column.color} ${column.textColor} dark:bg-gray-600 dark:text-white`}>
+                    {columnTickets.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Talep Kartları */}
+              <div className="p-4 space-y-3 min-h-[400px]">
+                {columnTickets.map((ticket) => {
+                  const createdDate = new Date(ticket.created_at);
+                  const now = new Date();
+                  const hoursDiff = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+                  
+                  const getSLAColor = (priority: string, hours: number) => {
+                    const slaHours = priority === 'high' ? 4 : priority === 'medium' ? 24 : 72;
+                    if (hours > slaHours) return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                    if (hours > slaHours * 0.8) return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                    return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                  };
+
+                  const getSLAText = (priority: string, hours: number) => {
+                    const slaHours = priority === 'high' ? 4 : priority === 'medium' ? 24 : 72;
+                    const remaining = slaHours - hours;
+                    if (remaining <= 0) return 'SLA Aşıldı';
+                    if (remaining <= slaHours * 0.2) return `${Math.round(remaining)}h kaldı`;
+                    return 'Normal';
+                  };
+
+                  return (
+                    <div
+                      key={ticket.id}
+                      className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    >
+                      {/* Talep Başlığı */}
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              #{ticket.id.slice(-6)}
+                            </span>
+                            {ticket.priority === 'high' && (
+                              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                            {ticket.title}
+                          </h4>
+                        </div>
+                      </div>
+
+                      {/* Müşteri Bilgisi */}
+                      <div className="flex items-center space-x-2 mb-3">
+                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                          {ticket.customer_id?.charAt(0) || 'M'}
+                        </div>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          Müşteri #{ticket.customer_id?.slice(-4) || 'N/A'}
+                        </span>
+                      </div>
+
+                      {/* Öncelik ve SLA */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          ticket.priority === 'high' 
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                            : ticket.priority === 'medium'
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                            : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                        }`}>
+                          {ticket.priority === 'high' ? 'Yüksek' : ticket.priority === 'medium' ? 'Orta' : 'Düşük'}
+                        </span>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getSLAColor(ticket.priority, hoursDiff)}`}>
+                          {getSLAText(ticket.priority, hoursDiff)}
+                        </span>
+                      </div>
+
+                      {/* Tarih */}
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {format(new Date(ticket.created_at), 'dd MMM yyyy, HH:mm', { locale: tr })}
+                      </div>
+
+                      {/* İşlem Butonları */}
+                      <div className="flex items-center space-x-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                        <button className="flex-1 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors">
+                          Görüntüle
+                        </button>
+                        {column.id !== 'resolved' && (
+                          <button className="flex-1 text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors">
+                            Çöz
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {columnTickets.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Bu sütunda talep yok</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderTickets = () => {
+    // Görünüm moduna göre kanban veya liste görünümünü döndür
+    if (ticketViewMode === 'kanban') {
+      return renderKanbanBoard();
+    }
+
+    return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -753,6 +1120,32 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          {/* Görünüm Toggle Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setTicketViewMode('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                ticketViewMode === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setTicketViewMode('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                ticketViewMode === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+          
           <FeedbackButton 
             pageSource="AgentPortal-tickets" 
             position="inline"
@@ -971,7 +1364,8 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderLiveChat = () => (
     <div className="space-y-6">
@@ -1133,7 +1527,203 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
     </div>
   );
 
-  const renderCRM = () => (
+  // CRM Kanban board render fonksiyonu
+  const renderCrmKanbanBoard = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Müşteri Kanban Board</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Müşterileri segmentasyon durumlarına göre yönetin
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          {/* Görünüm Toggle Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setCrmViewMode('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                crmViewMode === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setCrmViewMode('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                crmViewMode === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+          
+          <FeedbackButton 
+            pageSource="AgentPortal-crm" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
+          <button className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+            <TrendingUp className="w-4 h-4" />
+            <span>Analiz</span>
+          </button>
+          <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" />
+            <span>Yeni Müşteri</span>
+          </button>
+        </div>
+      </div>
+
+      {/* CRM Kanban Board */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {crmKanbanColumns.map((column) => {
+          const columnCustomers = customers.filter(customer => {
+            if (column.id === 'potential') return !customer.plan || customer.plan === 'free';
+            if (column.id === 'active') return customer.plan === 'standard' || customer.plan === 'premium';
+            if (column.id === 'vip') return customer.plan === 'vip' || customer.plan === 'premium';
+            if (column.id === 'inactive') return customer.plan === 'inactive';
+            return false;
+          });
+
+          return (
+            <div key={column.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              {/* Sütun Başlığı */}
+              <div className={`p-4 border-b border-gray-200 dark:border-gray-700 ${column.color} dark:bg-gray-700`}>
+                <div className="flex items-center justify-between">
+                  <h3 className={`font-semibold ${column.textColor} dark:text-white`}>
+                    {column.name}
+                  </h3>
+                  <span className={`px-2 py-1 text-xs rounded-full ${column.color} ${column.textColor} dark:bg-gray-600 dark:text-white`}>
+                    {columnCustomers.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Müşteri Kartları */}
+              <div className="p-4 space-y-3 min-h-[400px]">
+                {columnCustomers.map((customer) => {
+                  const customerTickets = tickets.filter(t => t.customer_id === customer.id);
+                  const totalSpent = payments ? payments
+                    .filter(p => p.customer_id === customer.id && p.status === 'completed')
+                    .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) : 0;
+
+                  return (
+                    <div
+                      key={customer.id}
+                      className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    >
+                      {/* Müşteri Başlığı */}
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-1">
+                            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                              {customer.name?.charAt(0) || 'M'}
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                                {customer.name || 'Bilinmeyen Müşteri'}
+                              </h4>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {customer.email || 'E-posta yok'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Şirket Bilgisi */}
+                      {customer.company && (
+                        <div className="flex items-center space-x-2 mb-3">
+                          <Building className="w-4 h-4 text-gray-400" />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
+                            {customer.company}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* İstatistikler */}
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-600 rounded">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {customerTickets.length}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Talep</div>
+                        </div>
+                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-600 rounded">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {totalSpent > 0 ? `₺${totalSpent.toLocaleString()}` : '₺0'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Harcama</div>
+                        </div>
+                      </div>
+
+                      {/* Plan Durumu */}
+                      <div className="flex items-center justify-between mb-3">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          customer.plan === 'vip' || customer.plan === 'premium'
+                            ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                            : customer.plan === 'standard'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                        }`}>
+                          {customer.plan === 'vip' ? 'VIP' : 
+                           customer.plan === 'premium' ? 'Premium' :
+                           customer.plan === 'standard' ? 'Standard' : 'Free'}
+                        </span>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          customer.plan && customer.plan !== 'inactive'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                        }`}>
+                          {customer.plan && customer.plan !== 'inactive' ? 'Aktif' : 'Pasif'}
+                        </span>
+                      </div>
+
+                      {/* Son Aktivite */}
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                        Son aktivite: {format(new Date(customer.created_at), 'dd MMM yyyy', { locale: tr })}
+                      </div>
+
+                      {/* İşlem Butonları */}
+                      <div className="flex items-center space-x-2 pt-3 border-t border-gray-200 dark:border-gray-600">
+                        <button className="flex-1 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors">
+                          Profil
+                        </button>
+                        <button className="flex-1 text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors">
+                          İletişim
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {columnCustomers.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Bu sütunda müşteri yok</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderCRM = () => {
+    // Görünüm moduna göre kanban veya liste görünümünü döndür
+    if (crmViewMode === 'kanban') {
+      return renderCrmKanbanBoard();
+    }
+
+    return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -1143,6 +1733,32 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          {/* Görünüm Toggle Butonları */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setCrmViewMode('list')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                crmViewMode === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setCrmViewMode('kanban')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                crmViewMode === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Kanban</span>
+            </button>
+          </div>
+          
           <FeedbackButton 
             pageSource="AgentPortal-crm" 
             position="inline"
@@ -1388,7 +2004,8 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderPerformance = () => (
     <div className="space-y-6">
@@ -2229,6 +2846,197 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
               >
                 <Plus className="w-4 h-4" />
                 <span>Grup Oluştur</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sütun Ayarları Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <Settings className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sütun Ayarları</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Kanban sütunlarını düzenleyin</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-6">
+                {/* Mevcut Sütunlar */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Mevcut Sütunlar</h3>
+                  <div className="space-y-3">
+                    {customColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex-1">
+                          <input
+                            type="text"
+                            value={column.name}
+                            onChange={(e) => {
+                              const newColumns = [...customColumns];
+                              newColumns[index].name = e.target.value;
+                              setCustomColumns(newColumns);
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="color"
+                            value={column.color.includes('yellow') ? '#fef3c7' : 
+                                   column.color.includes('blue') ? '#dbeafe' : 
+                                   column.color.includes('green') ? '#dcfce7' : '#fee2e2'}
+                            onChange={(e) => {
+                              const newColumns = [...customColumns];
+                              newColumns[index].color = `bg-[${e.target.value}] border-[${e.target.value}]`;
+                              setCustomColumns(newColumns);
+                            }}
+                            className="w-8 h-8 rounded border border-gray-300 dark:border-gray-600"
+                          />
+                          <button
+                            onClick={() => {
+                              if (customColumns.length > 1) {
+                                const newColumns = customColumns.filter((_, i) => i !== index);
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            disabled={customColumns.length <= 1}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Yeni Sütun Ekleme */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Yeni Sütun Ekle</h3>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="text"
+                      placeholder="Sütun adı..."
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const input = e.target as HTMLInputElement;
+                          if (input.value.trim()) {
+                            const newColumn = {
+                              id: `column_${Date.now()}`,
+                              name: input.value.trim(),
+                              color: 'bg-gray-100 border-gray-300',
+                              tasks: []
+                            };
+                            setCustomColumns([...customColumns, newColumn]);
+                            input.value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="Sütun adı..."]') as HTMLInputElement;
+                        if (input && input.value.trim()) {
+                          const newColumn = {
+                            id: `column_${Date.now()}`,
+                            name: input.value.trim(),
+                            color: 'bg-gray-100 border-gray-300',
+                            tasks: []
+                          };
+                          setCustomColumns([...customColumns, newColumn]);
+                          input.value = '';
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Ekle</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sütun Sıralama */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Sütun Sıralaması</h3>
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Sütunları sürükleyip bırakarak sıralayabilirsiniz
+                  </div>
+                  <div className="space-y-2">
+                    {customColumns.map((column, index) => (
+                      <div key={column.id} className="flex items-center space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="text-gray-400">
+                          <span className="text-sm font-medium">{index + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{column.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              if (index > 0) {
+                                const newColumns = [...customColumns];
+                                [newColumns[index], newColumns[index - 1]] = [newColumns[index - 1], newColumns[index]];
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === 0}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (index < customColumns.length - 1) {
+                                const newColumns = [...customColumns];
+                                [newColumns[index], newColumns[index + 1]] = [newColumns[index + 1], newColumns[index]];
+                                setCustomColumns(newColumns);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            disabled={index === customColumns.length - 1}
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => {
+                  setShowColumnSettings(false);
+                  toast.success('Sütun ayarları kaydedildi');
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              >
+                Kaydet
               </button>
             </div>
           </div>

@@ -12,7 +12,7 @@ import {
   Palette,
   Sun,
   Moon,
-  Tag
+  Tag,
 } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useUser } from '../contexts/UserContext';
@@ -51,6 +51,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [customerData, setCustomerData] = useState<any>(null);
   
+
   // Yeni loading sistemi
   const { executeWithLoading, isLoading } = useLoading();
 
@@ -307,6 +308,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
       t.customer_id === customerData?.id && t.category !== 'payment_reminder'
     ), [tickets, customerData?.id]
   );
+
   
   // Müşteriye ait ödemeleri filtrele - useMemo ile optimize edildi
   const customerPayments = useMemo(() => 
@@ -491,6 +493,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
               </span>
             )}
           </button>
+
           
           <button
             onClick={() => handlePageChange('profile')}
