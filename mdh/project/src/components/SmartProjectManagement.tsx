@@ -4,22 +4,14 @@ import {
   Calendar, 
   TrendingUp, 
   AlertTriangle, 
-  Target, 
   Clock, 
   DollarSign, 
   BarChart3,
   CheckCircle,
-  XCircle,
   Activity,
   Zap,
   Brain,
-  GanttChart,
-  PieChart,
-  LineChart,
-  ArrowUpRight,
-  ArrowDownRight,
   RefreshCw,
-  Settings,
   Plus,
   Edit,
   Trash2,
@@ -35,7 +27,11 @@ import {
   X,
   MessageSquare,
   UserPlus,
-  Video
+  Video,
+  Grid3X3,
+  List,
+  Move,
+  Target
 } from 'lucide-react';
 import { useSupabase } from '../hooks/useSupabase';
 import { toast } from 'react-hot-toast';
@@ -68,31 +64,16 @@ interface Resource {
   hourly_rate: number;
 }
 
-interface Task {
+interface ProjectColumn {
   id: string;
-  project_id: string;
   name: string;
-  description: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  assigned_to: string;
-  estimated_hours: number;
-  actual_hours: number;
-  start_date: string;
-  due_date: string;
-  dependencies: string[];
-  progress?: number;
+  status: string;
+  color: string;
+  icon: string;
+  order: number;
+  isDefault: boolean;
 }
 
-interface RiskAnalysis {
-  id: string;
-  project_id: string;
-  risk_type: 'budget' | 'schedule' | 'resource' | 'technical';
-  probability: number;
-  impact: number;
-  mitigation_strategy: string;
-  status: 'identified' | 'monitoring' | 'mitigated';
-}
 
 interface SmartProjectManagementProps {
   onChannelSelect?: (channelId: string) => void;
@@ -103,13 +84,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
   const [activeTab, setActiveTab] = useState('overview');
   const [projects, setProjects] = useState<Project[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [risks, setRisks] = useState<RiskAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-  const [showResourceModal, setShowResourceModal] = useState(false);
-  const [showRiskModal, setShowRiskModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [showAutoReportingModal, setShowAutoReportingModal] = useState(false);
   const [showTeamChatModal, setShowTeamChatModal] = useState(false);
@@ -133,6 +109,21 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
   const [showNetworkGraph, setShowNetworkGraph] = useState(false);
   const [fullscreenMode, setFullscreenMode] = useState(false);
   const [selectedMetric, setSelectedMetric] = useState<'progress' | 'budget' | 'risk' | 'team'>('progress');
+  
+  // Kanban board için state'ler
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [draggedProject, setDraggedProject] = useState<Project | null>(null);
+  const [columns, setColumns] = useState<ProjectColumn[]>([]);
+  const [showColumnModal, setShowColumnModal] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<ProjectColumn | null>(null);
+  const [newColumn, setNewColumn] = useState<Partial<ProjectColumn>>({
+    name: '',
+    status: '',
+    color: 'blue',
+    icon: 'Calendar',
+    order: 0,
+    isDefault: false
+  });
 
   // Mock data for demonstration
   const mockProjects: Project[] = [
@@ -255,102 +246,68 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
     }
   ];
 
-  const mockTasks: Task[] = [
-    {
-      id: '1',
-      project_id: '1',
-      name: 'Frontend Ana Sayfa Tasarımı',
-      description: 'E-ticaret platformunun ana sayfa tasarımının tamamlanması',
-      status: 'completed',
-      priority: 'high',
-      assigned_to: '2',
-      estimated_hours: 40,
-      actual_hours: 38,
-      start_date: '2024-01-20',
-      due_date: '2024-02-15',
-      dependencies: [],
-      progress: 100
-    },
-    {
-      id: '2',
-      project_id: '1',
-      name: 'Backend API Geliştirme',
-      description: 'Ürün listeleme ve arama API\'lerinin geliştirilmesi',
-      status: 'in_progress',
-      priority: 'high',
-      assigned_to: '3',
-      estimated_hours: 60,
-      actual_hours: 45,
-      start_date: '2024-02-01',
-      due_date: '2024-03-15',
-      dependencies: [],
-      progress: 75
-    },
-    {
-      id: '3',
-      project_id: '1',
-      name: 'Ödeme Sistemi Entegrasyonu',
-      description: 'Stripe ödeme sistemi entegrasyonu',
-      status: 'pending',
-      priority: 'critical',
-      assigned_to: '3',
-      estimated_hours: 30,
-      actual_hours: 0,
-      start_date: '2024-03-01',
-      due_date: '2024-03-31',
-      dependencies: [],
-      progress: 0
-    },
-    {
-      id: '4',
-      project_id: '2',
-      name: 'Mobil Uygulama Tasarımı',
-      description: 'React Native uygulamasının UI/UX tasarımı',
-      status: 'in_progress',
-      priority: 'medium',
-      assigned_to: '4',
-      estimated_hours: 50,
-      actual_hours: 25,
-      start_date: '2024-03-01',
-      due_date: '2024-04-15',
-      dependencies: [],
-      progress: 50
-    }
+  // Varsayılan sütunlar
+  const defaultColumns: ProjectColumn[] = [
+    { id: 'planning', name: 'Planlama', status: 'planning', color: 'blue', icon: 'Calendar', order: 1, isDefault: true },
+    { id: 'active', name: 'Aktif', status: 'active', color: 'green', icon: 'Activity', order: 2, isDefault: true },
+    { id: 'on_hold', name: 'Beklemede', status: 'on_hold', color: 'yellow', icon: 'Clock', order: 3, isDefault: true },
+    { id: 'completed', name: 'Tamamlandı', status: 'completed', color: 'gray', icon: 'CheckCircle', order: 4, isDefault: true }
   ];
 
-  const mockRisks: RiskAnalysis[] = [
-    {
-      id: '1',
-      project_id: '1',
-      risk_type: 'schedule',
-      probability: 60,
-      impact: 80,
-      mitigation_strategy: 'Alternatif ödeme sistemleri araştırılacak',
-      status: 'monitoring'
-    },
-    {
-      id: '2',
-      project_id: '1',
-      risk_type: 'budget',
-      probability: 40,
-      impact: 70,
-      mitigation_strategy: 'Gereksiz özellikler ertelenebilir',
-      status: 'identified'
-    },
-    {
-      id: '3',
-      project_id: '2',
-      risk_type: 'resource',
-      probability: 70,
-      impact: 60,
-      mitigation_strategy: 'Eğitim programı başlatılacak',
-      status: 'identified'
-    }
+  // İkon seçenekleri
+  const iconOptions = [
+    { value: 'Calendar', label: 'Takvim', icon: Calendar },
+    { value: 'Activity', label: 'Aktivite', icon: Activity },
+    { value: 'Clock', label: 'Saat', icon: Clock },
+    { value: 'CheckCircle', label: 'Onay', icon: CheckCircle },
+    { value: 'AlertTriangle', label: 'Uyarı', icon: AlertTriangle },
+    { value: 'Users', label: 'Kullanıcılar', icon: Users },
+    { value: 'Target', label: 'Hedef', icon: Target },
+    { value: 'Zap', label: 'Şimşek', icon: Zap },
+    { value: 'Brain', label: 'Beyin', icon: Brain },
+    { value: 'Layers', label: 'Katmanlar', icon: Layers }
+  ];
+
+  // Renk seçenekleri
+  const colorOptions = [
+    { value: 'blue', label: 'Mavi', class: 'text-blue-600 dark:text-blue-400' },
+    { value: 'green', label: 'Yeşil', class: 'text-green-600 dark:text-green-400' },
+    { value: 'yellow', label: 'Sarı', class: 'text-yellow-600 dark:text-yellow-400' },
+    { value: 'red', label: 'Kırmızı', class: 'text-red-600 dark:text-red-400' },
+    { value: 'purple', label: 'Mor', class: 'text-purple-600 dark:text-purple-400' },
+    { value: 'pink', label: 'Pembe', class: 'text-pink-600 dark:text-pink-400' },
+    { value: 'indigo', label: 'İndigo', class: 'text-indigo-600 dark:text-indigo-400' },
+    { value: 'gray', label: 'Gri', class: 'text-gray-600 dark:text-gray-400' }
   ];
 
   useEffect(() => {
     loadData();
+    loadColumns();
   }, []);
+
+  const loadColumns = async () => {
+    try {
+      if (supabase) {
+        const { data: columnsData, error: columnsError } = await supabase
+          .from('project_columns')
+          .select('*')
+          .order('order', { ascending: true });
+
+        if (columnsError) {
+          console.error('❌ Sütunlar yükleme hatası:', columnsError);
+          setColumns(defaultColumns);
+        } else {
+          console.log('✅ Sütunlar yüklendi:', columnsData?.length || 0);
+          setColumns(columnsData && columnsData.length > 0 ? columnsData : defaultColumns);
+        }
+      } else {
+        setColumns(defaultColumns);
+      }
+    } catch (error) {
+      console.error('❌ Sütun yükleme hatası:', error);
+      setColumns(defaultColumns);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -375,8 +332,6 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
         // Mock data kullan
         setProjects(mockProjects);
         setResources(mockResources);
-        setTasks(mockTasks);
-        setRisks(mockRisks);
         setLoading(false);
         return;
       }
@@ -412,33 +367,6 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
         setResources(resourcesData && resourcesData.length > 0 ? resourcesData : mockResources);
       }
 
-      // Görevleri yükle
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('project_tasks')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (tasksError) {
-        console.error('❌ Görevler yükleme hatası:', tasksError);
-        setTasks([]);
-      } else {
-        console.log('✅ Görevler yüklendi:', tasksData?.length || 0);
-        setTasks(tasksData || []);
-      }
-
-      // Riskleri yükle
-      const { data: risksData, error: risksError } = await supabase
-        .from('project_risks')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (risksError) {
-        console.error('❌ Riskler yükleme hatası:', risksError);
-        setRisks([]);
-      } else {
-        console.log('✅ Riskler yüklendi:', risksData?.length || 0);
-        setRisks(risksData || []);
-      }
 
       setLoading(false);
       console.log('🎉 Veri yükleme tamamlandı');
@@ -450,8 +378,6 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
       // Hata durumunda mock data kullan
       setProjects(mockProjects);
       setResources(mockResources);
-      setTasks(mockTasks);
-      setRisks(mockRisks);
       setLoading(false);
     }
   };
@@ -747,9 +673,330 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
   };
 
   const handleViewProject = (project: Project) => {
-    setSelectedProject(project);
     // Proje detay sayfasına yönlendirme veya modal açma
     toast.success(`${project.name} projesi detayları görüntüleniyor`);
+  };
+
+  // Sürükle-bırak fonksiyonları
+  const handleDragStart = (e: React.DragEvent, project: Project) => {
+    setDraggedProject(project);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStatus: Project['status']) => {
+    e.preventDefault();
+    
+    if (!draggedProject || draggedProject.status === newStatus) {
+      setDraggedProject(null);
+      return;
+    }
+
+    try {
+      // Proje durumunu güncelle
+      const updatedProject = { ...draggedProject, status: newStatus };
+      
+      // Supabase'de güncelle
+      if (supabase) {
+        const { error } = await supabase
+          .from('projects')
+          .update({ status: newStatus })
+          .eq('id', draggedProject.id);
+
+        if (error) {
+          console.error('❌ Proje durumu güncelleme hatası:', error);
+          toast.error('Proje durumu güncellenirken hata oluştu');
+          return;
+        }
+      }
+
+      // Local state'i güncelle
+      setProjects(prev => 
+        prev.map(p => p.id === draggedProject.id ? updatedProject : p)
+      );
+
+      toast.success(`${draggedProject.name} projesi ${getStatusText(newStatus)} durumuna taşındı`);
+    } catch (error) {
+      console.error('❌ Proje durumu güncelleme hatası:', error);
+      toast.error('Proje durumu güncellenirken hata oluştu');
+    } finally {
+      setDraggedProject(null);
+    }
+  };
+
+  const getStatusText = (status: Project['status']) => {
+    switch (status) {
+      case 'planning': return 'Planlama';
+      case 'active': return 'Aktif';
+      case 'completed': return 'Tamamlandı';
+      case 'on_hold': return 'Beklemede';
+      default: return status;
+    }
+  };
+
+  // Sütun yönetimi fonksiyonları
+  const handleAddColumn = () => {
+    setEditingColumn(null);
+    setNewColumn({
+      name: '',
+      status: '',
+      color: 'blue',
+      icon: 'Calendar',
+      order: columns.length + 1,
+      isDefault: false
+    });
+    setShowColumnModal(true);
+  };
+
+  const handleEditColumn = (column: ProjectColumn) => {
+    setEditingColumn(column);
+    setNewColumn(column);
+    setShowColumnModal(true);
+  };
+
+  const handleSaveColumn = async () => {
+    if (!newColumn.name || !newColumn.status) {
+      toast.error('Sütun adı ve durum alanları zorunludur');
+      return;
+    }
+
+    try {
+      if (editingColumn) {
+        // Sütun güncelleme
+        if (supabase) {
+          const { error } = await supabase
+            .from('project_columns')
+            .update(newColumn)
+            .eq('id', editingColumn.id);
+
+          if (error) {
+            console.error('❌ Sütun güncelleme hatası:', error);
+            toast.error('Sütun güncellenirken hata oluştu');
+            return;
+          }
+        }
+
+        setColumns(prev => prev.map(col => 
+          col.id === editingColumn.id ? { ...col, ...newColumn } : col
+        ));
+        toast.success('Sütun başarıyla güncellendi');
+      } else {
+        // Yeni sütun ekleme
+        const columnData = {
+          ...newColumn,
+          id: `custom_${Date.now()}`,
+          order: columns.length + 1
+        };
+
+        if (supabase) {
+          const { error } = await supabase
+            .from('project_columns')
+            .insert([columnData]);
+
+          if (error) {
+            console.error('❌ Sütun ekleme hatası:', error);
+            toast.error('Sütun eklenirken hata oluştu');
+            return;
+          }
+        }
+
+        setColumns(prev => [...prev, columnData as ProjectColumn]);
+        toast.success('Yeni sütun başarıyla eklendi');
+      }
+
+      setShowColumnModal(false);
+      setEditingColumn(null);
+      setNewColumn({
+        name: '',
+        status: '',
+        color: 'blue',
+        icon: 'Calendar',
+        order: 0,
+        isDefault: false
+      });
+    } catch (error) {
+      console.error('❌ Sütun kaydetme hatası:', error);
+      toast.error('Sütun kaydedilirken hata oluştu');
+    }
+  };
+
+  const handleDeleteColumn = async (columnId: string) => {
+    const column = columns.find(col => col.id === columnId);
+    if (!column) return;
+
+    if (column.isDefault) {
+      toast.error('Varsayılan sütunlar silinemez');
+      return;
+    }
+
+    // Bu sütundaki projeleri varsayılan sütuna taşı
+    const projectsInColumn = projects.filter(p => p.status === column.status);
+    if (projectsInColumn.length > 0) {
+      toast.error('Bu sütunda projeler bulunuyor. Önce projeleri başka sütunlara taşıyın');
+      return;
+    }
+
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('project_columns')
+          .delete()
+          .eq('id', columnId);
+
+        if (error) {
+          console.error('❌ Sütun silme hatası:', error);
+          toast.error('Sütun silinirken hata oluştu');
+          return;
+        }
+      }
+
+      setColumns(prev => prev.filter(col => col.id !== columnId));
+      toast.success('Sütun başarıyla silindi');
+    } catch (error) {
+      console.error('❌ Sütun silme hatası:', error);
+      toast.error('Sütun silinirken hata oluştu');
+    }
+  };
+
+  // Kanban board render fonksiyonu
+  const renderKanbanBoard = () => {
+    const sortedColumns = [...columns].sort((a, b) => a.order - b.order);
+
+    return (
+      <div className={`grid gap-6 ${sortedColumns.length <= 2 ? 'grid-cols-1 md:grid-cols-2' : sortedColumns.length <= 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}>
+        {sortedColumns.map((column) => {
+          const columnProjects = projects.filter(p => p.status === column.status);
+          const iconOption = iconOptions.find(opt => opt.value === column.icon);
+          const IconComponent = iconOption?.icon || Calendar;
+          
+          return (
+            <div
+              key={column.id}
+              className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 min-h-[600px]"
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, column.status as Project['status'])}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <IconComponent className={`w-5 h-5 text-${column.color}-600 dark:text-${column.color}-400`} />
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{column.name}</h3>
+                  <span className="bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs px-2 py-1 rounded-full">
+                    {columnProjects.length}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => handleEditColumn(column)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    title="Sütunu Düzenle"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  {!column.isDefault && (
+                    <button
+                      onClick={() => handleDeleteColumn(column.id)}
+                      className="text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                      title="Sütunu Sil"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                {columnProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, project)}
+                    className={`bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 cursor-move hover:shadow-md transition-shadow ${
+                      draggedProject?.id === project.id ? 'opacity-50' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="font-medium text-gray-900 dark:text-white text-sm line-clamp-2">
+                        {project.name}
+                      </h4>
+                      <Move className="w-4 h-4 text-gray-400" />
+                    </div>
+                    
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
+                      {project.description}
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500 dark:text-gray-400">İlerleme</span>
+                        <span className="text-gray-900 dark:text-white font-medium">{project.progress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                        <div 
+                          className="bg-primary h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${project.progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-3 text-xs">
+                      <span className="text-gray-500 dark:text-gray-400">
+                        ₺{project.actual_cost.toLocaleString()}
+                      </span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        calculateRiskScore(project) < 30 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        calculateRiskScore(project) < 60 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                        'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      }`}>
+                        Risk: {calculateRiskScore(project).toFixed(0)}%
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-3">
+                      <div className="flex space-x-1">
+                        <button 
+                          onClick={() => handleViewProject(project)}
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                          title="Görüntüle"
+                        >
+                          <Eye className="w-3 h-3" />
+                        </button>
+                        <button 
+                          onClick={() => handleEditProject(project)}
+                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                          title="Düzenle"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteProject(project.id)}
+                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                          title="Sil"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {project.team_size} kişi
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                
+                {columnProjects.length === 0 && (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 text-sm">
+                    Bu durumda proje yok
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   const renderOverview = () => (
@@ -818,101 +1065,148 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Proje Listesi</h3>
-            <button
-              onClick={() => setShowNewProjectModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Yeni Proje
-            </button>
+            <div className="flex items-center space-x-3">
+              {/* Görünüm Değiştirme Butonları */}
+              <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <List className="w-4 h-4 mr-1.5" />
+                  Liste
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'kanban'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Grid3X3 className="w-4 h-4 mr-1.5" />
+                  Kanban
+                </button>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowNewProjectModal(true)}
+                  className="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Yeni Proje
+                </button>
+                
+                {viewMode === 'kanban' && (
+                  <button
+                    onClick={handleAddColumn}
+                    className="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+                    title="Yeni Sütun Ekle"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Yeni Sütun
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Proje</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Durum</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">İlerleme</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Bütçe</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Risk</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">İşlemler</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {projects.map((project) => (
-                <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">{project.name}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">{project.description}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      project.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                      project.status === 'planning' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                      project.status === 'completed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' :
-                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                    }`}>
-                      {project.status === 'active' ? 'Aktif' :
-                       project.status === 'planning' ? 'Planlama' :
-                       project.status === 'completed' ? 'Tamamlandı' : 'Beklemede'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
-                        <div 
-                          className="bg-primary h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${project.progress}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-sm text-gray-900 dark:text-white">{project.progress}%</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    ₺{project.actual_cost.toLocaleString()} / ₺{project.budget.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      calculateRiskScore(project) < 30 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                      calculateRiskScore(project) < 60 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                      'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                    }`}>
-                      {calculateRiskScore(project).toFixed(0)}%
-                    </span>
-                  </td>
-                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                     <div className="flex space-x-2">
-                       <button 
-                         onClick={() => handleViewProject(project)}
-                         className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                         title="Görüntüle"
-                       >
-                         <Eye className="w-4 h-4" />
-                       </button>
-                       <button 
-                         onClick={() => handleEditProject(project)}
-                         className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                         title="Düzenle"
-                       >
-                         <Edit className="w-4 h-4" />
-                       </button>
-                       <button 
-                         onClick={() => handleDeleteProject(project.id)}
-                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                         title="Sil"
-                       >
-                         <Trash2 className="w-4 h-4" />
-                       </button>
-                     </div>
-                   </td>
+        {viewMode === 'list' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Proje</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Durum</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">İlerleme</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Bütçe</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Risk</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">İşlemler</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {projects.map((project) => (
+                  <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{project.name}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{project.description}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        project.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        project.status === 'planning' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                        project.status === 'completed' ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' :
+                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                      }`}>
+                        {project.status === 'active' ? 'Aktif' :
+                         project.status === 'planning' ? 'Planlama' :
+                         project.status === 'completed' ? 'Tamamlandı' : 'Beklemede'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
+                          <div 
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${project.progress}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm text-gray-900 dark:text-white">{project.progress}%</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      ₺{project.actual_cost.toLocaleString()} / ₺{project.budget.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                        calculateRiskScore(project) < 30 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        calculateRiskScore(project) < 60 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                        'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      }`}>
+                        {calculateRiskScore(project).toFixed(0)}%
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => handleViewProject(project)}
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                          title="Görüntüle"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleEditProject(project)}
+                          className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                          title="Düzenle"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteProject(project.id)}
+                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                          title="Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-6">
+            {renderKanbanBoard()}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -974,15 +1268,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
   const renderRiskAnalysis = () => (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Proaktif Risk Analizi</h3>
-          <button
-            onClick={() => setShowRiskModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Risk Ekle
-          </button>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1816,10 +2103,11 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                      onChange={(e) => setNewProject({...newProject, status: e.target.value as any})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    >
-                     <option value="planning">Planlama</option>
-                     <option value="active">Aktif</option>
-                     <option value="completed">Tamamlandı</option>
-                     <option value="on_hold">Beklemede</option>
+                     {columns.map((column) => (
+                       <option key={column.id} value={column.status}>
+                         {column.name}
+                       </option>
+                     ))}
                    </select>
                  </div>
                  
@@ -1924,6 +2212,118 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                  className="px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                >
                  Proje Oluştur
+               </button>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {/* Sütun Yönetimi Modal */}
+       {showColumnModal && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+             <div className="flex items-center justify-between mb-6">
+               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                 {editingColumn ? 'Sütunu Düzenle' : 'Yeni Sütun Ekle'}
+               </h3>
+               <button
+                 onClick={() => setShowColumnModal(false)}
+                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+               >
+                 <X className="w-6 h-6" />
+               </button>
+             </div>
+             
+             <div className="space-y-4">
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                   Sütun Adı
+                 </label>
+                 <input
+                   type="text"
+                   value={newColumn.name || ''}
+                   onChange={(e) => setNewColumn({...newColumn, name: e.target.value})}
+                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                   placeholder="Sütun adını girin"
+                 />
+               </div>
+               
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                   Durum Kodu
+                 </label>
+                 <input
+                   type="text"
+                   value={newColumn.status || ''}
+                   onChange={(e) => setNewColumn({...newColumn, status: e.target.value})}
+                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                   placeholder="Örn: in_review, testing"
+                 />
+                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                   Projelerin bu sütuna atanması için kullanılacak benzersiz kod
+                 </p>
+               </div>
+               
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                   İkon
+                 </label>
+                 <div className="grid grid-cols-5 gap-2">
+                   {iconOptions.map((option) => {
+                     const IconComponent = option.icon;
+                     return (
+                       <button
+                         key={option.value}
+                         onClick={() => setNewColumn({...newColumn, icon: option.value})}
+                         className={`p-2 rounded-lg border-2 transition-colors ${
+                           newColumn.icon === option.value
+                             ? 'border-primary bg-primary/10'
+                             : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                         }`}
+                         title={option.label}
+                       >
+                         <IconComponent className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                       </button>
+                     );
+                   })}
+                 </div>
+               </div>
+               
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                   Renk
+                 </label>
+                 <div className="grid grid-cols-4 gap-2">
+                   {colorOptions.map((option) => (
+                     <button
+                       key={option.value}
+                       onClick={() => setNewColumn({...newColumn, color: option.value})}
+                       className={`p-2 rounded-lg border-2 transition-colors ${
+                         newColumn.color === option.value
+                           ? 'border-primary bg-primary/10'
+                           : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                       }`}
+                     >
+                       <div className={`w-4 h-4 rounded-full bg-${option.value}-500`}></div>
+                     </button>
+                   ))}
+                 </div>
+               </div>
+             </div>
+             
+             <div className="flex justify-end space-x-3 mt-6">
+               <button
+                 onClick={() => setShowColumnModal(false)}
+                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+               >
+                 İptal
+               </button>
+               <button
+                 onClick={handleSaveColumn}
+                 disabled={!newColumn.name || !newColumn.status}
+                 className="px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+               >
+                 {editingColumn ? 'Güncelle' : 'Ekle'}
                </button>
              </div>
            </div>

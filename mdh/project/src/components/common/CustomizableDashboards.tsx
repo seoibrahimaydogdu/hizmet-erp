@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef, ReactNode, DragEvent } from 'react';
-import { useUIUX } from '../../contexts/UIUXContext';
+import React, { useState, useRef, ReactNode, DragEvent } from 'react';
 import { useAnimation } from './AnimationSystem';
 import { TouchFeedback } from './TouchInteractions';
 import { 
   GripVertical, Settings, Eye, EyeOff, Plus, X, 
-  BarChart3, PieChart, TrendingUp, Users, DollarSign,
-  Calendar, Clock, Star, Heart, ThumbsUp, MessageSquare,
-  FileText, Image, Video, Music, Download, Upload
+  BarChart3, TrendingUp, Users,
+  Calendar, Clock, Star, ThumbsUp, MessageSquare,
+  FileText, Image, Video, Music, Download,
+  List, Kanban, Columns, Edit3, Trash2
 } from 'lucide-react';
 
 // Widget Types
@@ -16,6 +16,18 @@ export type WidgetType =
   | 'form' | 'button' | 'link' | 'iframe' | 'custom';
 
 export type WidgetSize = 'small' | 'medium' | 'large' | 'xlarge';
+
+// View Types
+export type ViewType = 'grid' | 'list' | 'kanban';
+
+// Column Interface for Kanban View
+export interface Column {
+  id: string;
+  title: string;
+  color: string;
+  order: number;
+  widgetIds: string[];
+}
 
 export type WidgetPosition = {
   x: number;
@@ -50,6 +62,8 @@ export interface DashboardLayout {
   padding: number;
   background?: string;
   theme?: 'light' | 'dark' | 'auto';
+  viewType: ViewType;
+  kanbanColumns: Column[];
 }
 
 // Widget Component Props
@@ -58,8 +72,6 @@ interface WidgetComponentProps {
   isEditing?: boolean;
   onUpdate?: (widget: Widget) => void;
   onDelete?: (widgetId: string) => void;
-  onMove?: (widgetId: string, position: WidgetPosition) => void;
-  onResize?: (widgetId: string, size: WidgetSize) => void;
 }
 
 // Base Widget Component
@@ -67,31 +79,16 @@ export const WidgetComponent: React.FC<WidgetComponentProps> = ({
   widget,
   isEditing = false,
   onUpdate,
-  onDelete,
-  onMove,
-  onResize
+  onDelete
 }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const { addAnimation } = useAnimation();
   const widgetRef = useRef<HTMLDivElement>(null);
-
-  const getSizeClasses = () => {
-    switch (widget.size) {
-      case 'small': return 'w-48 h-32';
-      case 'medium': return 'w-64 h-48';
-      case 'large': return 'w-80 h-64';
-      case 'xlarge': return 'w-96 h-80';
-      default: return 'w-64 h-48';
-    }
-  };
 
   const handleDragStart = (e: DragEvent) => {
     if (!isEditing || widget.locked) return;
     
     setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', widget.id);
   };
@@ -454,7 +451,7 @@ export const WidgetLibrary: React.FC<WidgetLibraryProps> = ({
       </h3>
       
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {widgetTemplates.map((template, index) => (
+        {widgetTemplates.map((template) => (
           <TouchFeedback key={template.type} feedback="scale">
             <button
               onClick={() => handleAddWidget(template)}
@@ -483,15 +480,14 @@ interface DashboardManagerProps {
 }
 
 export const DashboardManager: React.FC<DashboardManagerProps> = ({
-  layouts,
   currentLayout,
   onLayoutChange,
   onLayoutSave,
-  onLayoutDelete,
   className = ''
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showWidgetLibrary, setShowWidgetLibrary] = useState(false);
+  const [showColumnManager, setShowColumnManager] = useState(false);
   const { addAnimation } = useAnimation();
 
   const handleAddWidget = (widgetTemplate: Omit<Widget, 'id' | 'position'>) => {
@@ -508,6 +504,44 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({
     
     onLayoutChange(updatedLayout);
     setShowWidgetLibrary(false);
+  };
+
+  const handleViewChange = (viewType: ViewType) => {
+    const updatedLayout = {
+      ...currentLayout,
+      viewType
+    };
+    onLayoutChange(updatedLayout);
+  };
+
+  const handleColumnsChange = (columns: Column[]) => {
+    const updatedLayout = {
+      ...currentLayout,
+      kanbanColumns: columns
+    };
+    onLayoutChange(updatedLayout);
+  };
+
+  const handleWidgetUpdate = (updatedWidget: Widget) => {
+    const updatedLayout = {
+      ...currentLayout,
+      widgets: currentLayout.widgets.map(widget =>
+        widget.id === updatedWidget.id ? updatedWidget : widget
+      )
+    };
+    onLayoutChange(updatedLayout);
+  };
+
+  const handleWidgetDelete = (widgetId: string) => {
+    const updatedLayout = {
+      ...currentLayout,
+      widgets: currentLayout.widgets.filter(widget => widget.id !== widgetId),
+      kanbanColumns: currentLayout.kanbanColumns.map(column => ({
+        ...column,
+        widgetIds: column.widgetIds.filter(id => id !== widgetId)
+      }))
+    };
+    onLayoutChange(updatedLayout);
   };
 
   const handleSaveLayout = () => {
@@ -537,8 +571,26 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
+          {/* View Switcher */}
+          <ViewSwitcher
+            currentView={currentLayout.viewType || 'grid'}
+            onViewChange={handleViewChange}
+          />
+          
           {isEditing && (
             <>
+              {currentLayout.viewType === 'kanban' && (
+                <TouchFeedback feedback="scale">
+                  <button
+                    onClick={() => setShowColumnManager(!showColumnManager)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Columns className="w-4 h-4" />
+                    Sütun Yönetimi
+                  </button>
+                </TouchFeedback>
+              )}
+              
               <TouchFeedback feedback="scale">
                 <button
                   onClick={() => setShowWidgetLibrary(!showWidgetLibrary)}
@@ -575,17 +627,609 @@ export const DashboardManager: React.FC<DashboardManagerProps> = ({
         </div>
       </div>
 
+      {/* Column Manager */}
+      {showColumnManager && currentLayout.viewType === 'kanban' && (
+        <ColumnManager
+          columns={currentLayout.kanbanColumns || []}
+          onColumnsChange={handleColumnsChange}
+          isEditing={isEditing}
+        />
+      )}
+
       {/* Widget Library */}
       {showWidgetLibrary && (
         <WidgetLibrary onAddWidget={handleAddWidget} />
       )}
 
-      {/* Dashboard Builder */}
-      <DashboardBuilder
-        layout={currentLayout}
-        onLayoutChange={onLayoutChange}
-        isEditing={isEditing}
-      />
+      {/* Dashboard Content */}
+      {currentLayout.viewType === 'grid' && (
+        <DashboardBuilder
+          layout={currentLayout}
+          onLayoutChange={onLayoutChange}
+          isEditing={isEditing}
+        />
+      )}
+      
+      {currentLayout.viewType === 'list' && (
+        <ListView
+          widgets={currentLayout.widgets}
+          isEditing={isEditing}
+          onWidgetUpdate={handleWidgetUpdate}
+          onWidgetDelete={handleWidgetDelete}
+        />
+      )}
+      
+      {currentLayout.viewType === 'kanban' && (
+        <KanbanView
+          widgets={currentLayout.widgets}
+          columns={currentLayout.kanbanColumns || []}
+          isEditing={isEditing}
+          onWidgetUpdate={handleWidgetUpdate}
+          onWidgetDelete={handleWidgetDelete}
+          onColumnsChange={handleColumnsChange}
+        />
+      )}
+    </div>
+  );
+};
+
+// View Switcher Component
+interface ViewSwitcherProps {
+  currentView: ViewType;
+  onViewChange: (view: ViewType) => void;
+  className?: string;
+}
+
+export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({
+  currentView,
+  onViewChange,
+  className = ''
+}) => {
+  const views = [
+    { type: 'grid' as ViewType, label: 'Grid', icon: BarChart3 },
+    { type: 'list' as ViewType, label: 'Liste', icon: List },
+    { type: 'kanban' as ViewType, label: 'Kanban', icon: Kanban }
+  ];
+
+  return (
+    <div className={`flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 ${className}`}>
+      {views.map((view) => (
+        <TouchFeedback key={view.type} feedback="scale">
+          <button
+            onClick={() => onViewChange(view.type)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+              currentView === view.type
+                ? 'bg-white dark:bg-gray-700 text-primary-600 dark:text-primary-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            <view.icon className="w-4 h-4" />
+            {view.label}
+          </button>
+        </TouchFeedback>
+      ))}
+    </div>
+  );
+};
+
+// Column Manager Component
+interface ColumnManagerProps {
+  columns: Column[];
+  onColumnsChange: (columns: Column[]) => void;
+  isEditing?: boolean;
+  className?: string;
+}
+
+export const ColumnManager: React.FC<ColumnManagerProps> = ({
+  columns,
+  onColumnsChange,
+  isEditing = false,
+  className = ''
+}) => {
+  const [editingColumn, setEditingColumn] = useState<string | null>(null);
+  const [newColumnTitle, setNewColumnTitle] = useState('');
+  const { addAnimation } = useAnimation();
+
+  const handleAddColumn = () => {
+    const newColumn: Column = {
+      id: `column-${Date.now()}`,
+      title: newColumnTitle || 'Yeni Sütun',
+      color: `hsl(${Math.random() * 360}, 70%, 50%)`,
+      order: columns.length,
+      widgetIds: []
+    };
+    
+    onColumnsChange([...columns, newColumn]);
+    setNewColumnTitle('');
+    
+    addAnimation('column-add', {
+      type: 'slideInUp',
+      duration: 'normal',
+      easing: 'ease-out'
+    });
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    onColumnsChange(columns.filter(col => col.id !== columnId));
+    
+    addAnimation(`column-delete-${columnId}`, {
+      type: 'scaleOut',
+      duration: 'fast',
+      easing: 'ease-in'
+    });
+  };
+
+  const handleUpdateColumn = (columnId: string, updates: Partial<Column>) => {
+    onColumnsChange(columns.map(col => 
+      col.id === columnId ? { ...col, ...updates } : col
+    ));
+    setEditingColumn(null);
+  };
+
+
+  if (!isEditing) return null;
+
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-soft border border-gray-200 dark:border-gray-700 p-6 ${className}`}>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          Sütun Yönetimi
+        </h3>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={newColumnTitle}
+            onChange={(e) => setNewColumnTitle(e.target.value)}
+            placeholder="Sütun adı..."
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm"
+          />
+          <TouchFeedback feedback="scale">
+            <button
+              onClick={handleAddColumn}
+              className="flex items-center gap-2 px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Ekle
+            </button>
+          </TouchFeedback>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {columns
+          .sort((a, b) => a.order - b.order)
+          .map((column) => (
+            <div
+              key={column.id}
+              className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+            >
+              <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
+              
+              <div
+                className="w-4 h-4 rounded-full"
+                style={{ backgroundColor: column.color }}
+              />
+              
+              {editingColumn === column.id ? (
+                <input
+                  type="text"
+                  defaultValue={column.title}
+                  onBlur={(e) => handleUpdateColumn(column.id, { title: e.target.value })}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleUpdateColumn(column.id, { title: e.currentTarget.value });
+                    }
+                  }}
+                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm"
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="flex-1 text-gray-900 dark:text-gray-100 font-medium cursor-pointer"
+                  onClick={() => setEditingColumn(column.id)}
+                >
+                  {column.title}
+                </span>
+              )}
+              
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {column.widgetIds.length} widget
+              </span>
+              
+              <div className="flex items-center gap-1">
+                <TouchFeedback feedback="scale">
+                  <button
+                    onClick={() => setEditingColumn(column.id)}
+                    className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    title="Düzenle"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </TouchFeedback>
+                
+                <TouchFeedback feedback="scale">
+                  <button
+                    onClick={() => handleDeleteColumn(column.id)}
+                    className="p-1 text-gray-400 hover:text-red-500"
+                    title="Sil"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </TouchFeedback>
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+};
+
+// List View Component
+interface ListViewProps {
+  widgets: Widget[];
+  isEditing?: boolean;
+  onWidgetUpdate?: (widget: Widget) => void;
+  onWidgetDelete?: (widgetId: string) => void;
+  className?: string;
+}
+
+export const ListView: React.FC<ListViewProps> = ({
+  widgets,
+  isEditing = false,
+  onWidgetUpdate,
+  onWidgetDelete,
+  className = ''
+}) => {
+  const getWidgetIcon = (type: WidgetType) => {
+    switch (type) {
+      case 'chart': return <BarChart3 className="w-5 h-5 text-primary-500" />;
+      case 'stat': return <TrendingUp className="w-5 h-5 text-success-500" />;
+      case 'table': return <FileText className="w-5 h-5 text-blue-500" />;
+      case 'list': return <MessageSquare className="w-5 h-5 text-purple-500" />;
+      case 'calendar': return <Calendar className="w-5 h-5 text-orange-500" />;
+      case 'clock': return <Clock className="w-5 h-5 text-gray-500" />;
+      case 'weather': return <Star className="w-5 h-5 text-yellow-500" />;
+      case 'news': return <FileText className="w-5 h-5 text-red-500" />;
+      case 'social': return <Users className="w-5 h-5 text-pink-500" />;
+      case 'media': return <Image className="w-5 h-5 text-green-500" />;
+      case 'text': return <FileText className="w-5 h-5 text-gray-500" />;
+      case 'image': return <Image className="w-5 h-5 text-blue-500" />;
+      case 'video': return <Video className="w-5 h-5 text-red-500" />;
+      case 'audio': return <Music className="w-5 h-5 text-purple-500" />;
+      case 'form': return <FileText className="w-5 h-5 text-indigo-500" />;
+      case 'button': return <ThumbsUp className="w-5 h-5 text-green-500" />;
+      case 'link': return <Download className="w-5 h-5 text-blue-500" />;
+      case 'iframe': return <FileText className="w-5 h-5 text-gray-500" />;
+      case 'custom': return <Settings className="w-5 h-5 text-gray-500" />;
+      default: return <Settings className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  const getSizeLabel = (size: WidgetSize) => {
+    switch (size) {
+      case 'small': return 'Küçük';
+      case 'medium': return 'Orta';
+      case 'large': return 'Büyük';
+      case 'xlarge': return 'Çok Büyük';
+      default: return 'Orta';
+    }
+  };
+
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-soft border border-gray-200 dark:border-gray-700 ${className}`}>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Widget
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Tip
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Boyut
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Durum
+              </th>
+              {isEditing && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  İşlemler
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {widgets.map((widget) => (
+              <tr key={widget.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center gap-3">
+                    {getWidgetIcon(widget.type)}
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {widget.title}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        ID: {widget.id}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">
+                    {widget.type}
+                  </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                  {getSizeLabel(widget.size)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      widget.visible 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                    }`}>
+                      {widget.visible ? 'Görünür' : 'Gizli'}
+                    </span>
+                    {widget.locked && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                        Kilitli
+                      </span>
+                    )}
+                  </div>
+                </td>
+                {isEditing && (
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-2">
+                      <TouchFeedback feedback="scale">
+                        <button
+                          onClick={() => onWidgetUpdate?.({ ...widget, visible: !widget.visible })}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                          title={widget.visible ? 'Gizle' : 'Göster'}
+                        >
+                          {widget.visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </button>
+                      </TouchFeedback>
+                      
+                      <TouchFeedback feedback="scale">
+                        <button
+                          onClick={() => onWidgetUpdate?.({ ...widget, locked: !widget.locked })}
+                          className={`${widget.locked ? 'text-yellow-500' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                          title={widget.locked ? 'Kilidi Aç' : 'Kilitle'}
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
+                      </TouchFeedback>
+                      
+                      <TouchFeedback feedback="scale">
+                        <button
+                          onClick={() => onWidgetDelete?.(widget.id)}
+                          className="text-gray-400 hover:text-red-500"
+                          title="Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </TouchFeedback>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// Kanban View Component
+interface KanbanViewProps {
+  widgets: Widget[];
+  columns: Column[];
+  isEditing?: boolean;
+  onWidgetUpdate?: (widget: Widget) => void;
+  onWidgetDelete?: (widgetId: string) => void;
+  onColumnsChange?: (columns: Column[]) => void;
+  className?: string;
+}
+
+export const KanbanView: React.FC<KanbanViewProps> = ({
+  widgets,
+  columns,
+  isEditing = false,
+  onWidgetUpdate,
+  onWidgetDelete,
+  onColumnsChange,
+  className = ''
+}) => {
+  const [draggedWidget, setDraggedWidget] = useState<string | null>(null);
+  const { addAnimation } = useAnimation();
+
+  const handleDragStart = (e: DragEvent, widgetId: string) => {
+    setDraggedWidget(widgetId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', widgetId);
+  };
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: DragEvent, targetColumnId: string) => {
+    e.preventDefault();
+    const widgetId = e.dataTransfer.getData('text/plain');
+    
+    if (widgetId && onColumnsChange) {
+      const updatedColumns = columns.map(column => {
+        if (column.id === targetColumnId) {
+          // Remove widget from other columns
+          const otherColumns = columns.filter(col => col.id !== targetColumnId);
+          otherColumns.forEach(col => {
+            col.widgetIds = col.widgetIds.filter(id => id !== widgetId);
+          });
+          
+          // Add widget to target column if not already there
+          if (!column.widgetIds.includes(widgetId)) {
+            return { ...column, widgetIds: [...column.widgetIds, widgetId] };
+          }
+        }
+        return column;
+      });
+      
+      onColumnsChange(updatedColumns);
+      
+      addAnimation(`widget-move-${widgetId}`, {
+        type: 'bounceIn',
+        duration: 'normal',
+        easing: 'bounce'
+      });
+    }
+    
+    setDraggedWidget(null);
+  };
+
+  const getWidgetById = (widgetId: string) => {
+    return widgets.find(widget => widget.id === widgetId);
+  };
+
+  const getWidgetIcon = (type: WidgetType) => {
+    switch (type) {
+      case 'chart': return <BarChart3 className="w-4 h-4 text-primary-500" />;
+      case 'stat': return <TrendingUp className="w-4 h-4 text-success-500" />;
+      case 'table': return <FileText className="w-4 h-4 text-blue-500" />;
+      case 'list': return <MessageSquare className="w-4 h-4 text-purple-500" />;
+      case 'calendar': return <Calendar className="w-4 h-4 text-orange-500" />;
+      case 'clock': return <Clock className="w-4 h-4 text-gray-500" />;
+      case 'weather': return <Star className="w-4 h-4 text-yellow-500" />;
+      case 'news': return <FileText className="w-4 h-4 text-red-500" />;
+      case 'social': return <Users className="w-4 h-4 text-pink-500" />;
+      case 'media': return <Image className="w-4 h-4 text-green-500" />;
+      case 'text': return <FileText className="w-4 h-4 text-gray-500" />;
+      case 'image': return <Image className="w-4 h-4 text-blue-500" />;
+      case 'video': return <Video className="w-4 h-4 text-red-500" />;
+      case 'audio': return <Music className="w-4 h-4 text-purple-500" />;
+      case 'form': return <FileText className="w-4 h-4 text-indigo-500" />;
+      case 'button': return <ThumbsUp className="w-4 h-4 text-green-500" />;
+      case 'link': return <Download className="w-4 h-4 text-blue-500" />;
+      case 'iframe': return <FileText className="w-4 h-4 text-gray-500" />;
+      case 'custom': return <Settings className="w-4 h-4 text-gray-500" />;
+      default: return <Settings className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
+  return (
+    <div className={`space-y-6 ${className}`}>
+      <div className="flex gap-6 overflow-x-auto pb-4">
+        {columns
+          .sort((a, b) => a.order - b.order)
+          .map((column) => (
+            <div
+              key={column.id}
+              className="flex-shrink-0 w-80"
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, column.id)}
+            >
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft border border-gray-200 dark:border-gray-700">
+                {/* Column Header */}
+                <div 
+                  className="p-4 border-b border-gray-200 dark:border-gray-700 rounded-t-xl"
+                  style={{ backgroundColor: `${column.color}20` }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: column.color }}
+                      />
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                        {column.title}
+                      </h3>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {column.widgetIds.length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Column Content */}
+                <div className="p-4 space-y-3 min-h-96">
+                  {column.widgetIds.map((widgetId) => {
+                    const widget = getWidgetById(widgetId);
+                    if (!widget) return null;
+
+                    return (
+                      <div
+                        key={widget.id}
+                        draggable={isEditing}
+                        onDragStart={(e) => handleDragStart(e, widget.id)}
+                        className={`p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 cursor-move hover:shadow-sm transition-all duration-200 ${
+                          draggedWidget === widget.id ? 'opacity-50' : ''
+                        } ${!widget.visible ? 'opacity-50' : ''}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-1">
+                            {getWidgetIcon(widget.type)}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {widget.title}
+                              </h4>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {widget.type}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {isEditing && (
+                            <div className="flex items-center gap-1">
+                              <TouchFeedback feedback="scale">
+                                <button
+                                  onClick={() => onWidgetUpdate?.({ ...widget, visible: !widget.visible })}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                  title={widget.visible ? 'Gizle' : 'Göster'}
+                                >
+                                  {widget.visible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                                </button>
+                              </TouchFeedback>
+                              
+                              <TouchFeedback feedback="scale">
+                                <button
+                                  onClick={() => onWidgetDelete?.(widget.id)}
+                                  className="p-1 text-gray-400 hover:text-red-500"
+                                  title="Sil"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </TouchFeedback>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {widget.locked && (
+                          <div className="mt-2 flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400">
+                            <Settings className="w-3 h-3" />
+                            Kilitli
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  
+                  {column.widgetIds.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <div className="text-sm">Bu sütunda widget yok</div>
+                      {isEditing && (
+                        <div className="text-xs mt-1">Widget'ları buraya sürükleyin</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
     </div>
   );
 };

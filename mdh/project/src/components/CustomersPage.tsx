@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, 
   Filter, 
   Download, 
   Plus, 
@@ -13,23 +12,44 @@ import {
   User,
   Mail,
   Phone,
-  Building,
   Star,
-  Calendar
+  Settings,
+  GripVertical,
+  X,
+  Save,
+  RotateCcw,
+  List,
+  Grid3X3
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
 import { getCurrencyOptions, getCurrencySymbol } from '../lib/currency';
 import { toast } from 'react-hot-toast';
-import { MessageSquare, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import AdvancedSearch, { SearchFilters } from './AdvancedSearch';
 import RealTimeHintSystem from './RealTimeHintSystem';
 import FeedbackButton from './common/FeedbackButton';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 interface CustomersPageProps {
   onViewCustomer?: (customerId: string) => void;
   onViewTicket?: (ticketId: string) => void;
+}
+
+interface ColumnConfig {
+  id: string;
+  label: string;
+  visible: boolean;
+  width?: number;
+  order: number;
+}
+
+interface DraggedItem {
+  type: string;
+  id: string;
+  index: number;
 }
 
 const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTicket }) => {
@@ -38,7 +58,6 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
     customers,
     tickets,
     searchTerm,
-    setSearchTerm,
     selectedItems,
     setSelectedItems,
     exportData,
@@ -46,10 +65,18 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
   } = useSupabase();
 
   const [planFilter, setPlanFilter] = useState('all');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState<string | null>(null);
   const [showViewModal, setShowViewModal] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState<string | null>(null);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  const [newColumnData, setNewColumnData] = useState({
+    label: '',
+    id: '',
+    width: 150
+  });
   const [advancedFilters, setAdvancedFilters] = useState<SearchFilters>({
     searchTerm: '',
     searchType: 'customers',
@@ -69,6 +96,20 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
     plan: 'free',
     currency: 'TRY' // Para birimi varsayılan olarak TL
   });
+
+  // Sütun yönetimi state'leri
+  const [columns, setColumns] = useState<ColumnConfig[]>([
+    { id: 'customer', label: 'Müşteri', visible: true, order: 0 },
+    { id: 'contact', label: 'İletişim', visible: true, order: 1 },
+    { id: 'plan', label: 'Plan', visible: true, order: 2 },
+    { id: 'currency', label: 'Para Birimi', visible: true, order: 3 },
+    { id: 'satisfaction', label: 'Memnuniyet', visible: true, order: 4 },
+    { id: 'tickets', label: 'Talepler', visible: true, order: 5 },
+    { id: 'payment_status', label: 'Ödeme Durumu', visible: true, order: 6 },
+    { id: 'last_payment', label: 'Son Ödeme', visible: true, order: 7 },
+    { id: 'created_at', label: 'Kayıt Tarihi', visible: true, order: 8 },
+    { id: 'actions', label: 'İşlemler', visible: true, order: 9 }
+  ]);
 
   // Para birimi seçenekleri
   const currencyOptions = getCurrencyOptions();
@@ -132,14 +173,6 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
     );
   };
 
-  const handleSearch = () => {
-    // Arama işlemi zaten otomatik çalışıyor, bu buton için ek işlem
-    if (searchTerm.trim()) {
-      toast.success(`"${searchTerm}" için ${filteredCustomers.length} müşteri bulundu`);
-    } else {
-      toast('Arama terimi girin');
-    }
-  };
 
   const handleViewCustomer = (customerId: string) => {
     if (onViewCustomer) {
@@ -157,6 +190,7 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
     if (confirm('Bu müşteriyi silmek istediğinizden emin misiniz?')) {
       try {
         // Burada Supabase delete işlemi yapılacak
+        console.log('Deleting customer:', customerId);
         toast.success('Müşteri başarıyla silindi');
         fetchCustomers();
       } catch (error) {
@@ -165,19 +199,19 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
     }
   };
 
-  const handleCreateTicket = (customerId: string) => {
+  const handleCreateTicket = () => {
     // Yeni talep oluşturma
     toast.success('Yeni talep oluşturma sayfasına yönlendiriliyor...');
     setShowActionMenu(null);
   };
 
-  const handleSendEmail = (customerId: string) => {
+  const handleSendEmail = () => {
     // E-posta gönderme
     toast.success('E-posta gönderme penceresi açılıyor...');
     setShowActionMenu(null);
   };
 
-  const handleViewTickets = (customerId: string) => {
+  const handleViewTickets = () => {
     // Müşteri taleplerini görüntüleme
     toast.success('Müşteri talepleri görüntüleniyor...');
     setShowActionMenu(null);
@@ -243,8 +277,347 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
     return customers.find(customer => customer.id === id);
   };
 
+  // Sürükle-bırak fonksiyonları
+  const moveColumn = (dragIndex: number, hoverIndex: number) => {
+    setColumns(prevColumns => {
+      const newColumns = [...prevColumns];
+      const draggedColumn = newColumns[dragIndex];
+      newColumns.splice(dragIndex, 1);
+      newColumns.splice(hoverIndex, 0, draggedColumn);
+      
+      // Sıralama numaralarını güncelle
+      return newColumns.map((col, index) => ({
+        ...col,
+        order: index
+      }));
+    });
+  };
+
+  const toggleColumnVisibility = (columnId: string) => {
+    setColumns(prevColumns => 
+      prevColumns.map(col => 
+        col.id === columnId ? { ...col, visible: !col.visible } : col
+      )
+    );
+  };
+
+  const resetColumns = () => {
+    setColumns([
+      { id: 'customer', label: 'Müşteri', visible: true, order: 0 },
+      { id: 'contact', label: 'İletişim', visible: true, order: 1 },
+      { id: 'plan', label: 'Plan', visible: true, order: 2 },
+      { id: 'currency', label: 'Para Birimi', visible: true, order: 3 },
+      { id: 'satisfaction', label: 'Memnuniyet', visible: true, order: 4 },
+      { id: 'tickets', label: 'Talepler', visible: true, order: 5 },
+      { id: 'payment_status', label: 'Ödeme Durumu', visible: true, order: 6 },
+      { id: 'last_payment', label: 'Son Ödeme', visible: true, order: 7 },
+      { id: 'created_at', label: 'Kayıt Tarihi', visible: true, order: 8 },
+      { id: 'actions', label: 'İşlemler', visible: true, order: 9 }
+    ]);
+    toast.success('Sütunlar varsayılan ayarlara sıfırlandı');
+  };
+
+  const saveColumnSettings = () => {
+    // Burada localStorage'a kaydedebiliriz
+    localStorage.setItem('customers-columns', JSON.stringify(columns));
+    setShowColumnSettings(false);
+    toast.success('Sütun ayarları kaydedildi');
+  };
+
+  const addNewColumn = () => {
+    if (!newColumnData.label.trim() || !newColumnData.id.trim()) {
+      toast.error('Sütun adı ve ID gerekli');
+      return;
+    }
+
+    // ID'nin benzersiz olduğunu kontrol et
+    if (columns.some(col => col.id === newColumnData.id)) {
+      toast.error('Bu ID zaten kullanılıyor');
+      return;
+    }
+
+    const newColumn: ColumnConfig = {
+      id: newColumnData.id,
+      label: newColumnData.label,
+      visible: true,
+      width: newColumnData.width,
+      order: columns.length
+    };
+
+    setColumns(prev => [...prev, newColumn]);
+    setNewColumnData({ label: '', id: '', width: 150 });
+    setShowAddColumnModal(false);
+    toast.success('Yeni sütun eklendi');
+  };
+
+  const removeColumn = (columnId: string) => {
+    // Varsayılan sütunları silmeyi engelle
+    const defaultColumns = ['customer', 'contact', 'plan', 'actions'];
+    if (defaultColumns.includes(columnId)) {
+      toast.error('Bu sütun silinemez');
+      return;
+    }
+
+    setColumns(prev => prev.filter(col => col.id !== columnId));
+    toast.success('Sütun silindi');
+  };
+
+  // Kanban için plan türlerini tanımla
+  const planTypes = [
+    { id: 'free', label: 'Free', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400' },
+    { id: 'basic', label: 'Basic', color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' },
+    { id: 'pro', label: 'Pro', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' },
+    { id: 'professional', label: 'Professional', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' },
+    { id: 'premium', label: 'Premium', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400' }
+  ];
+
+  // Kanban için müşterileri plan türlerine göre grupla
+  const customersByPlan = planTypes.map(plan => ({
+    ...plan,
+    customers: filteredCustomers.filter(customer => customer.plan === plan.id)
+  }));
+
+  // Kanban için müşteri planını güncelle
+  const updateCustomerPlan = async (customerId: string, newPlan: string) => {
+    try {
+      // Burada Supabase update işlemi yapılacak
+      console.log('Updating customer plan:', customerId, 'to', newPlan);
+      toast.success('Müşteri planı güncellendi');
+      fetchCustomers();
+    } catch (error) {
+      toast.error('Plan güncellenirken hata oluştu');
+    }
+  };
+
+  // Sıralı sütunları al
+  const sortedColumns = columns
+    .filter(col => col.visible)
+    .sort((a, b) => a.order - b.order);
+
+  // Kanban bileşenleri
+  const DraggableCustomerCard: React.FC<{ customer: any; planId: string }> = ({ customer, planId }) => {
+    const [{ isDragging }, drag] = useDrag({
+      type: 'customer',
+      item: { type: 'customer', id: customer.id, planId },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drag}
+        className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700 cursor-move transition-all hover:shadow-md ${
+          isDragging ? 'opacity-50 rotate-2' : ''
+        }`}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center">
+            {customer.avatar_url ? (
+              <img
+                src={customer.avatar_url}
+                alt={customer.name}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+                {customer.name.charAt(0)}
+              </div>
+            )}
+            <div className="ml-3">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                {customer.name}
+              </h4>
+              {customer.company && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {customer.company}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => handleViewCustomer(customer.id)}
+              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+              title="Görüntüle"
+            >
+              <Eye className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => handleEditCustomer(customer.id)}
+              className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
+              title="Düzenle"
+            >
+              <Edit className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+            <Mail className="w-3 h-3 mr-1" />
+            {customer.email}
+          </div>
+          {customer.phone && (
+            <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+              <Phone className="w-3 h-3 mr-1" />
+              {customer.phone}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Star className="w-3 h-3 text-yellow-400 fill-current mr-1" />
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {customer.satisfaction_score}/5
+              </span>
+            </div>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {customer.total_tickets} talep
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const DroppablePlanColumn: React.FC<{ plan: any }> = ({ plan }) => {
+    const [{ isOver }, drop] = useDrop({
+      accept: 'customer',
+      drop: (item: any) => {
+        if (item.planId !== plan.id) {
+          updateCustomerPlan(item.id, plan.id);
+        }
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drop}
+        className={`flex-1 min-w-0 bg-gray-50 dark:bg-gray-700 rounded-lg p-4 transition-colors ${
+          isOver ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 border-dashed' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center">
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${plan.color}`}>
+              {plan.label}
+            </span>
+            <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+              ({plan.customers.length})
+            </span>
+          </div>
+        </div>
+        
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {plan.customers.map((customer: any) => (
+            <DraggableCustomerCard
+              key={customer.id}
+              customer={customer}
+              planId={plan.id}
+            />
+          ))}
+          {plan.customers.length === 0 && (
+            <div className="text-center py-8 text-gray-400 dark:text-gray-500">
+              <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Bu planda müşteri yok</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Sürükle-bırak bileşenleri
+  const DraggableColumn: React.FC<{ column: ColumnConfig; index: number }> = ({ column, index }) => {
+    const [{ isDragging }, drag] = useDrag({
+      type: 'column',
+      item: { type: 'column', id: column.id, index },
+      collect: (monitor) => ({
+        isDragging: monitor.isDragging(),
+      }),
+    });
+
+    const isDefaultColumn = ['customer', 'contact', 'plan', 'actions'].includes(column.id);
+
+    return (
+      <div
+        ref={drag}
+        className={`flex items-center gap-2 p-2 rounded-lg border cursor-move transition-all ${
+          isDragging 
+            ? 'bg-blue-100 border-blue-300 opacity-50' 
+            : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+        }`}
+      >
+        <GripVertical className="w-4 h-4 text-gray-400" />
+        <span className="text-sm font-medium text-gray-900 dark:text-white">
+          {column.label}
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => toggleColumnVisibility(column.id)}
+            className={`px-2 py-1 text-xs rounded ${
+              column.visible 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' 
+                : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+            }`}
+          >
+            {column.visible ? 'Görünür' : 'Gizli'}
+          </button>
+          {!isDefaultColumn && (
+            <button
+              onClick={() => removeColumn(column.id)}
+              className="p-1 text-red-400 hover:text-red-600 dark:hover:text-red-400"
+              title="Sütunu Sil"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const DroppableColumnList: React.FC = () => {
+    const [{ isOver }, drop] = useDrop({
+      accept: 'column',
+      drop: (item: DraggedItem) => {
+        if (item.index !== undefined) {
+          const dragIndex = item.index;
+          const hoverIndex = columns.findIndex(col => col.id === item.id);
+          if (dragIndex !== hoverIndex) {
+            moveColumn(dragIndex, hoverIndex);
+          }
+        }
+      },
+      collect: (monitor) => ({
+        isOver: monitor.isOver(),
+      }),
+    });
+
+    return (
+      <div
+        ref={drop}
+        className={`space-y-2 p-4 rounded-lg border-2 border-dashed transition-colors ${
+          isOver 
+            ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+            : 'border-gray-200 dark:border-gray-600'
+        }`}
+      >
+        {columns
+          .sort((a, b) => a.order - b.order)
+          .map((column, index) => (
+            <DraggableColumn key={column.id} column={column} index={index} />
+          ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
+    <DndProvider backend={HTML5Backend}>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -254,6 +627,41 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Görünüm Seçenekleri */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+              title="Liste Görünümü"
+            >
+              <List className="w-4 h-4 mr-2" />
+              Liste
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`inline-flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+              title="Kanban Görünümü"
+            >
+              <Grid3X3 className="w-4 h-4 mr-2" />
+              Kanban
+            </button>
+          </div>
+          <button
+            onClick={() => setShowColumnSettings(true)}
+            className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            title="Sütun Ayarları"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Sütunlar
+          </button>
           <button
             onClick={() => exportData('customers')}
             className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -343,240 +751,261 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
         </div>
       )}
 
-      {/* Customers Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-              <tr>
-                <th className="w-12 px-6 py-3 text-left">
-                  <button
-                    onClick={handleSelectAll}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    {selectedItems.length === filteredCustomers.length && filteredCustomers.length > 0 ? (
-                      <CheckSquare className="w-4 h-4" />
-                    ) : (
-                      <Square className="w-4 h-4" />
-                    )}
-                  </button>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Müşteri
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  İletişim
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Plan
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Para Birimi
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Memnuniyet
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Talepler
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Ödeme Durumu
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Son Ödeme
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Kayıt Tarihi
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  İşlemler
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {loading ? (
+      {/* Customers View */}
+      {viewMode === 'list' ? (
+        /* Liste Görünümü */
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <span className="ml-3 text-gray-500 dark:text-gray-400">Yükleniyor...</span>
-                    </div>
-                  </td>
+                  <th className="w-12 px-6 py-3 text-left">
+                    <button
+                      onClick={handleSelectAll}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {selectedItems.length === filteredCustomers.length && filteredCustomers.length > 0 ? (
+                        <CheckSquare className="w-4 h-4" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </th>
+                  {sortedColumns.map((column) => (
+                    <th 
+                      key={column.id}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                    >
+                      {column.label}
+                    </th>
+                  ))}
                 </tr>
-              ) : filteredCustomers.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                    {searchTerm || planFilter !== 'all' ? 'Arama kriterlerine uygun müşteri bulunamadı' : 'Henüz müşteri bulunmuyor'}
-                  </td>
-                </tr>
-              ) : (
-                filteredCustomers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => handleSelectItem(customer.id)}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                      >
-                        {selectedItems.includes(customer.id) ? (
-                          <CheckSquare className="w-4 h-4" />
-                        ) : (
-                          <Square className="w-4 h-4" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        {customer.avatar_url ? (
-                          <img
-                            src={customer.avatar_url}
-                            alt={customer.name}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                            {customer.name.charAt(0)}
-                          </div>
-                        )}
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {customer.name}
-                          </div>
-                          {customer.company && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {customer.company}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center text-sm text-gray-900 dark:text-white">
-                          <Mail className="w-4 h-4 mr-2 text-gray-400" />
-                          {customer.email}
-                        </div>
-                        {customer.phone && (
-                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                            <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                            {customer.phone}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPlanColor(customer.plan)}`}>
-                        {getPlanText(customer.plan)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {getCurrencySymbol(customer.currency as any)}
-                        </span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                          {customer.currency}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <Star className="w-4 h-4 text-yellow-400 fill-current mr-1" />
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {customer.satisfaction_score}/5
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {customer.total_tickets}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        {Math.random() > 0.3 ? (
-                          <>
-                            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                            <span className="text-sm text-green-600 dark:text-green-400 font-medium">Güncel</span>
-                          </>
-                        ) : (
-                          <>
-                            <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-                            <span className="text-sm text-red-600 dark:text-red-400 font-medium">Gecikmiş</span>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {format(new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), 'dd MMM yyyy', { locale: tr })}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {format(new Date(customer.created_at), 'dd MMM yyyy', { locale: tr })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleViewCustomer(customer.id)}
-                          className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-                          title="Görüntüle"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEditCustomer(customer.id)}
-                          className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
-                          title="Düzenle"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteCustomer(customer.id)}
-                          className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                          title="Sil"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <div className="relative">
-                          <button
-                            onClick={() => setShowActionMenu(showActionMenu === customer.id ? null : customer.id)}
-                            className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                            title="Daha fazla"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                          {showActionMenu === customer.id && (
-                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                              <div className="py-1">
-                                <button
-                                  onClick={() => handleCreateTicket(customer.id)}
-                                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                >
-                                  Yeni Talep Oluştur
-                                </button>
-                                <button
-                                  onClick={() => handleSendEmail(customer.id)}
-                                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                >
-                                  E-posta Gönder
-                                </button>
-                                <button
-                                  onClick={() => handleViewTickets(customer.id)}
-                                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                >
-                                  Taleplerini Görüntüle
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {loading ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center">
+                      <div className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span className="ml-3 text-gray-500 dark:text-gray-400">Yükleniyor...</span>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : filteredCustomers.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                      {searchTerm || planFilter !== 'all' ? 'Arama kriterlerine uygun müşteri bulunamadı' : 'Henüz müşteri bulunmuyor'}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleSelectItem(customer.id)}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          {selectedItems.includes(customer.id) ? (
+                            <CheckSquare className="w-4 h-4" />
+                          ) : (
+                            <Square className="w-4 h-4" />
+                          )}
+                        </button>
+                      </td>
+                      {sortedColumns.map((column) => (
+                        <td key={column.id} className="px-6 py-4">
+                          {column.id === 'customer' && (
+                            <div className="flex items-center">
+                              {customer.avatar_url ? (
+                                <img
+                                  src={customer.avatar_url}
+                                  alt={customer.name}
+                                  className="w-10 h-10 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                                  {customer.name.charAt(0)}
+                                </div>
+                              )}
+                              <div className="ml-3">
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {customer.name}
+                                </div>
+                                {customer.company && (
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                                    {customer.company}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {column.id === 'contact' && (
+                            <div className="space-y-1">
+                              <div className="flex items-center text-sm text-gray-900 dark:text-white">
+                                <Mail className="w-4 h-4 mr-2 text-gray-400" />
+                                {customer.email}
+                              </div>
+                              {customer.phone && (
+                                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                                  <Phone className="w-4 h-4 mr-2 text-gray-400" />
+                                  {customer.phone}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {column.id === 'plan' && (
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPlanColor(customer.plan)}`}>
+                              {getPlanText(customer.plan)}
+                            </span>
+                          )}
+                          {column.id === 'currency' && (
+                            <div className="flex items-center">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {getCurrencySymbol(customer.currency as any)}
+                              </span>
+                              <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+                                {customer.currency}
+                              </span>
+                            </div>
+                          )}
+                          {column.id === 'satisfaction' && (
+                            <div className="flex items-center">
+                              <Star className="w-4 h-4 text-yellow-400 fill-current mr-1" />
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {customer.satisfaction_score}/5
+                              </span>
+                            </div>
+                          )}
+                          {column.id === 'tickets' && (
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              {customer.total_tickets}
+                            </span>
+                          )}
+                          {column.id === 'payment_status' && (
+                            <div className="flex items-center">
+                              {Math.random() > 0.3 ? (
+                                <>
+                                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">Güncel</span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                                  <span className="text-sm text-red-600 dark:text-red-400 font-medium">Gecikmiş</span>
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {column.id === 'last_payment' && (
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {format(new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000), 'dd MMM yyyy', { locale: tr })}
+                            </span>
+                          )}
+                          {column.id === 'created_at' && (
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {format(new Date(customer.created_at), 'dd MMM yyyy', { locale: tr })}
+                            </span>
+                          )}
+                        {column.id === 'actions' && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleViewCustomer(customer.id)}
+                              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                              title="Görüntüle"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleEditCustomer(customer.id)}
+                              className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
+                              title="Düzenle"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCustomer(customer.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                              title="Sil"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <div className="relative">
+                              <button
+                                onClick={() => setShowActionMenu(showActionMenu === customer.id ? null : customer.id)}
+                                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                title="Daha fazla"
+                              >
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
+                              {showActionMenu === customer.id && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+                                  <div className="py-1">
+                                    <button
+                                      onClick={handleCreateTicket}
+                                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                      Yeni Talep Oluştur
+                                    </button>
+                                    <button
+                                      onClick={handleSendEmail}
+                                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                      E-posta Gönder
+                                    </button>
+                                    <button
+                                      onClick={handleViewTickets}
+                                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                      Taleplerini Görüntüle
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {/* Özel sütunlar için genel render */}
+                        {!['customer', 'contact', 'plan', 'currency', 'satisfaction', 'tickets', 'payment_status', 'last_payment', 'created_at', 'actions'].includes(column.id) && (
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {/* Özel sütun verisi burada gösterilecek */}
+                            {/* Müşteri objesinde bu sütun ID'si ile eşleşen veri varsa göster */}
+                            {(customer as any)[column.id] || '-'}
+                          </div>
+                        )}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Kanban Görünümü */
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-3 text-gray-500 dark:text-gray-400">Yükleniyor...</span>
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <User className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium mb-2">
+                {searchTerm || planFilter !== 'all' ? 'Arama kriterlerine uygun müşteri bulunamadı' : 'Henüz müşteri bulunmuyor'}
+              </p>
+              <p className="text-sm">Yeni müşteri eklemek için yukarıdaki "Yeni Müşteri" butonunu kullanın.</p>
+            </div>
+          ) : (
+            <div className="flex gap-6 overflow-x-auto pb-4">
+              {customersByPlan.map((plan) => (
+                <DroppablePlanColumn key={plan.id} plan={plan} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
@@ -956,6 +1385,150 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
         </div>
       )}
 
+      {/* Sütun Ayarları Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Sütun Ayarları</h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowAddColumnModal(true)}
+                  className="inline-flex items-center px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Sütun Ekle
+                </button>
+                <button
+                  onClick={() => setShowColumnSettings(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Sütunları sürükleyerek sıralayın ve görünürlüklerini ayarlayın
+                </h4>
+                <DndProvider backend={HTML5Backend}>
+                  <DroppableColumnList />
+                </DndProvider>
+              </div>
+              
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-600">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={resetColumns}
+                    className="inline-flex items-center px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Varsayılana Sıfırla
+                  </button>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {columns.filter(col => col.visible).length} sütun görünür
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowColumnSettings(false)}
+                    className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={saveColumnSettings}
+                    className="inline-flex items-center px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Kaydet
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Sütun Ekleme Modal */}
+      {showAddColumnModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Sütun Ekle</h3>
+              <button
+                onClick={() => setShowAddColumnModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun Adı *
+                </label>
+                <input
+                  type="text"
+                  value={newColumnData.label}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, label: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Örn: Şehir, Ülke, Notlar..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun ID *
+                </label>
+                <input
+                  type="text"
+                  value={newColumnData.id}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, id: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Örn: city, country, notes..."
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Boşluklar otomatik olarak alt çizgi (_) ile değiştirilir
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Sütun Genişliği (px)
+                </label>
+                <input
+                  type="number"
+                  value={newColumnData.width}
+                  onChange={(e) => setNewColumnData({ ...newColumnData, width: parseInt(e.target.value) || 150 })}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="100"
+                  max="400"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setShowAddColumnModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={addNewColumn}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Sütun Ekle
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Akıllı İpuçları Sistemi */}
       <RealTimeHintSystem
         currentPage="customers"
@@ -1009,7 +1582,8 @@ const CustomersPage: React.FC<CustomersPageProps> = ({ onViewCustomer, onViewTic
           }
         }}
       />
-    </div>
+      </div>
+    </DndProvider>
   );
 };
 

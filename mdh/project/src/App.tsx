@@ -78,6 +78,7 @@ import EmployeeChat from './components/EmployeeChat';
 import EmployeeProfile from './components/EmployeeProfile';
 import EmployeePortal from './components/EmployeePortal';
 import ManagerPortal from './components/ManagerPortal';
+import CustomizableDashboards from './components/common/CustomizableDashboards';
 
 
 // BulkOperations artık TicketList içinde entegre edildi
@@ -106,6 +107,11 @@ function App() {
   const [isRefreshingSupport, setIsRefreshingSupport] = useState(false);
   const [lastBillingUpdate, setLastBillingUpdate] = useState(new Date());
   const [lastSupportUpdate, setLastSupportUpdate] = useState(new Date());
+  
+  // Dashboard state
+  const [dashboardLayout, setDashboardLayout] = useState('default');
+  const [dashboardWidgets, setDashboardWidgets] = useState([]);
+  const [isDashboardEditMode, setIsDashboardEditMode] = useState(false);
 
   const {
     notifications,

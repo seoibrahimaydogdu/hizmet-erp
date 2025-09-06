@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { supabase } from '../../lib/supabase';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Eye, 
   Edit, 
   Trash2, 
@@ -15,18 +15,16 @@ import {
   Award,
   TrendingUp,
   Clock,
-  MapPin,
   Users,
   UserPlus,
   UserCheck,
-  UserX,
   Briefcase,
-  GraduationCap,
-  Target,
-  Star,
-  CheckCircle,
-  AlertCircle,
-  XCircle
+  XCircle,
+  List,
+  Grid3X3,
+  Settings,
+  X,
+  Save
 } from 'lucide-react';
 
 interface Employee {
@@ -76,6 +74,14 @@ interface EmployeeFormData {
   salary?: number;
 }
 
+interface Column {
+  id: string;
+  name: string;
+  color: string;
+  status: string;
+  order: number;
+}
+
 interface EmployeeManagementProps {
   employees: Employee[];
   onEmployeeUpdate: () => void;
@@ -90,6 +96,18 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
   const [showEditEmployee, setShowEditEmployee] = useState(false);
   const [showViewEmployee, setShowViewEmployee] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  
+  // Görünüm ve sütun yönetimi state'leri
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [columns, setColumns] = useState<Column[]>([
+    { id: 'active', name: 'Aktif Çalışanlar', color: 'bg-green-500', status: 'active', order: 1 },
+    { id: 'on_leave', name: 'İzindeki Çalışanlar', color: 'bg-yellow-500', status: 'on_leave', order: 2 },
+    { id: 'inactive', name: 'Pasif Çalışanlar', color: 'bg-red-500', status: 'inactive', order: 3 }
+  ]);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [editingColumn, setEditingColumn] = useState<Column | null>(null);
+  const [newColumnName, setNewColumnName] = useState('');
+  const [newColumnColor, setNewColumnColor] = useState('bg-blue-500');
   const [employeeFormData, setEmployeeFormData] = useState<EmployeeFormData>({
     name: '',
     email: '',
@@ -107,6 +125,10 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
 
   const departments = ['Teknoloji', 'Müşteri Hizmetleri', 'Satış', 'İK', 'Finans', 'Pazarlama', 'Operasyon'];
   const statuses = ['active', 'inactive', 'on_leave'];
+  const columnColors = [
+    'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 
+    'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-gray-500'
+  ];
 
   const getStatusLabel = (status: string) => {
     switch (status) {
@@ -239,6 +261,87 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
     setShowEditEmployee(true);
   };
 
+  // Sütun yönetimi fonksiyonları
+  const handleAddColumn = () => {
+    if (!newColumnName.trim()) return;
+    
+    const newColumn: Column = {
+      id: `column_${Date.now()}`,
+      name: newColumnName,
+      color: newColumnColor,
+      status: 'custom',
+      order: columns.length + 1
+    };
+    
+    setColumns([...columns, newColumn]);
+    setNewColumnName('');
+    setNewColumnColor('bg-blue-500');
+  };
+
+  const handleEditColumn = (column: Column) => {
+    setEditingColumn(column);
+    setNewColumnName(column.name);
+    setNewColumnColor(column.color);
+  };
+
+  const handleUpdateColumn = () => {
+    if (!editingColumn || !newColumnName.trim()) return;
+    
+    setColumns(columns.map(col => 
+      col.id === editingColumn.id 
+        ? { ...col, name: newColumnName, color: newColumnColor }
+        : col
+    ));
+    setEditingColumn(null);
+    setNewColumnName('');
+    setNewColumnColor('bg-blue-500');
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    if (columns.length <= 1) return; // En az bir sütun kalmalı
+    setColumns(columns.filter(col => col.id !== columnId));
+  };
+
+
+  const getEmployeesByStatus = (status: string) => {
+    return filteredEmployees.filter(emp => emp.status === status);
+  };
+
+  // Sürükle-bırak işlemi
+  const handleDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    // Geçerli bir hedef yoksa işlemi iptal et
+    if (!destination) return;
+
+    // Aynı sütun ve aynı pozisyondaysa işlemi iptal et
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    // Hedef sütunun status'unu bul
+    const targetColumn = columns.find(col => col.id === destination.droppableId);
+    if (!targetColumn) return;
+
+    try {
+      // Çalışanın durumunu güncelle
+      const { error } = await supabase
+        .from('employees')
+        .update({ status: targetColumn.status })
+        .eq('id', draggableId);
+
+      if (error) throw error;
+      
+      // Verileri yenile
+      onEmployeeUpdate();
+    } catch (error) {
+      console.error('Çalışan durumu güncellenirken hata:', error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* İstatistikler */}
@@ -341,6 +444,44 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
             </select>
           </div>
           
+          {/* Görünüm Geçiş Butonları */}
+          <div className="flex gap-2">
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-2 rounded-md flex items-center space-x-2 text-sm font-medium transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <List className="w-4 h-4" />
+                <span>Liste</span>
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`px-3 py-2 rounded-md flex items-center space-x-2 text-sm font-medium transition-colors ${
+                  viewMode === 'kanban'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <Grid3X3 className="w-4 h-4" />
+                <span>Kanban</span>
+              </button>
+            </div>
+            
+            {viewMode === 'kanban' && (
+              <button
+                onClick={() => setShowColumnSettings(true)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
+                title="Sütun Ayarları"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
           <button
             onClick={() => setShowAddEmployee(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
@@ -351,120 +492,279 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
         </div>
       </div>
 
-      {/* Çalışanlar Listesi */}
+      {/* Çalışanlar Görünümü */}
       <div className="w-full">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-              <Users className="w-5 h-5 mr-2" />
-              Çalışanlar
-            </h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Çalışan
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Pozisyon
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Departman
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Performans
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Durum
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-40">
-                    İşlemler
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredEmployees.map((employee) => (
-                  <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
-                            {employee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {employee.name}
-                          </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {employee.email}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">{employee.position}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {employee.title} • {calculateExperienceYears(employee.hire_date)} yıl deneyim
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">{employee.department}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
-                          <div 
-                            className={`h-2 rounded-full ${
-                              employee.performance_score >= 80 ? 'bg-green-500' :
-                              employee.performance_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${employee.performance_score}%` }}
-                          />
-                        </div>
-                        <span className="text-sm text-gray-900 dark:text-white">
-                          {employee.performance_score}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employee.status)}`}>
-                        {getStatusLabel(employee.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-3">
-                        <button
-                          onClick={() => handleViewEmployee(employee)}
-                          className="p-2 text-blue-600 hover:text-white hover:bg-blue-600 dark:text-blue-400 dark:hover:text-white dark:hover:bg-blue-600 rounded-lg transition-colors border border-blue-200 dark:border-blue-700"
-                          title="Görüntüle"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleEditEmployeeClick(employee)}
-                          className="p-2 text-green-600 hover:text-white hover:bg-green-600 dark:text-green-400 dark:hover:text-white dark:hover:bg-green-600 rounded-lg transition-colors border border-green-200 dark:border-green-700"
-                          title="Düzenle"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEmployee(employee.id)}
-                          className="p-2 text-red-600 hover:text-white hover:bg-red-600 dark:text-red-400 dark:hover:text-white dark:hover:bg-red-600 rounded-lg transition-colors border border-red-200 dark:border-red-700"
-                          title="Sil"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
+        {viewMode === 'list' ? (
+          // Liste Görünümü
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <Users className="w-5 h-5 mr-2" />
+                Çalışanlar ({filteredEmployees.length})
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Çalışan
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Pozisyon
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Departman
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Performans
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Durum
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-40">
+                      İşlemler
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredEmployees.map((employee) => (
+                    <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10">
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                              {employee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            </div>
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {employee.name}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {employee.email}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">{employee.position}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {employee.title} • {calculateExperienceYears(employee.hire_date)} yıl deneyim
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">{employee.department}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
+                            <div 
+                              className={`h-2 rounded-full ${
+                                employee.performance_score >= 80 ? 'bg-green-500' :
+                                employee.performance_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${employee.performance_score}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-900 dark:text-white">
+                            {employee.performance_score}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(employee.status)}`}>
+                          {getStatusLabel(employee.status)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => handleViewEmployee(employee)}
+                            className="p-2 text-blue-600 hover:text-white hover:bg-blue-600 dark:text-blue-400 dark:hover:text-white dark:hover:bg-blue-600 rounded-lg transition-colors border border-blue-200 dark:border-blue-700"
+                            title="Görüntüle"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleEditEmployeeClick(employee)}
+                            className="p-2 text-green-600 hover:text-white hover:bg-green-600 dark:text-green-400 dark:hover:text-white dark:hover:bg-green-600 rounded-lg transition-colors border border-green-200 dark:border-green-700"
+                            title="Düzenle"
+                          >
+                            <Edit className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEmployee(employee.id)}
+                            className="p-2 text-red-600 hover:text-white hover:bg-red-600 dark:text-red-400 dark:hover:text-white dark:hover:bg-red-600 rounded-lg transition-colors border border-red-200 dark:border-red-700"
+                            title="Sil"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        ) : (
+          // Kanban Görünümü
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                <Grid3X3 className="w-5 h-5 mr-2" />
+                Kanban Görünümü ({filteredEmployees.length} çalışan)
+              </h3>
+            </div>
+            <div className="p-6">
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <div className="flex gap-6 overflow-x-auto pb-4">
+                  {columns.sort((a, b) => a.order - b.order).map((column) => {
+                    const columnEmployees = getEmployeesByStatus(column.status);
+                    return (
+                      <div key={column.id} className="flex-shrink-0 w-80">
+                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center space-x-2">
+                              <div className={`w-3 h-3 rounded-full ${column.color}`}></div>
+                              <h4 className="font-semibold text-gray-900 dark:text-white">
+                                {column.name}
+                              </h4>
+                              <span className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full text-xs">
+                                {columnEmployees.length}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <button
+                                onClick={() => handleEditColumn(column)}
+                                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                title="Sütun Düzenle"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              {columns.length > 1 && (
+                                <button
+                                  onClick={() => handleDeleteColumn(column.id)}
+                                  className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                  title="Sütun Sil"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <Droppable droppableId={column.id}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                                className={`space-y-3 min-h-[200px] transition-colors ${
+                                  snapshot.isDraggingOver ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                }`}
+                              >
+                                {columnEmployees.map((employee, index) => (
+                                  <Draggable
+                                    key={employee.id}
+                                    draggableId={employee.id}
+                                    index={index}
+                                  >
+                                    {(provided, snapshot) => (
+                                      <div
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        {...provided.dragHandleProps}
+                                        className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow cursor-pointer ${
+                                          snapshot.isDragging ? 'shadow-lg rotate-2' : ''
+                                        }`}
+                                        onClick={() => handleViewEmployee(employee)}
+                                      >
+                                        <div className="flex items-start justify-between mb-3">
+                                          <div className="flex items-center space-x-3">
+                                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                                              {employee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                            </div>
+                                            <div>
+                                              <h5 className="font-medium text-gray-900 dark:text-white text-sm">
+                                                {employee.name}
+                                              </h5>
+                                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {employee.position}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <div className="flex space-x-1">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleEditEmployeeClick(employee);
+                                              }}
+                                              className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400"
+                                              title="Düzenle"
+                                            >
+                                              <Edit className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteEmployee(employee.id);
+                                              }}
+                                              className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                                              title="Sil"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="text-gray-500 dark:text-gray-400">Performans</span>
+                                            <span className="font-medium text-gray-900 dark:text-white">
+                                              {employee.performance_score}%
+                                            </span>
+                                          </div>
+                                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                            <div 
+                                              className={`h-1.5 rounded-full ${
+                                                employee.performance_score >= 80 ? 'bg-green-500' :
+                                                employee.performance_score >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                              }`}
+                                              style={{ width: `${employee.performance_score}%` }}
+                                            />
+                                          </div>
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="text-gray-500 dark:text-gray-400">{employee.department}</span>
+                                            <span className="text-gray-500 dark:text-gray-400">
+                                              {calculateExperienceYears(employee.hire_date)} yıl
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </Draggable>
+                                ))}
+                                {provided.placeholder}
+                                
+                                {columnEmployees.length === 0 && (
+                                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                                    <p className="text-sm">Bu sütunda çalışan bulunmuyor</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </Droppable>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </DragDropContext>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Çalışan Ekleme Modal */}
@@ -749,6 +1049,167 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
               >
                 <Edit className="w-4 h-4" />
                 <span>Düzenle</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sütun Ayarları Modal */}
+      {showColumnSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                <Settings className="w-5 h-5 mr-2" />
+                Sütun Ayarları
+              </h3>
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Mevcut Sütunlar */}
+            <div className="space-y-4 mb-6">
+              <h4 className="font-medium text-gray-900 dark:text-white">Mevcut Sütunlar</h4>
+              <div className="space-y-2">
+                {columns.sort((a, b) => a.order - b.order).map((column) => (
+                  <div key={column.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-4 h-4 rounded-full ${column.color}`}></div>
+                      <span className="font-medium text-gray-900 dark:text-white">{column.name}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        ({getEmployeesByStatus(column.status).length} çalışan)
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleEditColumn(column)}
+                        className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                        title="Düzenle"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      {columns.length > 1 && (
+                        <button
+                          onClick={() => handleDeleteColumn(column.id)}
+                          className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          title="Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Yeni Sütun Ekleme */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900 dark:text-white">Yeni Sütun Ekle</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Sütun Adı
+                  </label>
+                  <input
+                    type="text"
+                    value={newColumnName}
+                    onChange={(e) => setNewColumnName(e.target.value)}
+                    placeholder="Sütun adını girin"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Renk
+                  </label>
+                  <div className="flex space-x-2">
+                    {columnColors.map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => setNewColumnColor(color)}
+                        className={`w-8 h-8 rounded-full ${color} border-2 ${
+                          newColumnColor === color ? 'border-gray-900 dark:border-white' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={handleAddColumn}
+                disabled={!newColumnName.trim()}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Sütun Ekle</span>
+              </button>
+            </div>
+
+            {/* Sütun Düzenleme */}
+            {editingColumn && (
+              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-4">Sütun Düzenle</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Sütun Adı
+                    </label>
+                    <input
+                      type="text"
+                      value={newColumnName}
+                      onChange={(e) => setNewColumnName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Renk
+                    </label>
+                    <div className="flex space-x-2">
+                      {columnColors.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => setNewColumnColor(color)}
+                          className={`w-8 h-8 rounded-full ${color} border-2 ${
+                            newColumnColor === color ? 'border-gray-900 dark:border-white' : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-3 mt-4">
+                  <button
+                    onClick={() => setEditingColumn(null)}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={handleUpdateColumn}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Güncelle</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowColumnSettings(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                Kapat
               </button>
             </div>
           </div>
