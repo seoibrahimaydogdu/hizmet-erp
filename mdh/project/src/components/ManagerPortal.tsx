@@ -59,6 +59,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useSupabase } from '../hooks/useSupabase';
 import { supabase } from '../lib/supabase';
 import FeedbackButton from './common/FeedbackButton';
+import EmployeeChat from './EmployeeChat';
+import DirectMessage from './DirectMessage';
 // import Modal from './common/Modal'; // Kendi Modal bileşenimizi kullanıyoruz
 
 interface ManagerPortalProps {
@@ -72,6 +74,18 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
   const [expandedSections, setExpandedSections] = useState<{[key: string]: boolean}>({});
   const [selectedTimeRange, setSelectedTimeRange] = useState('7d');
   const [selectedManagerType, setSelectedManagerType] = useState('team-manager');
+  
+  // Takım İletişimi için state'ler
+  const [showEmployeeChat, setShowEmployeeChat] = useState(false);
+  const [showDirectMessage, setShowDirectMessage] = useState(false);
+  const [selectedChatType, setSelectedChatType] = useState<'team' | 'direct'>('team');
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [newGroup, setNewGroup] = useState({
+    name: '',
+    description: '',
+    type: 'public',
+    members: [] as string[]
+  });
   const [realTimeData] = useState({
     activeUsers: 12,
     currentTickets: 8,
@@ -205,8 +219,9 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
       menuItems: [
         { id: 'dashboard', label: 'Dashboard', icon: Home },
         { id: 'team-management', label: 'Takım Yönetimi', icon: Users },
+        { id: 'team-communication', label: 'Takım İletişimi', icon: MessageSquare },
         { id: 'analytics', label: 'Analitik & Raporlar', icon: BarChart3 },
-        { id: 'tasks', label: 'Görev Yönetimi', icon: Target },
+        { id: 'tasks', label: 'Görevler', icon: Target },
         { id: 'customers', label: 'Müşteri Analizi', icon: Eye },
         { id: 'action-history', label: 'İşlem Geçmişi', icon: History },
         { id: 'settings', label: 'Ayarlar', icon: Settings }
@@ -219,7 +234,9 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
       menuItems: [
         { id: 'dashboard', label: 'Dashboard', icon: Home },
         { id: 'team-management', label: 'Takım Yönetimi', icon: Users },
+        { id: 'team-communication', label: 'Takım İletişimi', icon: MessageSquare },
         { id: 'analytics', label: 'Analitik & Raporlar', icon: BarChart3 },
+        { id: 'tasks', label: 'Görevler', icon: Target },
         { id: 'budget', label: 'Bütçe Yönetimi', icon: DollarSign },
         { id: 'regional-analysis', label: 'Bölge Analizi', icon: MapPin },
         { id: 'performance', label: 'Performans Takibi', icon: TrendingUp },
@@ -235,6 +252,8 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
       menuItems: [
         { id: 'dashboard', label: 'Dashboard', icon: Home },
         { id: 'customer-insights', label: 'Müşteri İçgörüleri', icon: Eye },
+        { id: 'team-communication', label: 'Takım İletişimi', icon: MessageSquare },
+        { id: 'tasks', label: 'Görevler', icon: Target },
         { id: 'budget', label: 'Pazarlama Bütçesi', icon: DollarSign },
         { id: 'brand-management', label: 'Marka Yönetimi', icon: Shield },
         { id: 'action-history', label: 'İşlem Geçmişi', icon: History },
@@ -244,6 +263,27 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
   };
 
   const currentManagerType = managerTypes[selectedManagerType as keyof typeof managerTypes];
+
+  // Grup oluşturma fonksiyonu
+  const handleCreateGroup = () => {
+    if (!newGroup.name.trim()) {
+      alert('Grup adı gereklidir');
+      return;
+    }
+    
+    console.log('Yeni grup oluşturuluyor:', newGroup);
+    // Burada gerçek grup oluşturma işlemi yapılacak
+    
+    // Formu temizle
+    setNewGroup({
+      name: '',
+      description: '',
+      type: 'public',
+      members: []
+    });
+    setShowNewGroupModal(false);
+    alert('Grup başarıyla oluşturuldu!');
+  };
 
   // Modal yönetim fonksiyonları
   const openModal = (modalName: string, data: any = null) => {
@@ -377,6 +417,10 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
     children: React.ReactNode;
     size?: 'small' | 'medium' | 'large';
   }) => {
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+    const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+
     if (!isOpen) return null;
 
     const sizeClasses: Record<string, string> = {
@@ -397,24 +441,73 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
       onClose();
     };
 
+    const handleMouseDown = (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget || (e.target as HTMLElement).closest('button')) {
+        return;
+      }
+      setIsDragging(true);
+      setDragOffset({
+        x: e.clientX - modalPosition.x,
+        y: e.clientY - modalPosition.y
+      });
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      
+      // Ekran sınırları içinde tut
+      const maxX = window.innerWidth - 400; // Modal genişliği
+      const maxY = window.innerHeight - 200; // Modal yüksekliği
+      
+      setModalPosition({
+        x: Math.max(0, Math.min(newX, maxX)),
+        y: Math.max(0, Math.min(newY, maxY))
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    React.useEffect(() => {
+      if (isDragging) {
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        return () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        };
+      }
+    }, [isDragging, dragOffset]);
+
     return (
       <div 
-        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4"
         onClick={handleBackdropClick}
       >
-        <div className={`bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full ${sizeClasses[size as keyof typeof sizeClasses]} max-h-[90vh] overflow-hidden`}>
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div 
+          className={`bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full ${sizeClasses[size as keyof typeof sizeClasses]} max-h-[95vh] flex flex-col cursor-move select-none`}
+          style={{
+            transform: `translate(${modalPosition.x}px, ${modalPosition.y}px)`,
+            transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+          }}
+          onMouseDown={handleMouseDown}
+        >
+          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
             <button
               onClick={handleCloseClick}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 z-10 cursor-pointer"
               type="button"
               aria-label="Modalı kapat"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="p-6 overflow-y-auto flex-1 min-h-0">
             {children}
           </div>
         </div>
@@ -2293,6 +2386,83 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
     </div>
   );
 
+  const renderTeamCommunication = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Takım İletişimi</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Takım sohbeti, bilgi paylaşımı ve işbirliği araçları
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <FeedbackButton 
+            pageSource="ManagerPortal-team-communication" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
+          <button 
+            onClick={() => setShowNewGroupModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Yeni Grup</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Hızlı Erişim Kartları */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <button 
+          onClick={() => {
+            setSelectedChatType('team');
+            setShowEmployeeChat(true);
+          }}
+          className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow text-left"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-1.5 bg-blue-100 dark:bg-blue-900 rounded-lg">
+              <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 px-2 py-1 rounded-full">
+              0
+            </span>
+          </div>
+          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Takım Sohbeti</h3>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Takım üyeleriyle mesajlaş</p>
+        </button>
+
+        <button 
+          onClick={() => setShowDirectMessage(true)}
+          className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow text-left"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-1.5 bg-green-100 dark:bg-green-900 rounded-lg">
+              <User className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Direkt Mesaj</h3>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Birebir mesajlaşma</p>
+        </button>
+
+        <button className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow text-left">
+          <div className="flex items-center justify-between mb-2">
+            <div className="p-1.5 bg-orange-100 dark:bg-orange-900 rounded-lg">
+              <Phone className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Video Görüşme</h3>
+          <p className="text-xs text-gray-600 dark:text-gray-400">Toplantı başlat</p>
+        </button>
+      </div>
+
+      {/* TeamChat Bileşeni - Tam Ekran */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-[800px]">
+        <EmployeeChat />
+      </div>
+    </div>
+  );
+
   const renderActionHistory = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -2385,6 +2555,8 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
         return renderDashboard();
       case 'team-management':
         return renderTeamManagement();
+      case 'team-communication':
+        return renderTeamCommunication();
       case 'analytics':
         return renderAnalytics();
       case 'budget':
@@ -3545,6 +3717,148 @@ const ManagerPortal: React.FC<ManagerPortalProps> = ({ onBackToAdmin }) => {
           </div>
         )}
       </Modal>
+
+      {/* EmployeeChat Modal */}
+      {showEmployeeChat && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {selectedChatType === 'team' ? 'Takım Sohbeti' : 'Direkt Mesajlaşma'}
+              </h2>
+              <button
+                onClick={() => setShowEmployeeChat(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <EmployeeChat />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direkt Mesaj Modal */}
+      {showDirectMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full h-full max-w-6xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                  <User className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Direkt Mesajlaşma</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Birebir mesajlaşma</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDirectMessage(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <DirectMessage currentUser={managerData} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Grup Modal */}
+      {showNewGroupModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Yeni Grup Oluştur</h2>
+              <button
+                onClick={() => setShowNewGroupModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Grup Adı */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Grup Adı *
+                </label>
+                <input
+                  type="text"
+                  value={newGroup.name}
+                  onChange={(e) => setNewGroup(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder="Grup adını girin"
+                />
+              </div>
+
+              {/* Grup Açıklaması */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Açıklama
+                </label>
+                <textarea
+                  value={newGroup.description}
+                  onChange={(e) => setNewGroup(prev => ({ ...prev, description: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder="Grup açıklamasını girin"
+                />
+              </div>
+
+              {/* Grup Tipi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Grup Tipi
+                </label>
+                <select
+                  value={newGroup.type}
+                  onChange={(e) => setNewGroup(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="public">Herkese Açık</option>
+                  <option value="private">Özel</option>
+                  <option value="restricted">Kısıtlı</option>
+                </select>
+              </div>
+
+              {/* Üye Seçimi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Üyeler
+                </label>
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Grup oluşturulduktan sonra üyeler eklenebilir
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowNewGroupModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleCreateGroup}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Grup Oluştur</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

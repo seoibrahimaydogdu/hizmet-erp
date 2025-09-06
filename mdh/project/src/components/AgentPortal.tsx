@@ -28,6 +28,7 @@ import {
   Building,
   Download,
   RefreshCw,
+  Zap,
   TrendingDown,
   Activity,
   X,
@@ -41,6 +42,7 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import EmployeeChat from './EmployeeChat';
 import FeedbackButton from './common/FeedbackButton';
+import DirectMessage from './DirectMessage';
 
 interface AgentPortalProps {
   onBackToAdmin?: () => void;
@@ -54,6 +56,64 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
   // EmployeeChat modal için state
   const [showEmployeeChat, setShowEmployeeChat] = useState(false);
   const [selectedChatType, setSelectedChatType] = useState<'team' | 'direct'>('team');
+  const [showDirectMessage, setShowDirectMessage] = useState(false);
+
+  // Görev yönetimi için state'ler
+  const [tasks, setTasks] = useState([
+    {
+      id: 1,
+      title: 'Müşteri geri bildirimlerini analiz et',
+      description: 'Son 30 günlük geri bildirimleri incele',
+      category: 'Raporlama',
+      status: 'Devam Ediyor',
+      priority: 'Yüksek',
+      dueDate: '2024-01-15',
+      createdAt: '2024-01-10',
+      completedAt: null
+    },
+    {
+      id: 2,
+      title: 'Yeni müşteri eğitim materyali hazırla',
+      description: 'Onboarding süreci için dokümantasyon',
+      category: 'Eğitim',
+      status: 'Beklemede',
+      priority: 'Orta',
+      dueDate: '2024-01-20',
+      createdAt: '2024-01-12',
+      completedAt: null
+    },
+    {
+      id: 3,
+      title: 'VIP müşteri takip raporu',
+      description: 'Aylık VIP müşteri analizi',
+      category: 'Müşteri Takibi',
+      status: 'Tamamlandı',
+      priority: 'Yüksek',
+      dueDate: '2024-01-10',
+      createdAt: '2024-01-05',
+      completedAt: '2024-01-10'
+    }
+  ]);
+  
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    category: 'Raporlama',
+    priority: 'Orta',
+    dueDate: ''
+  });
+
+  // Yeni Grup için state'ler
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [newGroup, setNewGroup] = useState({
+    name: '',
+    description: '',
+    type: 'public',
+    members: [] as string[]
+  });
 
   const {
     tickets,
@@ -121,6 +181,95 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
 
   // Temsilciye atanmış talepler
   const agentTickets = tickets.filter(ticket => ticket.agent_id === agentData?.id);
+
+  // Görev yönetimi fonksiyonları
+  const handleCreateTask = () => {
+    if (!newTask.title.trim()) {
+      toast.error('Görev başlığı gereklidir');
+      return;
+    }
+    
+    const task = {
+      id: Math.max(...tasks.map(t => t.id)) + 1,
+      title: newTask.title,
+      description: newTask.description,
+      category: newTask.category,
+      status: 'Beklemede',
+      priority: newTask.priority,
+      dueDate: newTask.dueDate,
+      createdAt: new Date().toISOString().split('T')[0],
+      completedAt: null
+    };
+    
+    setTasks([...tasks, task]);
+    setNewTask({ title: '', description: '', category: 'Raporlama', priority: 'Orta', dueDate: '' });
+    setShowNewTaskModal(false);
+    toast.success('Görev başarıyla oluşturuldu');
+  };
+
+  // Grup oluşturma fonksiyonu
+  const handleCreateGroup = () => {
+    if (!newGroup.name.trim()) {
+      toast.error('Grup adı gereklidir');
+      return;
+    }
+    
+    console.log('Yeni grup oluşturuluyor:', newGroup);
+    // Burada gerçek grup oluşturma işlemi yapılacak
+    
+    // Formu temizle
+    setNewGroup({
+      name: '',
+      description: '',
+      type: 'public',
+      members: []
+    });
+    setShowNewGroupModal(false);
+    toast.success('Grup başarıyla oluşturuldu!');
+  };
+
+  const handleUpdateTask = (taskId: number, updates: any) => {
+    setTasks(tasks.map(task => 
+      task.id === taskId ? { ...task, ...updates } : task
+    ));
+    toast.success('Görev güncellendi');
+  };
+
+  const handleDeleteTask = (taskId: number) => {
+    setTasks(tasks.filter(task => task.id !== taskId));
+    toast.success('Görev silindi');
+  };
+
+  const handleCompleteTask = (taskId: number) => {
+    handleUpdateTask(taskId, { 
+      status: 'Tamamlandı', 
+      completedAt: new Date().toISOString().split('T')[0] 
+    });
+  };
+
+  const handleStartTask = (taskId: number) => {
+    handleUpdateTask(taskId, { status: 'Devam Ediyor' });
+  };
+
+  const handleArchiveTask = (taskId: number) => {
+    handleDeleteTask(taskId);
+  };
+
+  const openEditTask = (task: any) => {
+    setSelectedTask(task);
+    setShowEditTaskModal(true);
+  };
+
+  // Görev istatistikleri
+  const taskStats = {
+    total: tasks.length,
+    active: tasks.filter(t => t.status === 'Devam Ediyor').length,
+    completed: tasks.filter(t => t.status === 'Tamamlandı').length,
+    overdue: tasks.filter(t => {
+      if (t.status === 'Tamamlandı') return false;
+      return new Date(t.dueDate) < new Date();
+    }).length
+  };
 
   // Temsilci istatistikleri
   const agentStats = {
@@ -223,6 +372,50 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
 
+      {/* Hızlı Aksiyonlar */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
+            <Zap className="w-5 h-5 text-white" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Hızlı Aksiyonlar</h3>
+        </div>
+        
+        <div className="space-y-3">
+          <button 
+            onClick={() => setCurrentPage('tasks')}
+            className="w-full flex items-center space-x-3 p-3 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 rounded-lg transition-colors group"
+          >
+            <Target className="w-5 h-5 text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-orange-900 dark:text-orange-100">Görevler</span>
+          </button>
+          
+          <button 
+            onClick={() => setCurrentPage('tickets')}
+            className="w-full flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors group"
+          >
+            <Plus className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Yeni Talep</span>
+          </button>
+          
+          <button 
+            onClick={() => setCurrentPage('live-chat')}
+            className="w-full flex items-center space-x-3 p-3 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors group"
+          >
+            <MessageSquare className="w-5 h-5 text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-green-900 dark:text-green-100">Canlı Sohbet</span>
+          </button>
+          
+          <button 
+            onClick={() => setCurrentPage('performance')}
+            className="w-full flex items-center space-x-3 p-3 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors group"
+          >
+            <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-purple-900 dark:text-purple-100">Performans</span>
+          </button>
+        </div>
+      </div>
+
       {/* Son Talepler */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -278,6 +471,270 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderTasks = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Görev Yönetimi</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Kişisel görevlerinizi organize edin ve takip edin
+          </p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <FeedbackButton 
+            pageSource="AgentPortal-tasks" 
+            position="inline"
+            className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          />
+          <button 
+            onClick={() => setShowNewTaskModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            <Target className="w-4 h-4" />
+            <span>Yeni Görev</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Görev İstatistikleri */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Görev</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{taskStats.total}</p>
+            </div>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-full">
+              <Target className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Aktif Görevler</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{taskStats.active}</p>
+            </div>
+            <div className="p-3 bg-orange-100 dark:bg-orange-900 rounded-full">
+              <Clock className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Tamamlanan</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{taskStats.completed}</p>
+            </div>
+            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
+              <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Geciken</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{taskStats.overdue}</p>
+            </div>
+            <div className="p-3 bg-red-100 dark:bg-red-900 rounded-full">
+              <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Görev Filtreleri */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+        <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Görev Filtreleri</h3>
+        <div className="flex flex-wrap gap-4">
+          <select className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option>Tüm Durumlar</option>
+            <option>Beklemede</option>
+            <option>Devam Ediyor</option>
+            <option>Tamamlandı</option>
+            <option>İptal Edildi</option>
+          </select>
+          <select className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option>Tüm Öncelikler</option>
+            <option>Yüksek</option>
+            <option>Orta</option>
+            <option>Düşük</option>
+          </select>
+          <select className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+            <option>Tüm Kategoriler</option>
+            <option>Müşteri Takibi</option>
+            <option>Raporlama</option>
+            <option>Eğitim</option>
+            <option>Proje</option>
+          </select>
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Görev ara..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Görev Listesi */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Görev Listesi</h3>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Toplam:</span>
+              <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded-full text-sm font-medium">
+                {taskStats.total}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Görev
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Kategori
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Durum
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Öncelik
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Bitiş Tarihi
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  İşlemler
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {tasks.map((task) => {
+                const getCategoryColor = (category: string) => {
+                  switch (category) {
+                    case 'Raporlama': return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
+                    case 'Eğitim': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                    case 'Müşteri Takibi': return 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300';
+                    case 'Proje': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300';
+                    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                  }
+                };
+
+                const getStatusColor = (status: string) => {
+                  switch (status) {
+                    case 'Beklemede': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                    case 'Devam Ediyor': return 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300';
+                    case 'Tamamlandı': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                    case 'İptal Edildi': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                  }
+                };
+
+                const getPriorityColor = (priority: string) => {
+                  switch (priority) {
+                    case 'Yüksek': return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+                    case 'Orta': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
+                    case 'Düşük': return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+                    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+                  }
+                };
+
+                const formatDate = (dateString: string) => {
+                  return new Date(dateString).toLocaleDateString('tr-TR', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  });
+                };
+
+                return (
+                  <tr key={task.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {task.title}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {task.description}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${getCategoryColor(task.category)}`}>
+                        {task.category}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(task.status)}`}>
+                        {task.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(task.priority)}`}>
+                        {task.priority}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {formatDate(task.dueDate)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => openEditTask(task)}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                        >
+                          Düzenle
+                        </button>
+                        {task.status === 'Beklemede' && (
+                          <button 
+                            onClick={() => handleStartTask(task.id)}
+                            className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
+                          >
+                            Başlat
+                          </button>
+                        )}
+                        {task.status === 'Devam Ediyor' && (
+                          <button 
+                            onClick={() => handleCompleteTask(task.id)}
+                            className="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300"
+                          >
+                            Tamamla
+                          </button>
+                        )}
+                        {task.status === 'Tamamlandı' && (
+                          <button 
+                            onClick={() => handleArchiveTask(task.id)}
+                            className="text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                          >
+                            Arşivle
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1174,16 +1631,9 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
             className="inline-flex items-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
           />
           <button 
-            onClick={() => {
-              setSelectedChatType('team');
-              setShowEmployeeChat(true);
-            }}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            onClick={() => setShowNewGroupModal(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            <MessageSquare className="w-4 h-4" />
-            <span>Gelişmiş Sohbet</span>
-          </button>
-          <button className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
             <Plus className="w-4 h-4" />
             <span>Yeni Grup</span>
           </button>
@@ -1212,10 +1662,7 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
                 </button>
 
               <button 
-          onClick={() => {
-            setSelectedChatType('direct');
-            setShowEmployeeChat(true);
-          }}
+          onClick={() => setShowDirectMessage(true)}
           className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow text-left"
         >
           <div className="flex items-center justify-between mb-2">
@@ -1227,15 +1674,6 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
           <p className="text-xs text-gray-600 dark:text-gray-400">Birebir mesajlaşma</p>
             </button>
 
-        <button className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow text-left">
-          <div className="flex items-center justify-between mb-2">
-            <div className="p-1.5 bg-purple-100 dark:bg-purple-900 rounded-lg">
-              <Phone className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">Sesli Arama</h3>
-          <p className="text-xs text-gray-600 dark:text-gray-400">Takım üyelerini ara</p>
-          </button>
 
         <button className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow text-left">
           <div className="flex items-center justify-between mb-2">
@@ -1248,7 +1686,7 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
               </button>
         </div>
 
-      {/* EmployeeChat Bileşeni - Tam Ekran */}
+      {/* TeamChat Bileşeni - Tam Ekran */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 h-[800px]">
         <EmployeeChat />
             </div>
@@ -1336,6 +1774,8 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
     switch (currentPage) {
       case 'dashboard':
         return renderDashboard();
+      case 'tasks':
+        return renderTasks();
       case 'tickets':
         return renderTickets();
       case 'live-chat':
@@ -1385,6 +1825,18 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
             >
               <Home className="w-5 h-5" />
               <span>Dashboard</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentPage('tasks')}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                currentPage === 'tasks'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Target className="w-5 h-5" />
+              <span>Görevler</span>
             </button>
 
             <button
@@ -1486,6 +1938,7 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
               <div>
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {currentPage === 'dashboard' && 'Dashboard'}
+                  {currentPage === 'tasks' && 'Görevler'}
                   {currentPage === 'tickets' && 'Taleplerim'}
                   {currentPage === 'live-chat' && 'Canlı Destek'}
                   {currentPage === 'crm' && 'Müşteri Yönetimi'}
@@ -1535,6 +1988,245 @@ const AgentPortal: React.FC<AgentPortalProps> = ({ onBackToAdmin }) => {
             </div>
             <div className="flex-1 overflow-hidden">
               <EmployeeChat />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direkt Mesaj Modal */}
+      {showDirectMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full h-full max-w-6xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                  <User className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Direkt Mesajlaşma</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Birebir mesajlaşma</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDirectMessage(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <DirectMessage currentUser={agentData} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Görev Modal */}
+      {showNewTaskModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                  <Target className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Yeni Görev Oluştur</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Yeni bir görev ekleyin</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowNewTaskModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Görev Başlığı */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Görev Başlığı *
+                </label>
+                <input
+                  type="text"
+                  value={newTask.title}
+                  onChange={(e) => setNewTask({...newTask, title: e.target.value})}
+                  placeholder="Görev başlığını girin..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Görev Açıklaması */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Açıklama
+                </label>
+                <textarea
+                  value={newTask.description}
+                  onChange={(e) => setNewTask({...newTask, description: e.target.value})}
+                  placeholder="Görev açıklamasını girin..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              {/* Kategori ve Öncelik */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Kategori
+                  </label>
+                  <select
+                    value={newTask.category}
+                    onChange={(e) => setNewTask({...newTask, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  >
+                    <option value="Raporlama">Raporlama</option>
+                    <option value="Eğitim">Eğitim</option>
+                    <option value="Müşteri Takibi">Müşteri Takibi</option>
+                    <option value="Proje">Proje</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Öncelik
+                  </label>
+                  <select
+                    value={newTask.priority}
+                    onChange={(e) => setNewTask({...newTask, priority: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  >
+                    <option value="Düşük">Düşük</option>
+                    <option value="Orta">Orta</option>
+                    <option value="Yüksek">Yüksek</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bitiş Tarihi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Bitiş Tarihi
+                </label>
+                <input
+                  type="date"
+                  value={newTask.dueDate}
+                  onChange={(e) => setNewTask({...newTask, dueDate: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Butonlar */}
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setShowNewTaskModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleCreateTask}
+                  className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <Target className="w-4 h-4" />
+                  <span>Görev Oluştur</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Yeni Grup Modal */}
+      {showNewGroupModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Yeni Grup Oluştur</h2>
+              <button
+                onClick={() => setShowNewGroupModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Grup Adı */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Grup Adı *
+                </label>
+                <input
+                  type="text"
+                  value={newGroup.name}
+                  onChange={(e) => setNewGroup(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder="Grup adını girin"
+                />
+              </div>
+
+              {/* Grup Açıklaması */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Açıklama
+                </label>
+                <textarea
+                  value={newGroup.description}
+                  onChange={(e) => setNewGroup(prev => ({ ...prev, description: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder="Grup açıklamasını girin"
+                />
+              </div>
+
+              {/* Grup Tipi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Grup Tipi
+                </label>
+                <select
+                  value={newGroup.type}
+                  onChange={(e) => setNewGroup(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="public">Herkese Açık</option>
+                  <option value="private">Özel</option>
+                  <option value="restricted">Kısıtlı</option>
+                </select>
+              </div>
+
+              {/* Üye Seçimi */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Üyeler
+                </label>
+                <div className="space-y-2">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Grup oluşturulduktan sonra üyeler eklenebilir
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setShowNewGroupModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                İptal
+              </button>
+              <button
+                onClick={handleCreateGroup}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Grup Oluştur</span>
+              </button>
             </div>
           </div>
         </div>

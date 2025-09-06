@@ -1,22 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-  User, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  LogIn, 
   MessageSquare, 
   CreditCard, 
   Settings, 
   Home,
   Bell,
-  Search,
   Plus,
-  Calendar,
   Clock,
-  CheckCircle,
   AlertCircle,
-  XCircle,
   DollarSign,
   Palette,
   Sun,
@@ -35,14 +26,20 @@ import CustomerTickets from './CustomerTickets';
 import CustomerPayments from './CustomerPayments';
 import CustomerProfile from './CustomerProfile';
 import CustomerLiveChat from './CustomerLiveChat';
-import SmartPriorityWizard from './SmartPriorityWizard';
 import SmartPaymentReminder from './SmartPaymentReminder';
 import ChatHistory from './ChatHistory';
 import CustomerPromotions from './CustomerPromotions';
-import RichTextEditor from './RichTextEditor';
 import InteractiveTutorial from './InteractiveTutorial';
 import FeedbackButton from './common/FeedbackButton';
 import FeedbackRequestsPage from './FeedbackRequestsPage';
+import { useLoading } from '../hooks/useLoading';
+import { 
+  DashboardCardSkeleton 
+} from './common/SkeletonLoader';
+import { 
+  SkeletonLoading
+} from './common/ProgressIndicator';
+import ErrorBoundary from './common/ErrorBoundary';
 
 interface CustomerPortalProps {
   onBackToAdmin?: () => void;
@@ -53,6 +50,9 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
   const { updateUserProfile } = useUser();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [customerData, setCustomerData] = useState<any>(null);
+  
+  // Yeni loading sistemi
+  const { executeWithLoading, isLoading } = useLoading();
 
   const {
     customers,
@@ -64,12 +64,21 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
   } = useSupabase();
 
   useEffect(() => {
-    // Müşteri verilerini yükle
-    fetchCustomers();
-    fetchTickets();
-    fetchPayments();
+    // Müşteri verilerini yükle - sadece bir kez
+    if (!customerData) {
+      executeWithLoading('dashboard', async () => {
+        await Promise.all([
+          fetchCustomers(),
+          fetchTickets(),
+          fetchPayments()
+        ]);
+      }, {
+        successMessage: 'Dashboard verileri başarıyla yüklendi',
+        errorMessage: 'Dashboard verileri yüklenirken hata oluştu'
+      });
+    }
     
-    // Gerçek zamanlı güncellemeler için subscription
+    // Gerçek zamanlı güncellemeler için subscription - sadece bir kez
     const ticketsSubscription = supabase
       .channel('customer_tickets_changes')
       .on('postgres_changes', 
@@ -80,8 +89,10 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
         }, 
         (payload: any) => {
           console.log('Customer ticket change detected:', payload);
-          // Talepleri yeniden yükle
-          fetchTickets();
+          // Talepleri yeniden yükle - debounce ile
+          setTimeout(() => {
+            fetchTickets();
+          }, 1000);
         }
       )
       .subscribe();
@@ -143,7 +154,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
       supabase.removeChannel(ticketsSubscription);
       window.removeEventListener('navigateToLiveChat', handleNavigateToLiveChat);
     };
-  }, [customers]);
+  }, []); // Sadece component mount olduğunda çalışsın
 
   // Bildirim tercihlerini localStorage'da sakla
   const [notificationPreferences, setNotificationPreferences] = useState(() => {
@@ -276,40 +287,50 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
       supabase.removeChannel(notificationsSubscription);
       supabase.removeChannel(ticketsSubscription);
     };
-  }, [customerData?.id, tickets, notificationPreferences]);
+  }, [customerData?.id]); // Sadece customerData.id değiştiğinde çalışsın
 
   // Otomatik giriş sistemi - Manuel giriş kaldırıldı
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     setCustomerData(null);
     toast.success('Başarıyla çıkış yapıldı');
-  };
+  }, []);
 
-  // Müşteriye ait talepleri filtrele (ödeme hatırlatmaları hariç)
-  const customerTickets = tickets.filter(t => 
-    t.customer_id === customerData?.id && t.category !== 'payment_reminder'
+  // Navigation handlers - useCallback ile optimize edildi
+  const handlePageChange = useCallback((page: string) => {
+    setCurrentPage(page);
+  }, []);
+
+  // Müşteriye ait talepleri filtrele (ödeme hatırlatmaları hariç) - useMemo ile optimize edildi
+  const customerTickets = useMemo(() => 
+    tickets.filter(t => 
+      t.customer_id === customerData?.id && t.category !== 'payment_reminder'
+    ), [tickets, customerData?.id]
   );
   
-  // Müşteriye ait ödemeleri filtrele
-  const customerPayments = payments.filter(p => p.customer_id === customerData?.id);
+  // Müşteriye ait ödemeleri filtrele - useMemo ile optimize edildi
+  const customerPayments = useMemo(() => 
+    payments.filter(p => p.customer_id === customerData?.id), 
+    [payments, customerData?.id]
+  );
 
-  // Talep istatistikleri (ödeme hatırlatmaları hariç)
-  const ticketStats = {
+  // Talep istatistikleri (ödeme hatırlatmaları hariç) - useMemo ile optimize edildi
+  const ticketStats = useMemo(() => ({
     total: customerTickets.filter(t => t.category !== 'payment_reminder').length,
     open: customerTickets.filter(t => t.status === 'open' && t.category !== 'payment_reminder').length,
     inProgress: customerTickets.filter(t => t.status === 'in_progress' && t.category !== 'payment_reminder').length,
     resolved: customerTickets.filter(t => t.status === 'resolved' && t.category !== 'payment_reminder').length
-  };
+  }), [customerTickets]);
 
-  // Ödeme istatistikleri
-  const paymentStats = {
+  // Ödeme istatistikleri - useMemo ile optimize edildi
+  const paymentStats = useMemo(() => ({
     total: customerPayments.length,
     pending: customerPayments.filter(p => p.status === 'pending').length,
     completed: customerPayments.filter(p => p.status === 'completed').length,
     totalAmount: customerPayments
       .filter(p => p.status === 'completed')
       .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
-  };
+  }), [customerPayments]);
 
   if (!customerData) {
     return (
@@ -330,24 +351,43 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
           {/* Loading Screen */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Müşteri Portalına Giriş Yapılıyor
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                Ayşe Demir hesabına otomatik giriş yapılıyor...
-              </p>
-              
-              {/* Progress Bar */}
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-6">
-                <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
-              </div>
-              
-              <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                <p>• Müşteri verileri yükleniyor...</p>
-                <p>• Oturum açılıyor...</p>
-                <p>• Dashboard hazırlanıyor...</p>
-              </div>
+              <SkeletonLoading
+                isLoading={true}
+                skeleton={
+                  <div className="space-y-4">
+                    <div className="animate-pulse">
+                      <div className="h-16 w-16 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-4"></div>
+                      <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto mb-2"></div>
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto mb-6"></div>
+                      <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded w-full mb-6"></div>
+                      <div className="space-y-2">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mx-auto"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto"></div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
+                      </div>
+                    </div>
+                  </div>
+                }
+              >
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Müşteri Portalına Giriş Yapılıyor
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Ayşe Demir hesabına otomatik giriş yapılıyor...
+                </p>
+                
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-6">
+                  <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
+                </div>
+                
+                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                  <p>• Müşteri verileri yükleniyor...</p>
+                  <p>• Oturum açılıyor...</p>
+                  <p>• Dashboard hazırlanıyor...</p>
+                </div>
+              </SkeletonLoading>
             </div>
 
             {/* Admin'e Dön */}
@@ -367,7 +407,8 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
 
   // Ana Portal İçeriği
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <ErrorBoundary level="page">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -406,7 +447,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
       <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-3">
         <div className="flex items-center space-x-6">
           <button
-            onClick={() => setCurrentPage('dashboard')}
+            onClick={() => handlePageChange('dashboard')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               currentPage === 'dashboard'
                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
@@ -418,7 +459,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
           </button>
           
           <button
-            onClick={() => setCurrentPage('tickets')}
+            onClick={() => handlePageChange('tickets')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               currentPage === 'tickets'
                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
@@ -435,7 +476,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
           </button>
           
           <button
-            onClick={() => setCurrentPage('payments')}
+            onClick={() => handlePageChange('payments')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               currentPage === 'payments'
                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
@@ -452,7 +493,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
           </button>
           
           <button
-            onClick={() => setCurrentPage('profile')}
+            onClick={() => handlePageChange('profile')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               currentPage === 'profile'
                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
@@ -464,7 +505,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
           </button>
           
           <button
-            onClick={() => setCurrentPage('live-chat')}
+            onClick={() => handlePageChange('live-chat')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               currentPage === 'live-chat'
                 ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
@@ -479,7 +520,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
           </button>
           
           <button
-            onClick={() => setCurrentPage('promotions')}
+            onClick={() => handlePageChange('promotions')}
             className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               currentPage === 'promotions'
                 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
@@ -510,6 +551,16 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
             </div>
 
             {/* Stats Grid */}
+            <SkeletonLoading
+              isLoading={isLoading('dashboard')}
+              skeleton={
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <DashboardCardSkeleton key={i} />
+                  ))}
+                </div>
+              }
+            >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Talep İstatistikleri */}
               <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -583,6 +634,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
                 </p>
               </div>
             </div>
+            </SkeletonLoading>
 
             {/* Recent Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -593,7 +645,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
                     Son Talepler
                   </h3>
                   <button
-                    onClick={() => setCurrentPage('tickets')}
+                    onClick={() => handlePageChange('tickets')}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     Tümünü Gör
@@ -611,7 +663,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
                       <div
                         key={ticket.id}
                         className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer transition-colors"
-                        onClick={() => setCurrentPage('tickets')}
+                        onClick={() => handlePageChange('tickets')}
                       >
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -647,7 +699,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
                     Son Ödemeler
                   </h3>
                   <button
-                    onClick={() => setCurrentPage('payments')}
+                    onClick={() => handlePageChange('payments')}
                     className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                   >
                     Tümünü Gör
@@ -1027,6 +1079,7 @@ const CustomerPortal: React.FC<CustomerPortalProps> = ({ onBackToAdmin }) => {
              {/* Interactive Tutorial System */}
        <InteractiveTutorial />
      </div>
+    </ErrorBoundary>
    );
  };
  

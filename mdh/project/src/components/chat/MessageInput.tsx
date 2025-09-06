@@ -536,10 +536,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
   return (
     <div className="space-y-3">
       {/* Formatting Toolbar */}
-      <div className="flex items-center space-x-2 px-3 py-2 rounded-lg">
+      <div className="flex items-center space-x-1 px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Dosya ekle"
         >
           <Paperclip className="w-4 h-4" />
@@ -548,20 +548,20 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <div className="relative emoji-picker-container">
           <button 
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+            className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             title="Emoji"
           >
             <Smile className="w-4 h-4" />
           </button>
           
           {showEmojiPicker && (
-            <div className="absolute bottom-full left-0 mb-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-50 min-w-max">
+            <div className="absolute bottom-full left-0 mb-2 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-50 min-w-max">
               <div className="grid grid-cols-5 gap-1">
                 {emojis.map((emoji, index) => (
                   <button
                     key={index}
                     onClick={() => addEmoji(emoji)}
-                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-lg transition-colors"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-lg transition-colors"
                   >
                     {emoji}
                   </button>
@@ -575,7 +575,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {!isVoiceRecording && !audioBlob && (
           <button
             onClick={startVoiceRecording}
-            className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+            className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             title="Sesli Mesaj Kaydet"
           >
             <Mic className="w-4 h-4" />
@@ -586,10 +586,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
         {isVoiceRecording && (
           <button
             onClick={stopVoiceRecording}
-            className="p-2 text-white bg-red-500 hover:bg-red-600 rounded-full animate-pulse shadow-lg"
+            className="p-2 text-white bg-red-500 hover:bg-red-600 rounded-lg animate-pulse shadow-lg transition-colors"
             title="Kaydı Durdur"
           >
-            <Square className="w-5 h-5" />
+            <Square className="w-4 h-4" />
           </button>
         )}
 
@@ -598,21 +598,21 @@ const MessageInput: React.FC<MessageInputProps> = ({
           <div className="flex items-center space-x-1">
             <button
               onClick={playVoiceMessage}
-              className="p-1 text-green-500 hover:text-green-700 rounded hover:bg-green-100"
+              className="p-2 text-green-500 hover:text-green-700 rounded-lg hover:bg-green-100 transition-colors"
               title="Sesli Mesajı Dinle"
             >
               <Play className="w-4 h-4" />
             </button>
             <button
               onClick={sendVoiceMessage}
-              className="p-1 text-blue-500 hover:text-blue-700 rounded hover:bg-blue-100"
+              className="p-2 text-blue-500 hover:text-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
               title="Sesli Mesajı Gönder"
             >
               <Send className="w-4 h-4" />
             </button>
             <button
               onClick={cancelVoiceRecording}
-              className="p-1 text-red-500 hover:text-red-700 rounded hover:bg-red-100"
+              className="p-2 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-100 transition-colors"
               title="Kaydı İptal Et"
             >
               <X className="w-4 h-4" />
@@ -622,7 +622,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('bold')}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600 font-bold"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 font-bold transition-colors"
           title="Kalın"
         >
           B
@@ -630,7 +630,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('italic')}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600 italic"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 italic transition-colors"
           title="İtalik"
         >
           I
@@ -638,7 +638,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('code')}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Kod"
         >
           <Code className="w-4 h-4" />
@@ -646,7 +646,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('quote')}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Alıntı"
         >
           <Quote className="w-4 h-4" />
@@ -654,7 +654,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('list')}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Liste"
         >
           <List className="w-4 h-4" />
@@ -662,7 +662,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         
         <button 
           onClick={() => formatText('ordered-list')}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Numaralı Liste"
         >
           <ListOrdered className="w-4 h-4" />
@@ -673,7 +673,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openAdvancedSearch'));
           }}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Gelişmiş Arama"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -686,7 +686,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openPollCreator'));
           }}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Anket Oluştur"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -699,7 +699,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openTemplateSelector'));
           }}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Mesaj Şablonları"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -712,7 +712,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('openTaskCreator'));
           }}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Görev Oluştur"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -725,7 +725,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
           onClick={() => {
             window.dispatchEvent(new CustomEvent('generateSummary'));
           }}
-          className="p-1 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+          className="p-2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
           title="Akıllı Özetleme"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -744,7 +744,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       />
 
       {/* Message Input */}
-      <div className="flex items-end space-x-2">
+      <div className="flex items-end space-x-3">
         <div className="flex-1 relative">
           <div
             ref={contentEditableRef}
@@ -775,7 +775,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
               }
             }}
             data-placeholder="Mesajınızı yazın... (@ ile mention yapabilirsiniz)"
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[44px] max-h-[120px] overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:pointer-events-none"
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 min-h-[44px] max-h-[120px] overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 dark:empty:before:text-gray-500 empty:before:pointer-events-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             style={{ minHeight: '44px', maxHeight: '120px' }}
           />
           
@@ -819,7 +819,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                       <div className="text-sm font-medium text-gray-900">{user.name}</div>
                       <div className="text-xs text-gray-500">{user.role}</div>
                     </div>
-                    <AtSign className="w-4 h-4 text-gray-400" />
+                    <AtSign className="w-4 h-4 text-gray-700 dark:text-gray-300" />
                   </button>
                 ))}
               </div>
@@ -831,7 +831,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
         <button
           onClick={replyingTo ? sendReply : onSendMessage}
           disabled={!newMessage || newMessage.trim() === '' || newMessage === '<div><br></div>'}
-          className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg"
         >
           <Send className="w-5 h-5" />
         </button>
@@ -1064,7 +1064,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 {onRemoveQuickReply && (
                   <button
                     onClick={() => onRemoveQuickReply(reply)}
-                    className="ml-1 p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="ml-1 p-0.5 text-gray-700 dark:text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                     title="Kaldır"
                   >
                     <X className="w-3 h-3" />

@@ -39,6 +39,7 @@ import { useTheme } from './contexts/ThemeContext';
 import { useSettings, SettingsProvider } from './contexts/SettingsContext';
 import { useUser, UserProvider } from './contexts/UserContext';
 import { formatCurrency } from './lib/currency';
+import { AnimationProvider } from './components/common/AnimationSystem';
 
 
 
@@ -58,6 +59,7 @@ import FinancialManagement from './components/FinancialManagement';
 import CustomerPortal from './components/CustomerPortal';
 import AgentPortal from './components/AgentPortal';
 import ErrorBoundary from './components/ErrorBoundary';
+import { setupGlobalErrorHandler } from './components/common/ErrorBoundary';
 import PaymentReminder from './components/PaymentReminder';
 import AgentFeaturesDemo from './components/AgentFeaturesDemo';
 import RealTimeHintSystem from './components/RealTimeHintSystem';
@@ -77,6 +79,11 @@ import ManagerPortal from './components/ManagerPortal';
 
 function App() {
   const { theme, setTheme, isDark } = useTheme();
+  
+  // Global error handler'ı kur
+  useEffect(() => {
+    setupGlobalErrorHandler();
+  }, []);
   const { settings } = useSettings();
   const { userProfile } = useUser();
   const navigate = useNavigate();
@@ -1453,7 +1460,9 @@ const AppWithProviders: React.FC = () => {
     <Router>
       <SettingsProvider>
         <UserProvider>
-          <App />
+          <AnimationProvider>
+            <App />
+          </AnimationProvider>
         </UserProvider>
       </SettingsProvider>
     </Router>

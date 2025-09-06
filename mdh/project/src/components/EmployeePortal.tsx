@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
-  User, 
   Calendar, 
   Clock, 
   DollarSign, 
@@ -12,48 +11,28 @@ import {
   Settings, 
   Bell, 
   Home,
-  Briefcase,
-  CreditCard,
   BarChart3,
   MessageSquare,
   CheckCircle,
-  AlertCircle,
   Star,
   Users,
-  Building,
-  Shield,
-  Calculator,
-  Receipt,
   Target,
-  Brain,
   Save,
-  GraduationCap,
-  Info,
   Plus,
   Edit,
   Eye,
   Download,
   RefreshCw,
-  Send,
   Phone,
-  Video,
-  Paperclip,
-  Smile,
-  Mic,
-  Search,
-  Filter,
-  MoreVertical,
   X,
   AlertTriangle,
   Megaphone,
-  UserPlus,
-  Hash,
-  Lock,
-  Globe
+  Zap
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import EmployeeChat from './EmployeeChat';
+import DirectMessage from './DirectMessage';
 
 interface EmployeePortalProps {
   onBackToAdmin?: () => void;
@@ -278,6 +257,7 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
   const [showChatModal, setShowChatModal] = useState(false);
   const [selectedChatType, setSelectedChatType] = useState<'team' | 'direct' | 'emergency'>('team');
   const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [selectedEmployeeForDirectMessage, setSelectedEmployeeForDirectMessage] = useState<any>(null);
 
   // Takvim ve zaman yönetimi verileri
   const [calendarData, setCalendarData] = useState({
@@ -696,6 +676,42 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
         </div>
       </div>
 
+      {/* Hızlı Aksiyonlar */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
+            <Zap className="w-5 h-5 text-white" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Hızlı Aksiyonlar</h3>
+        </div>
+        
+        <div className="space-y-3">
+          <button 
+            onClick={() => setCurrentPage('communication')}
+            className="w-full flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors group"
+          >
+            <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">İletişim</span>
+          </button>
+          
+          <button 
+            onClick={() => setCurrentPage('performance')}
+            className="w-full flex items-center space-x-3 p-3 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors group"
+          >
+            <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-purple-900 dark:text-purple-100">Performans</span>
+          </button>
+          
+          <button 
+            onClick={() => setCurrentPage('personalization')}
+            className="w-full flex items-center space-x-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 rounded-lg transition-colors group"
+          >
+            <Settings className="w-5 h-5 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
+            <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">Kişiselleştirme</span>
+          </button>
+        </div>
+      </div>
+
       {/* Son Aktiviteler */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="p-3 border-b border-gray-200 dark:border-gray-700">
@@ -1032,10 +1048,29 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
                   <p className="text-xs text-gray-600 dark:text-gray-400">{member.role}</p>
                 </div>
                 <div className="flex space-x-1">
-                  <button className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                  <button 
+                    onClick={() => {
+                      // Takım üyesini DirectMessage için hazırla
+                      const employeeForDM = {
+                        id: member.id,
+                        name: member.name,
+                        email: `${member.name.toLowerCase().replace(' ', '.')}@sirket.com`,
+                        position: member.role,
+                        department: 'IT', // Varsayılan departman
+                        role: 'employee' as const,
+                        avatar: member.avatar,
+                        status: member.status as 'online' | 'away' | 'busy' | 'offline'
+                      };
+                      setSelectedEmployeeForDirectMessage(employeeForDM);
+                      setSelectedChatType('direct');
+                      setShowChatModal(true);
+                    }}
+                    className="p-1.5 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                    title={`${member.name} ile mesajlaş`}
+                  >
                     <MessageSquare className="w-3 h-3" />
                   </button>
-                  <button className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
+                  <button className="p-1.5 text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
                     <Phone className="w-3 h-3" />
                   </button>
                 </div>
@@ -1973,6 +2008,8 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
         return renderDashboard();
       case 'calendar':
         return renderCalendar();
+      case 'tasks':
+        return renderGoalsTasks(); // Görevler için aynı sayfayı kullan
       case 'goals-tasks':
         return renderGoalsTasks();
       case 'analytics':
@@ -2057,6 +2094,18 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
               </button>
               
               <button
+                onClick={() => setCurrentPage('tasks')}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                  currentPage === 'tasks' 
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Target className="w-5 h-5" />
+                <span>Görevler</span>
+              </button>
+              
+              <button
                 onClick={() => setCurrentPage('goals-tasks')}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   currentPage === 'goals-tasks' 
@@ -2064,7 +2113,7 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
                     : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                 }`}
               >
-                <Target className="w-5 h-5" />
+                <Award className="w-5 h-5" />
                 <span>Hedefler</span>
               </button>
               
@@ -2194,43 +2243,23 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
               {selectedChatType === 'team' ? (
                 <EmployeeChat />
               ) : selectedChatType === 'direct' ? (
-                <div className="h-full flex flex-col">
-                  {/* Doğrudan mesajlaşma arayüzü */}
-                  <div className="flex-1 p-4 overflow-y-auto">
-                    <div className="space-y-4">
-                      {communicationData.directMessages.map((message) => (
-                        <div key={message.id} className={`flex ${message.sender === employee.name ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                            message.sender === employee.name 
-                              ? 'bg-blue-600 text-white' 
-                              : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-                          }`}>
-                            <p className="text-sm">{message.content}</p>
-                            <p className={`text-xs mt-1 ${
-                              message.sender === employee.name 
-                                ? 'text-blue-100' 
-                                : 'text-gray-500 dark:text-gray-400'
-                            }`}>
-                              {message.timestamp}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="text"
-                        placeholder="Mesajınızı yazın..."
-                        className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <DirectMessage 
+                  currentUser={{
+                    id: employee.id,
+                    name: employee.name,
+                    email: employee.email,
+                    position: employee.position,
+                    department: employee.department,
+                    role: 'employee' as const,
+                    avatar: employee.avatar,
+                    status: 'online' as const
+                  }}
+                  onClose={() => {
+                    setShowChatModal(false);
+                    setSelectedEmployeeForDirectMessage(null);
+                  }}
+                  initialEmployee={selectedEmployeeForDirectMessage}
+                />
               ) : (
                 <div className="h-full p-4">
                   <div className="space-y-4">
@@ -2262,10 +2291,10 @@ const EmployeePortal: React.FC<EmployeePortalProps> = ({ onBackToAdmin }) => {
                             </div>
                           </div>
                           <div className="flex space-x-2">
-                            <button className="p-2 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
+                            <button className="p-2 text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
                               <Phone className="w-4 h-4" />
                             </button>
-                            <button className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                            <button className="p-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
                               <MessageSquare className="w-4 h-4" />
                             </button>
                           </div>

@@ -285,7 +285,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
     <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Mesajlaşma Sistemi</h1>
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-white">TeamChat</h1>
       </div>
 
       {/* Channels Section */}
@@ -295,7 +295,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
             <h2 className="text-sm font-medium text-gray-900 dark:text-white">Kanallar</h2>
             <button
               onClick={() => setShowChannelStats(!showChannelStats)}
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="p-0.5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
               title="Kanal İstatistikleri"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -306,7 +306,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                        <div className="flex items-center space-x-1">
                              <button
                  onClick={() => setShowArchiveModal(true)}
-                 className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                 className="p-0.5 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                  title="Toplu Arşivleme"
                >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -315,7 +315,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
               </button>
                              <button
                  onClick={() => setShowCreateChannelModal(true)}
-                 className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                 className="p-0.5 text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                  title="Yeni Kanal Oluştur"
                >
                 <Plus className="w-4 h-4" />
@@ -343,14 +343,14 @@ const ChannelList: React.FC<ChannelListProps> = ({
              </button>
                            <button 
                 onClick={showHelp}
-                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" 
+                className="p-0.5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100" 
                 title="Yardım"
               >
                <HelpCircle className="w-4 h-4" />
              </button>
                            <button 
                 onClick={() => setShowFilterMenu(!showFilterMenu)}
-                className={`p-1 ${showFilterMenu ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                className={`p-1 ${showFilterMenu ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100'}`}
                 title="Filtrele"
               >
                <Filter className="w-4 h-4" />
@@ -592,7 +592,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                       e.stopPropagation();
                       setShowChannelMenu(showChannelMenu === channel.id ? null : channel.id);
                     }}
-                    className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="flex-shrink-0 p-0.5 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <MoreHorizontal className="w-4 h-4" />
                   </button>
@@ -674,7 +674,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                <h3 className="text-lg font-semibold text-gray-900">Yardım</h3>
                <button
                  onClick={() => setShowHelpModal(false)}
-                 className="text-gray-400 hover:text-gray-600"
+                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
                >
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -753,7 +753,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                <h3 className="text-lg font-semibold text-gray-900">Yeni Kanal Oluştur</h3>
                <button
                  onClick={() => setShowCreateChannelModal(false)}
-                 className="text-gray-400 hover:text-gray-600"
+                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
                >
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -830,7 +830,7 @@ const ChannelList: React.FC<ChannelListProps> = ({
                <h3 className="text-lg font-semibold text-gray-900">Toplu Arşivleme</h3>
                <button
                  onClick={() => setShowArchiveModal(false)}
-                 className="text-gray-400 hover:text-gray-600"
+                 className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
                >
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

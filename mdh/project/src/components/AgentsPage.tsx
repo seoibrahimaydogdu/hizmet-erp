@@ -11,27 +11,30 @@ import {
   CheckSquare,
   Square,
   User,
-  Mail,
-  Phone,
-  Shield,
-  Star,
-  Calendar,
   Clock,
   CheckCircle,
   AlertCircle,
   ListTodo,
-  TrendingUp,
   AlertTriangle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
+import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import FeedbackButton from './common/FeedbackButton';
+import { useLoading } from '../hooks/useLoading';
+import { 
+  TableSkeleton, 
+  ListSkeleton 
+} from './common/SkeletonLoader';
+import { 
+  SkeletonLoading 
+} from './common/ProgressIndicator';
+import ErrorBoundary from './common/ErrorBoundary';
 
 const AgentsPage: React.FC = () => {
   const {
-    loading,
     agents,
     searchTerm,
     setSearchTerm,
@@ -41,6 +44,9 @@ const AgentsPage: React.FC = () => {
     fetchAgents,
     updateAgentStatus
   } = useSupabase();
+
+  // Yeni loading sistemi
+  const { executeWithLoading, isLoading } = useLoading();
 
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -57,44 +63,41 @@ const AgentsPage: React.FC = () => {
   });
   
   // Görev Listesi için state'ler
-  const [feedbackTasks, setFeedbackTasks] = useState([]);
-  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [feedbackTasks, setFeedbackTasks] = useState<any[]>([]);
   const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'high', 'medium', 'low'
 
   useEffect(() => {
-    fetchAgents();
+    executeWithLoading('agents', fetchAgents, {
+      successMessage: 'Temsilciler başarıyla yüklendi',
+      errorMessage: 'Temsilciler yüklenirken hata oluştu'
+    });
   }, []);
 
   useEffect(() => {
     if (activeTab === 'tasks') {
-      fetchFeedbackTasks();
+      executeWithLoading('tasks', fetchFeedbackTasks, {
+        successMessage: 'Görev listesi başarıyla yüklendi',
+        errorMessage: 'Görev listesi yüklenirken hata oluştu'
+      });
     }
   }, [activeTab]);
 
   // Görev listesi verilerini çek
   const fetchFeedbackTasks = async () => {
-    setLoadingTasks(true);
-    try {
-      // Önce veritabanından geri bildirimleri çek
-      const { data: feedbackData, error } = await supabase
-        .from('feedback_requests')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+    // Önce veritabanından geri bildirimleri çek
+    const { data: feedbackData, error } = await supabase
+      .from('feedback_requests')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Geri bildirimler çekilemedi:', error);
-        return;
-      }
-
-      // Geri bildirimleri analiz et ve görev listesi oluştur
-      const tasks = analyzeFeedbackData(feedbackData || []);
-      setFeedbackTasks(tasks);
-    } catch (error) {
-      console.error('Görev listesi yüklenirken hata:', error);
-    } finally {
-      setLoadingTasks(false);
+    if (error) {
+      throw new Error('Geri bildirimler çekilemedi: ' + error.message);
     }
+
+    // Geri bildirimleri analiz et ve görev listesi oluştur
+    const tasks = analyzeFeedbackData(feedbackData || []);
+    setFeedbackTasks(tasks);
   };
 
   // Geri bildirim verilerini analiz eden fonksiyon
@@ -214,7 +217,7 @@ const AgentsPage: React.FC = () => {
     if (searchTerm.trim()) {
       toast.success(`"${searchTerm}" için ${filteredAgents.length} temsilci bulundu`);
     } else {
-      toast.info('Arama terimi girin');
+      toast.error('Arama terimi girin');
     }
   };
 
@@ -226,7 +229,7 @@ const AgentsPage: React.FC = () => {
     setShowEditModal(agentId);
   };
 
-  const handleDeleteAgent = async (agentId: string) => {
+  const handleDeleteAgent = async (_agentId: string) => {
     if (confirm('Bu temsilciyi silmek istediğinizden emin misiniz?')) {
       try {
         toast.success('Temsilci başarıyla silindi');
@@ -328,7 +331,8 @@ const AgentsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary level="page">
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -529,13 +533,10 @@ const AgentsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {loading ? (
+                  {isLoading('agents') ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center">
-                        <div className="flex items-center justify-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                          <span className="ml-3 text-gray-500 dark:text-gray-400">Yükleniyor...</span>
-                        </div>
+                      <td colSpan={8} className="px-6 py-12">
+                        <TableSkeleton rows={5} columns={8} />
                       </td>
                     </tr>
                   ) : filteredAgents.length === 0 ? (
@@ -743,11 +744,14 @@ const AgentsPage: React.FC = () => {
                   <option value="low">Düşük Öncelik</option>
                 </select>
                 <button
-                  onClick={fetchFeedbackTasks}
-                  disabled={loadingTasks}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                  onClick={() => executeWithLoading('tasks', fetchFeedbackTasks, {
+                    successMessage: 'Görev listesi yenilendi',
+                    errorMessage: 'Görev listesi yenilenirken hata oluştu'
+                  })}
+                  disabled={isLoading('tasks')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {loadingTasks ? 'Yenileniyor...' : 'Yenile'}
+                  {isLoading('tasks') ? 'Yenileniyor...' : 'Yenile'}
                 </button>
               </div>
             </div>
@@ -810,20 +814,19 @@ const AgentsPage: React.FC = () => {
             </div>
 
             {/* Görev Listesi */}
-            {loadingTasks ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-500 dark:text-gray-400">Görev listesi yükleniyor...</p>
-              </div>
-            ) : feedbackTasks.length === 0 ? (
-              <div className="text-center py-12">
-                <ListTodo className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Henüz görev bulunmuyor</h3>
-                <p className="text-gray-500 dark:text-gray-400">
-                  Müşteri geri bildirimleri geldiğinde burada görünecek
-                </p>
-              </div>
-            ) : (
+            <SkeletonLoading
+              isLoading={isLoading('tasks')}
+              skeleton={<ListSkeleton items={5} />}
+            >
+              {feedbackTasks.length === 0 ? (
+                <div className="text-center py-12">
+                  <ListTodo className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Henüz görev bulunmuyor</h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Müşteri geri bildirimleri geldiğinde burada görünecek
+                  </p>
+                </div>
+              ) : (
               <div className="space-y-4">
                 {feedbackTasks
                   .filter(task => taskFilter === 'all' || task.urgency === taskFilter)
@@ -927,7 +930,8 @@ const AgentsPage: React.FC = () => {
                     </div>
                   ))}
               </div>
-            )}
+              )}
+            </SkeletonLoading>
           </div>
         </>
       )}
@@ -1167,7 +1171,8 @@ const AgentsPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 };
 
