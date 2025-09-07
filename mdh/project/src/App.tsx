@@ -73,6 +73,7 @@ import SmartProjectManagement from './components/SmartProjectManagement';
 import HRManagement from './components/HRManagement';
 import TasksManagement from './components/TasksManagement';
 import AdvancedSearch from './components/AdvancedSearch';
+import AdvancedInteractivityDemo from './components/AdvancedInteractivityDemo';
 import WorkflowBuilder from './components/WorkflowBuilder';
 import ApprovalWorkflows from './components/ApprovalWorkflows';
 import EmployeeChat from './components/EmployeeChat';
@@ -859,8 +860,9 @@ function App() {
         return <AgentFeaturesDemo />;
       case 'smart-form-demo':
         return <SmartFormDemo />;
-
-              case 'advanced-search-demo':
+      case 'advanced-interactivity-demo':
+        return <AdvancedInteractivityDemo />;
+      case 'advanced-search-demo':
           return <AdvancedSearch 
             data={{
               tickets: tickets,
@@ -1199,6 +1201,11 @@ function App() {
               {/* Temsilci Özellikleri Demo */}
               <button onClick={() => setCurrentPage('agent-features-demo')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'agent-features-demo' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
                 <Lightbulb className="w-5 h-5" /><span>Temsilci Özellikleri Demo</span>
+              </button>
+              
+              {/* Gelişmiş Grafik Etkileşimi Demo */}
+              <button onClick={() => setCurrentPage('advanced-interactivity-demo')} className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${currentPage === 'advanced-interactivity-demo' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-200' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
+                <BarChart3 className="w-5 h-5" /><span>Gelişmiş Grafik Etkileşimi</span>
               </button>
               
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart } from 'recharts';
 import { Download, MessageSquare, CheckCircle, Clock, Star, Users, DollarSign, UserCheck, UserX, Activity, Filter, ChevronDown } from 'lucide-react';
+import { AdvancedChartInteractivity, DataPoint, ChartAnnotation } from './common/AdvancedChartInteractivity';
 import { format, endOfMonth, subMonths, startOfMonth, endOfDay, subDays, differenceInHours } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
@@ -10,6 +11,7 @@ import FeedbackButton from './common/FeedbackButton';
 import SmartAlertManager from './SmartAlertManager';
 import RealtimeDashboard from './RealtimeDashboard';
 import SmartReportingSystem from './SmartReportingSystem';
+import CustomerJourneySankey from './CustomerJourneySankey';
 import { toast } from 'react-hot-toast';
 
 const ReportsPage = () => {
@@ -32,9 +34,14 @@ const ReportsPage = () => {
 
   const [dateRange, setDateRange] = useState('30'); // days
   const [selectedPeriod, setSelectedPeriod] = useState('current'); // current, previous, custom
-  const [activeTab, setActiveTab] = useState<'analytics' | 'auto-reports' | 'alerts' | 'dashboard' | 'smart-reporting'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'auto-reports' | 'alerts' | 'dashboard' | 'smart-reporting' | 'customer-journey'>('analytics');
   const [isExporting, setIsExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Advanced Interactivity States
+  const [enableAdvancedInteractivity, setEnableAdvancedInteractivity] = useState(false);
+  const [dailyTrendsData, setDailyTrendsData] = useState<DataPoint[]>([]);
+  const [categoryData, setCategoryData] = useState<DataPoint[]>([]);
 
   // Tarih aralığı hesaplama
   const getDateRange = () => {
@@ -73,7 +80,7 @@ const ReportsPage = () => {
 
   // Export menüsünü kapat
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = () => {
       if (showExportMenu) {
         setShowExportMenu(false);
       }
@@ -376,6 +383,59 @@ const ReportsPage = () => {
     };
   }, [tickets, customers, agents, payments, subscriptions, expenses, dateRange, selectedPeriod]);
 
+  // Advanced Interactivity - Veri dönüştürme
+  useEffect(() => {
+    if (analyticsData && enableAdvancedInteractivity) {
+      // Daily Trends verilerini DataPoint formatına dönüştür
+      const dailyTrendsPoints: DataPoint[] = analyticsData.timeAnalytics.dailyTrends.map((item: any, index: number) => ({
+        id: `daily-${index}`,
+        x: item.date,
+        y: item.tickets,
+        label: `${item.date}: ${item.tickets} talep`,
+        editable: true,
+        metadata: { resolved: item.resolved }
+      }));
+      setDailyTrendsData(dailyTrendsPoints);
+
+      // Category verilerini DataPoint formatına dönüştür
+      const categoryPoints: DataPoint[] = analyticsData.categoryAnalytics.map((item: any, index: number) => ({
+        id: `category-${index}`,
+        x: item.category,
+        y: item.count,
+        label: `${item.category}: ${item.count} talep`,
+        editable: true,
+        metadata: { percentage: item.percentage }
+      }));
+      setCategoryData(categoryPoints);
+    }
+  }, [analyticsData, enableAdvancedInteractivity]);
+
+  // Advanced Interactivity - Event Handlers
+  const handleDailyTrendsDataUpdate = (updatedData: DataPoint[]) => {
+    setDailyTrendsData(updatedData);
+    toast.success('Günlük trend verileri güncellendi');
+  };
+
+  const handleCategoryDataUpdate = (updatedData: DataPoint[]) => {
+    setCategoryData(updatedData);
+    toast.success('Kategori verileri güncellendi');
+  };
+
+  const handleAnnotationAdd = (annotation: ChartAnnotation) => {
+    console.log('Annotation added:', annotation);
+    toast.success('Not eklendi');
+  };
+
+  const handleAnnotationUpdate = (annotation: ChartAnnotation) => {
+    console.log('Annotation updated:', annotation);
+    toast.success('Not güncellendi');
+  };
+
+  const handleAnnotationDelete = (annotationId: string) => {
+    console.log('Annotation deleted:', annotationId);
+    toast.success('Not silindi');
+  };
+
   const formatCurrency = (n: number) => `₺${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const handleExportReport = async (format: 'json' | 'csv' = 'json') => {
@@ -552,16 +612,31 @@ const ReportsPage = () => {
             </div>
           )}
           {activeTab === 'analytics' && (
-            <div className="relative">
+            <div className="flex items-center gap-3">
+              {/* Advanced Interactivity Toggle */}
               <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                disabled={isExporting}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setEnableAdvancedInteractivity(!enableAdvancedInteractivity)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  enableAdvancedInteractivity 
+                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                <Download className="w-4 h-4" />
-                {isExporting ? 'İndiriliyor...' : 'Rapor İndir'}
-                <ChevronDown className="w-4 h-4" />
+                <Activity className="w-4 h-4" />
+                {enableAdvancedInteractivity ? 'Gelişmiş Etkileşim Açık' : 'Gelişmiş Etkileşim'}
               </button>
+
+              {/* Export Button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  disabled={isExporting}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-4 h-4" />
+                  {isExporting ? 'İndiriliyor...' : 'Rapor İndir'}
+                  <ChevronDown className="w-4 h-4" />
+                </button>
               
               {showExportMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
@@ -585,6 +660,7 @@ const ReportsPage = () => {
                   </button>
                 </div>
               )}
+              </div>
             </div>
           )}
           <FeedbackButton 
@@ -647,6 +723,16 @@ const ReportsPage = () => {
             }`}
           >
             Akıllı Raporlama
+          </button>
+          <button
+            onClick={() => setActiveTab('customer-journey')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'customer-journey'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Müşteri Yolculuğu
           </button>
         </nav>
       </div>
@@ -724,48 +810,117 @@ const ReportsPage = () => {
         {/* Günlük Trendler */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Günlük Talep Trendleri</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={analyticsData.timeAnalytics.dailyTrends}>
-              <defs>
-                <linearGradient id="ticketsColor" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="resolvedColor" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Area type="monotone" dataKey="tickets" stroke="#3b82f6" fill="url(#ticketsColor)" name="Toplam Talepler" />
-              <Area type="monotone" dataKey="resolved" stroke="#10b981" fill="url(#resolvedColor)" name="Çözülen" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {enableAdvancedInteractivity ? (
+            <AdvancedChartInteractivity
+              data={dailyTrendsData}
+              onDataUpdate={handleDailyTrendsDataUpdate}
+              onAnnotationAdd={handleAnnotationAdd}
+              onAnnotationUpdate={handleAnnotationUpdate}
+              onAnnotationDelete={handleAnnotationDelete}
+              enableAnnotations={true}
+              enableDataEditing={true}
+              enableDrillDown={true}
+              enableComparison={true}
+              className="w-full"
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={analyticsData.timeAnalytics.dailyTrends}>
+                  <defs>
+                    <linearGradient id="ticketsColor" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="resolvedColor" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="tickets" stroke="#3b82f6" fill="url(#ticketsColor)" name="Toplam Talepler" />
+                  <Area type="monotone" dataKey="resolved" stroke="#10b981" fill="url(#resolvedColor)" name="Çözülen" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </AdvancedChartInteractivity>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={analyticsData.timeAnalytics.dailyTrends}>
+                <defs>
+                  <linearGradient id="ticketsColor" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="resolvedColor" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Area type="monotone" dataKey="tickets" stroke="#3b82f6" fill="url(#ticketsColor)" name="Toplam Talepler" />
+                <Area type="monotone" dataKey="resolved" stroke="#10b981" fill="url(#resolvedColor)" name="Çözülen" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Kategori Dağılımı */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Kategori Dağılımı</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={analyticsData.categoryAnalytics}
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                dataKey="count"
-                label={({ category, percentage }) => `${category} ${percentage}%`}
-              >
-                {analyticsData.categoryAnalytics.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={`hsl(${index * 60}, 70%, 50%)`} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          {enableAdvancedInteractivity ? (
+            <AdvancedChartInteractivity
+              data={categoryData}
+              onDataUpdate={handleCategoryDataUpdate}
+              onAnnotationAdd={handleAnnotationAdd}
+              onAnnotationUpdate={handleAnnotationUpdate}
+              onAnnotationDelete={handleAnnotationDelete}
+              enableAnnotations={true}
+              enableDataEditing={true}
+              enableDrillDown={true}
+              enableComparison={true}
+              className="w-full"
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={analyticsData.categoryAnalytics}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    dataKey="count"
+                    label={({ category, percentage }) => `${category} ${percentage}%`}
+                  >
+                    {analyticsData.categoryAnalytics.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={`hsl(${index * 60}, 70%, 50%)`} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </AdvancedChartInteractivity>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={analyticsData.categoryAnalytics}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  dataKey="count"
+                  label={({ category, percentage }) => `${category} ${percentage}%`}
+                >
+                  {analyticsData.categoryAnalytics.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={`hsl(${index * 60}, 70%, 50%)`} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
@@ -987,6 +1142,11 @@ const ReportsPage = () => {
       {/* Akıllı Raporlama Tab */}
       {activeTab === 'smart-reporting' && (
         <SmartReportingSystem />
+      )}
+
+      {/* Müşteri Yolculuğu Tab */}
+      {activeTab === 'customer-journey' && (
+        <CustomerJourneySankey />
       )}
     </div>
   );

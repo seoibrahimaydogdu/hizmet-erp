@@ -18,7 +18,8 @@ import {
   UserCheck,
   AlertCircle
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AdvancedChartInteractivity, DataPoint, ChartAnnotation } from './common/AdvancedChartInteractivity';
 import { format, subDays, startOfMonth, endOfMonth, differenceInHours } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useSupabase } from '../hooks/useSupabase';
@@ -69,14 +70,12 @@ const SmartReportingSystem: React.FC = () => {
     tickets, 
     payments, 
     subscriptions, 
-    subscriptionPlans,
     expenses,
     fetchCustomers, 
     fetchAgents, 
     fetchTickets, 
     fetchPayments, 
     fetchSubscriptions, 
-    fetchSubscriptionPlans,
     fetchExpenses
   } = useSupabase();
 
@@ -86,6 +85,12 @@ const SmartReportingSystem: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30); // seconds
 
+  // Advanced Interactivity States
+  const [enableAdvancedInteractivity, setEnableAdvancedInteractivity] = useState(false);
+  const [predictionData, setPredictionData] = useState<DataPoint[]>([]);
+  const [anomalyData, setAnomalyData] = useState<DataPoint[]>([]);
+  const [insightData, setInsightData] = useState<DataPoint[]>([]);
+
   // Verileri yükle
   useEffect(() => {
     fetchCustomers();
@@ -93,7 +98,6 @@ const SmartReportingSystem: React.FC = () => {
     fetchTickets();
     fetchPayments();
     fetchSubscriptions();
-    fetchSubscriptionPlans();
     fetchExpenses();
   }, []);
 
@@ -107,7 +111,6 @@ const SmartReportingSystem: React.FC = () => {
       fetchTickets();
       fetchPayments();
       fetchSubscriptions();
-      fetchSubscriptionPlans();
       fetchExpenses();
     }, refreshInterval * 1000);
 
@@ -149,12 +152,6 @@ const SmartReportingSystem: React.FC = () => {
     const filteredTickets = tickets.filter(ticket => {
       const ticketDate = new Date(ticket.created_at);
       return ticketDate >= startDate && ticketDate <= endDate;
-    });
-
-    const filteredPayments = payments.filter(payment => {
-      if (!payment.payment_date) return false;
-      const paymentDate = new Date(payment.payment_date);
-      return paymentDate >= startDate && paymentDate <= endDate;
     });
 
     // 1. Talep Trend Analizi
@@ -301,8 +298,6 @@ const SmartReportingSystem: React.FC = () => {
     }
 
     // 5. Gelir Analizi
-    const completedPayments = filteredPayments.filter(p => p.status === 'completed' || p.status === 'paid');
-    const totalRevenue = completedPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
     const currentMonthRevenue = payments.filter(p => {
       if (!p.payment_date) return false;
@@ -379,11 +374,6 @@ const SmartReportingSystem: React.FC = () => {
     const startDate = dateRange.start;
     const endDate = dateRange.end;
 
-    const filteredTickets = tickets.filter(ticket => {
-      const ticketDate = new Date(ticket.created_at);
-      return ticketDate >= startDate && ticketDate <= endDate;
-    });
-
     const filteredPayments = payments.filter(payment => {
       if (!payment.payment_date) return false;
       const paymentDate = new Date(payment.payment_date);
@@ -442,17 +432,41 @@ const SmartReportingSystem: React.FC = () => {
     ];
   }, [tickets, payments, dateRange, selectedPeriod]);
 
+
+  // Advanced Interactivity - Event Handlers
+  const handlePredictionDataUpdate = (updatedData: DataPoint[]) => {
+    setPredictionData(updatedData);
+    toast.success('Tahmin verileri güncellendi');
+  };
+
+  const handleAnomalyDataUpdate = (updatedData: DataPoint[]) => {
+    setAnomalyData(updatedData);
+    toast.success('Anomali verileri güncellendi');
+  };
+
+  const handleInsightDataUpdate = (updatedData: DataPoint[]) => {
+    setInsightData(updatedData);
+    toast.success('İçgörü verileri güncellendi');
+  };
+
+  const handleAnnotationAdd = (annotation: ChartAnnotation) => {
+    console.log('Annotation added:', annotation);
+    toast.success('Not eklendi');
+  };
+
+  const handleAnnotationUpdate = (annotation: ChartAnnotation) => {
+    console.log('Annotation updated:', annotation);
+    toast.success('Not güncellendi');
+  };
+
+  const handleAnnotationDelete = (annotationId: string) => {
+    console.log('Annotation deleted:', annotationId);
+    toast.success('Not silindi');
+  };
+
   // Anomali tespiti
   const anomalies = useMemo((): AnomalyData[] => {
     const anomalies: AnomalyData[] = [];
-    const dateRange = getDateRange();
-    const startDate = dateRange.start;
-    const endDate = dateRange.end;
-
-    const filteredTickets = tickets.filter(ticket => {
-      const ticketDate = new Date(ticket.created_at);
-      return ticketDate >= startDate && ticketDate <= endDate;
-    });
 
     // Günlük talep sayısı anomalisi
     const dailyTickets = [];
@@ -715,6 +729,19 @@ const SmartReportingSystem: React.FC = () => {
             </select>
           </div>
 
+          {/* Advanced Interactivity Toggle */}
+          <button
+            onClick={() => setEnableAdvancedInteractivity(!enableAdvancedInteractivity)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              enableAdvancedInteractivity 
+                ? 'bg-green-600 text-white hover:bg-green-700' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            {enableAdvancedInteractivity ? 'Gelişmiş Etkileşim Açık' : 'Gelişmiş Etkileşim'}
+          </button>
+
           <button
             onClick={handleExportInsights}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -822,6 +849,35 @@ const SmartReportingSystem: React.FC = () => {
             ))}
           </div>
 
+          {/* Insights Chart */}
+          {enableAdvancedInteractivity && generateSmartInsights.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">İçgörü Güven Seviyesi Analizi</h3>
+              <AdvancedChartInteractivity
+                data={insightData}
+                onDataUpdate={handleInsightDataUpdate}
+                onAnnotationAdd={handleAnnotationAdd}
+                onAnnotationUpdate={handleAnnotationUpdate}
+                onAnnotationDelete={handleAnnotationDelete}
+                enableAnnotations={true}
+                enableDataEditing={true}
+                enableDrillDown={true}
+                enableComparison={true}
+                className="w-full"
+              >
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={generateSmartInsights}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="title" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="confidence" fill="#8b5cf6" name="Güven Seviyesi" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </AdvancedChartInteractivity>
+            </div>
+          )}
+
           {generateSmartInsights.length === 0 && (
             <div className="text-center py-12">
               <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -887,6 +943,36 @@ const SmartReportingSystem: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {/* Predictions Chart */}
+          {enableAdvancedInteractivity && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tahmin Analizi Grafiği</h3>
+              <AdvancedChartInteractivity
+                data={predictionData}
+                onDataUpdate={handlePredictionDataUpdate}
+                onAnnotationAdd={handleAnnotationAdd}
+                onAnnotationUpdate={handleAnnotationUpdate}
+                onAnnotationDelete={handleAnnotationDelete}
+                enableAnnotations={true}
+                enableDataEditing={true}
+                enableDrillDown={true}
+                enableComparison={true}
+                className="w-full"
+              >
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={predictions}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="metric" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="current" fill="#3b82f6" name="Mevcut" />
+                    <Bar dataKey="predicted" fill="#10b981" name="Tahmin" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </AdvancedChartInteractivity>
+            </div>
+          )}
         </div>
       )}
 
@@ -944,6 +1030,35 @@ const SmartReportingSystem: React.FC = () => {
               </div>
             ))}
           </div>
+
+          {/* Anomalies Chart */}
+          {enableAdvancedInteractivity && anomalies.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Anomali Severity Analizi</h3>
+              <AdvancedChartInteractivity
+                data={anomalyData}
+                onDataUpdate={handleAnomalyDataUpdate}
+                onAnnotationAdd={handleAnnotationAdd}
+                onAnnotationUpdate={handleAnnotationUpdate}
+                onAnnotationDelete={handleAnnotationDelete}
+                enableAnnotations={true}
+                enableDataEditing={true}
+                enableDrillDown={true}
+                enableComparison={true}
+                className="w-full"
+              >
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={anomalies}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="metric" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="severity" fill="#ef4444" name="Severity" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </AdvancedChartInteractivity>
+            </div>
+          )}
 
           {anomalies.length === 0 && (
             <div className="text-center py-12">
