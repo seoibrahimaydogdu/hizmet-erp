@@ -37,6 +37,10 @@ import { useSupabase } from '../hooks/useSupabase';
 import { toast } from 'react-hot-toast';
 import EmployeeChat from './EmployeeChat';
 import FeedbackButton from './common/FeedbackButton';
+import { ProjectTableSkeleton, DashboardCardSkeleton, LoadingWrapper } from './common/SkeletonLoader';
+import AdvancedButton, { IconButton } from './common/AdvancedButton';
+import { StatCard } from './common/AdvancedCard';
+import { ErrorState, EmptyState } from './common/ErrorStates';
 
 interface Project {
   id: string;
@@ -85,11 +89,15 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
   const [projects, setProjects] = useState<Project[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isProjectsLoading, setIsProjectsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
+  const [showProjectDetailModal, setShowProjectDetailModal] = useState(false);
   const [showAutoReportingModal, setShowAutoReportingModal] = useState(false);
   const [showTeamChatModal, setShowTeamChatModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [viewingProject, setViewingProject] = useState<Project | null>(null);
   const [newProject, setNewProject] = useState<Partial<Project>>({
     name: '',
     description: '',
@@ -311,11 +319,13 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
 
   const loadData = async () => {
     setLoading(true);
+    setIsProjectsLoading(true);
+    setError(null);
     try {
       console.log('🔄 Veri yükleniyor...');
       
       // Supabase bağlantısını test et
-      const { data: testData, error: testError } = await supabase
+      const { data: _testData, error: testError } = await supabase
         .from('projects')
         .select('count')
         .limit(1);
@@ -333,6 +343,7 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
         setProjects(mockProjects);
         setResources(mockResources);
         setLoading(false);
+        setIsProjectsLoading(false);
         return;
       }
       
@@ -369,16 +380,18 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
 
 
       setLoading(false);
+      setIsProjectsLoading(false);
       console.log('🎉 Veri yükleme tamamlandı');
       
     } catch (error) {
       console.error('❌ Veri yükleme hatası:', error);
-      toast.error('Veri yüklenirken hata oluştu, mock data kullanılıyor');
+      setError('Veri yüklenirken hata oluştu');
       
       // Hata durumunda mock data kullan
       setProjects(mockProjects);
       setResources(mockResources);
       setLoading(false);
+      setIsProjectsLoading(false);
     }
   };
 
@@ -398,6 +411,41 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
     const progressRisk = project.progress < 50 && new Date(project.end_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 0.8 : 0;
     
     return Math.min(100, (budgetRisk + scheduleRisk + progressRisk) * 33.33);
+  };
+
+  // Teslim tarihine göre değerleme fonksiyonu
+  const getDeliveryStatus = (project: Project) => {
+    if (!project.end_date) return { status: 'Belirtilmemiş', color: 'gray', percentage: 0 };
+    
+    const today = new Date();
+    const endDate = new Date(project.end_date);
+    const startDate = new Date(project.start_date);
+    
+    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const passedDays = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const remainingDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const timeProgress = Math.min(Math.max((passedDays / totalDays) * 100, 0), 100);
+    
+    if (remainingDays < 0) {
+      return { 
+        status: `${Math.abs(remainingDays)} gün gecikme`, 
+        color: 'red', 
+        percentage: timeProgress 
+      };
+    } else if (remainingDays <= 7) {
+      return { 
+        status: `${remainingDays} gün kaldı`, 
+        color: 'yellow', 
+        percentage: timeProgress 
+      };
+    } else {
+      return { 
+        status: `${remainingDays} gün kaldı`, 
+        color: 'green', 
+        percentage: timeProgress 
+      };
+    }
   };
 
   const predictCompletion = (project: Project) => {
@@ -673,7 +721,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
   };
 
   const handleViewProject = (project: Project) => {
-    // Proje detay sayfasına yönlendirme veya modal açma
+    setViewingProject(project);
+    setShowProjectDetailModal(true);
     toast.success(`${project.name} projesi detayları görüntüleniyor`);
   };
 
@@ -999,65 +1048,60 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
     );
   };
 
-  const renderOverview = () => (
+  const renderOverview = () => {
+    if (error) {
+      return (
+        <ErrorState
+          type="error"
+          title="Veri Yükleme Hatası"
+          message={error}
+          action={{
+            label: 'Tekrar Dene',
+            onClick: loadData
+          }}
+        />
+      );
+    }
+
+    return (
     <div className="space-y-6">
       {/* Proje Özeti */}
+        <LoadingWrapper 
+          isLoading={loading} 
+          skeleton={
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Aktif Projeler</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {projects.filter(p => p.status === 'active').length}
-              </p>
+              {[1,2,3,4].map(i => <DashboardCardSkeleton key={i} />)}
             </div>
-            <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-              <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toplam Bütçe</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                ₺{projects.reduce((sum, p) => sum + p.budget, 0).toLocaleString()}
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-lg">
-              <DollarSign className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ortalama İlerleme</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {Math.round(projects.reduce((sum, p) => sum + p.progress, 0) / projects.length)}%
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-lg">
-              <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Risk Skoru</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {Math.round(projects.reduce((sum, p) => sum + calculateRiskScore(p), 0) / projects.length)}
-              </p>
-            </div>
-            <div className="p-3 bg-red-100 dark:bg-red-900 rounded-lg">
-              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
-            </div>
-          </div>
-        </div>
+          }
+        >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            title="Aktif Projeler"
+            value={projects.filter(p => p.status === 'active').length}
+            icon={<Activity className="w-6 h-6" />}
+            color="blue"
+          />
+          
+          <StatCard
+            title="Toplam Bütçe"
+            value={`₺${projects.reduce((sum, p) => sum + p.budget, 0).toLocaleString()}`}
+            icon={<DollarSign className="w-6 h-6" />}
+            color="green"
+          />
+          
+          <StatCard
+            title="Ortalama İlerleme"
+            value={`${Math.round(projects.reduce((sum, p) => sum + p.progress, 0) / projects.length)}%`}
+            icon={<TrendingUp className="w-6 h-6" />}
+            color="purple"
+          />
+          
+          <StatCard
+            title="Risk Skoru"
+            value={Math.round(projects.reduce((sum, p) => sum + calculateRiskScore(p), 0) / projects.length)}
+            icon={<AlertTriangle className="w-6 h-6" />}
+            color="red"
+          />
       </div>
 
       {/* Proje Listesi */}
@@ -1093,13 +1137,17 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
               </div>
               
               <div className="flex items-center space-x-2">
-                <button
+                <AdvancedButton
                   onClick={() => setShowNewProjectModal(true)}
-                  className="inline-flex items-center px-4 py-2 bg-primary hover:bg-primary-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  variant="primary"
+                  gradient
+                  ripple
+                  glow
+                  icon={<Plus className="w-4 h-4" />}
+                  iconPosition="left"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
                   Yeni Proje
-                </button>
+                </AdvancedButton>
                 
                 {viewMode === 'kanban' && (
                   <button
@@ -1116,20 +1164,38 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
           </div>
         </div>
         {viewMode === 'list' ? (
+          <LoadingWrapper 
+            isLoading={isProjectsLoading} 
+            skeleton={<ProjectTableSkeleton />}
+          >
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Proje</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Durum</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">İlerleme</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Teslim Tarihi</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Var Olan İlerleme</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Bütçe</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Risk</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">İşlemler</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {projects.map((project) => (
+                {projects.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12">
+                      <EmptyState
+                        type="projects"
+                        action={{
+                          label: 'İlk Projeyi Oluştur',
+                          onClick: () => setShowNewProjectModal(true)
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ) : (
+                  projects.map((project) => (
                   <tr key={project.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
@@ -1153,7 +1219,24 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                       <div className="flex items-center">
                         <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
                           <div 
-                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            className={`h-2 rounded-full transition-all duration-300 ${
+                              getDeliveryStatus(project).color === 'red' ? 'bg-red-500' :
+                              getDeliveryStatus(project).color === 'yellow' ? 'bg-yellow-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${getDeliveryStatus(project).percentage}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm text-gray-900 dark:text-white">
+                          {getDeliveryStatus(project).status}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${project.progress}%` }}
                           ></div>
                         </div>
@@ -1174,42 +1257,46 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        <button 
+                        <IconButton
                           onClick={() => handleViewProject(project)}
+                          variant="ghost"
+                          icon={<Eye className="w-4 h-4" />}
+                          aria-label="Görüntüle"
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                          title="Görüntüle"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button 
+                        />
+                        <IconButton
                           onClick={() => handleEditProject(project)}
+                          variant="ghost"
+                          icon={<Edit className="w-4 h-4" />}
+                          aria-label="Düzenle"
                           className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                          title="Düzenle"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button 
+                        />
+                        <IconButton
                           onClick={() => handleDeleteProject(project.id)}
+                          variant="ghost"
+                          icon={<Trash2 className="w-4 h-4" />}
+                          aria-label="Sil"
                           className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          title="Sil"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        />
                       </div>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
+          </LoadingWrapper>
         ) : (
           <div className="p-6">
             {renderKanbanBoard()}
           </div>
         )}
       </div>
+        </LoadingWrapper>
     </div>
   );
+  };
 
   const renderResourceOptimization = () => (
     <div className="space-y-6">
@@ -1545,7 +1632,7 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                 <h5 className="text-lg font-medium text-gray-900 dark:text-white mb-2">3D Gantt Chart</h5>
                 <p className="text-gray-600 dark:text-gray-400">Proje zaman çizelgesi 3D görünümde</p>
                 <div className="mt-4 space-y-2">
-                  {generate3DGanttData().map((project, index) => (
+                  {generate3DGanttData().map((project) => (
                     <div key={project.id} className="flex items-center justify-between bg-white dark:bg-gray-700 rounded-lg p-3 shadow-sm">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">{project.name}</span>
                       <div className="flex items-center space-x-4">
@@ -1996,13 +2083,16 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
           <p className="text-gray-600 dark:text-gray-400">Proje performansını optimize edin ve riskleri önceden tahmin edin</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
+          <AdvancedButton
             onClick={loadData}
-            className="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+            variant="ghost"
+            icon={<RefreshCw className="w-4 h-4" />}
+            iconPosition="left"
+            hover
+            scale
           >
-            <RefreshCw className="w-4 h-4 mr-2" />
             Yenile
-          </button>
+          </AdvancedButton>
           <FeedbackButton 
             pageSource="smart-project-management" 
             position="inline"
@@ -2330,6 +2420,159 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
          </div>
        )}
 
+       {/* Proje Detay Modal */}
+       {showProjectDetailModal && viewingProject && (
+         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+             <div className="flex items-center justify-between mb-6">
+               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Proje Detayları</h3>
+               <button
+                 onClick={() => setShowProjectDetailModal(false)}
+                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+               >
+                 <X className="w-6 h-6" />
+               </button>
+             </div>
+             
+             <div className="space-y-6">
+               {/* Proje Başlığı */}
+               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                 <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                   {viewingProject.name}
+                 </h4>
+                 <p className="text-gray-600 dark:text-gray-400">
+                   {viewingProject.description}
+                 </p>
+               </div>
+
+               {/* Proje Bilgileri Grid */}
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <div className="flex items-center space-x-2 mb-2">
+                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Durum</span>
+                   </div>
+                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                     viewingProject.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                     viewingProject.status === 'planning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                     viewingProject.status === 'completed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                     'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                   }`}>
+                     {viewingProject.status === 'active' ? 'Aktif' :
+                      viewingProject.status === 'planning' ? 'Planlama' :
+                      viewingProject.status === 'completed' ? 'Tamamlandı' :
+                      'Bilinmiyor'}
+                   </span>
+                 </div>
+
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <div className="flex items-center space-x-2 mb-2">
+                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">İlerleme</span>
+                   </div>
+                   <div className="flex items-center space-x-2">
+                     <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                       <div 
+                         className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                         style={{ width: `${viewingProject.progress}%` }}
+                       ></div>
+                     </div>
+                     <span className="text-sm font-medium text-gray-900 dark:text-white">
+                       {viewingProject.progress}%
+                     </span>
+                   </div>
+                 </div>
+
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <div className="flex items-center space-x-2 mb-2">
+                     <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Bütçe</span>
+                   </div>
+                   <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                     ₺{viewingProject.budget.toLocaleString()}
+                   </div>
+                 </div>
+
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <div className="flex items-center space-x-2 mb-2">
+                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Risk Skoru</span>
+                   </div>
+                   <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                     {typeof viewingProject.risk_level === 'number' ? `${viewingProject.risk_level}%` : 
+                      viewingProject.risk_level === 'high' ? 'Yüksek' :
+                      viewingProject.risk_level === 'medium' ? 'Orta' :
+                      viewingProject.risk_level === 'low' ? 'Düşük' : 'Bilinmiyor'}
+                   </div>
+                 </div>
+
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <div className="flex items-center space-x-2 mb-2">
+                     <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Öncelik</span>
+                   </div>
+                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                     viewingProject.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                     viewingProject.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                     'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                   }`}>
+                     {viewingProject.priority === 'high' ? 'Yüksek' :
+                      viewingProject.priority === 'medium' ? 'Orta' :
+                      'Düşük'}
+                   </span>
+                 </div>
+
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <div className="flex items-center space-x-2 mb-2">
+                     <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Ekip Boyutu</span>
+                   </div>
+                   <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                     {viewingProject.team_size} kişi
+                   </div>
+                 </div>
+               </div>
+
+               {/* Tarih Bilgileri */}
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Başlangıç Tarihi</h5>
+                   <p className="text-gray-900 dark:text-white">
+                     {viewingProject.start_date ? new Date(viewingProject.start_date).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
+                   </p>
+                 </div>
+                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                   <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bitiş Tarihi</h5>
+                   <p className="text-gray-900 dark:text-white">
+                     {viewingProject.end_date ? new Date(viewingProject.end_date).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
+                   </p>
+                 </div>
+               </div>
+
+               {/* İşlem Butonları */}
+               <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
+                 <button
+                   onClick={() => {
+                     setShowProjectDetailModal(false);
+                     setEditingProject(viewingProject);
+                     setShowEditProjectModal(true);
+                   }}
+                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                 >
+                   Düzenle
+                 </button>
+                 <button
+                   onClick={() => setShowProjectDetailModal(false)}
+                   className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors"
+                 >
+                   Kapat
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+
        {/* Proje Düzenleme Modal */}
        {showEditProjectModal && editingProject && (
          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2351,8 +2594,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                  </label>
                  <input
                    type="text"
-                   value={editingProject.name}
-                   onChange={(e) => setEditingProject({...editingProject, name: e.target.value})}
+                   value={editingProject?.name || ''}
+                   onChange={(e) => editingProject && setEditingProject({...editingProject, name: e.target.value})}
                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                  />
                </div>
@@ -2362,8 +2605,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                    Açıklama
                  </label>
                  <textarea
-                   value={editingProject.description}
-                   onChange={(e) => setEditingProject({...editingProject, description: e.target.value})}
+                   value={editingProject?.description || ''}
+                   onChange={(e) => editingProject && setEditingProject({...editingProject, description: e.target.value})}
                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    rows={3}
                  />
@@ -2375,8 +2618,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                      Durum
                    </label>
                    <select
-                     value={editingProject.status}
-                     onChange={(e) => setEditingProject({...editingProject, status: e.target.value as any})}
+                     value={editingProject?.status || 'planning'}
+                     onChange={(e) => editingProject && setEditingProject({...editingProject, status: e.target.value as any})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    >
                      <option value="planning">Planlama</option>
@@ -2391,8 +2634,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                      Öncelik
                    </label>
                    <select
-                     value={editingProject.priority}
-                     onChange={(e) => setEditingProject({...editingProject, priority: e.target.value as any})}
+                     value={editingProject?.priority || 'medium'}
+                     onChange={(e) => editingProject && setEditingProject({...editingProject, priority: e.target.value as any})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    >
                      <option value="low">Düşük</option>
@@ -2410,8 +2653,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                    </label>
                    <input
                      type="date"
-                     value={editingProject.start_date}
-                     onChange={(e) => setEditingProject({...editingProject, start_date: e.target.value})}
+                     value={editingProject?.start_date || ''}
+                     onChange={(e) => editingProject && setEditingProject({...editingProject, start_date: e.target.value})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    />
                  </div>
@@ -2422,8 +2665,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                    </label>
                    <input
                      type="date"
-                     value={editingProject.end_date}
-                     onChange={(e) => setEditingProject({...editingProject, end_date: e.target.value})}
+                     value={editingProject?.end_date || ''}
+                     onChange={(e) => editingProject && setEditingProject({...editingProject, end_date: e.target.value})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    />
                  </div>
@@ -2436,8 +2679,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                    </label>
                    <input
                      type="number"
-                     value={editingProject.budget}
-                     onChange={(e) => setEditingProject({...editingProject, budget: parseFloat(e.target.value) || 0})}
+                     value={editingProject?.budget || 0}
+                     onChange={(e) => editingProject && setEditingProject({...editingProject, budget: parseFloat(e.target.value) || 0})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    />
                  </div>
@@ -2448,8 +2691,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                    </label>
                    <input
                      type="number"
-                     value={editingProject.actual_cost}
-                     onChange={(e) => setEditingProject({...editingProject, actual_cost: parseFloat(e.target.value) || 0})}
+                     value={editingProject?.actual_cost || 0}
+                     onChange={(e) => editingProject && setEditingProject({...editingProject, actual_cost: parseFloat(e.target.value) || 0})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                    />
                  </div>
@@ -2460,8 +2703,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                    </label>
                    <input
                      type="number"
-                     value={editingProject.team_size}
-                     onChange={(e) => setEditingProject({...editingProject, team_size: parseInt(e.target.value) || 1})}
+                     value={editingProject?.team_size || 1}
+                     onChange={(e) => editingProject && setEditingProject({...editingProject, team_size: parseInt(e.target.value) || 1})}
                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                      min="1"
                    />
@@ -2473,8 +2716,8 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                    Risk Seviyesi
                  </label>
                  <select
-                   value={editingProject.risk_level}
-                   onChange={(e) => setEditingProject({...editingProject, risk_level: e.target.value as any})}
+                   value={editingProject?.risk_level || 'low'}
+                   onChange={(e) => editingProject && setEditingProject({...editingProject, risk_level: e.target.value as any})}
                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                  >
                    <option value="low">Düşük</option>

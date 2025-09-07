@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Mail, 
   Edit,
   Eye,
@@ -35,7 +34,6 @@ import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { formatCurrency } from '../../lib/currency';
 import { toast } from 'react-hot-toast';
-import RecurringBillingTemplates from '../RecurringBillingTemplates';
 import CostAnalysis from './CostAnalysis';
 
 interface Payment {
@@ -735,7 +733,7 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
           >
             <div className="flex items-center space-x-2">
               <Repeat className="w-4 h-4" />
-              <span>Otomatik Ödemeler</span>
+              <span>Abonelik Ödemeleri</span>
             </div>
           </button>
           <button
@@ -928,9 +926,6 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
                 <option value="overdue">Gecikmiş</option>
               </select>
               
-              <button className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
-                <Filter className="w-4 h-4 text-gray-500" />
-              </button>
             </div>
           </div>
 
@@ -1233,7 +1228,60 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
       )}
 
       {activeTab === 'recurring-billing' && (
-        <RecurringBillingTemplates />
+        <div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Abonelik Ödemeleri</h2>
+            <div className="flex items-center space-x-3">
+              {/* Görünüm Değiştirme Butonları */}
+              <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'list'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <List className="w-4 h-4 mr-1.5" />
+                  Liste
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`flex items-center px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    viewMode === 'kanban'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Grid3X3 className="w-4 h-4 mr-1.5" />
+                  Kanban
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Abonelik Ödemeleri İçeriği */}
+          {viewMode === 'list' ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="p-6 text-center">
+                <Repeat className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Liste Görünümü</h3>
+                <p className="text-gray-600 dark:text-gray-400">Abonelik ödemeleri liste görünümü burada görünecek</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Aktif Abonelikler</h3>
+                </div>
+                <div className="p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Kanban görünümü burada görünecek</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === 'cost-analysis' && (

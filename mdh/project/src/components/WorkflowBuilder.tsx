@@ -16,6 +16,9 @@ import {
   RotateCcw,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
+  Info,
+  ArrowLeft,
   Clock,
   Users,
   MessageSquare,
@@ -30,18 +33,18 @@ import {
   X,
   MousePointer,
   Link,
-  Unlink,
-  Move,
   Hand,
   HelpCircle,
   ArrowRight,
-  ArrowLeft,
   PlayCircle,
   ShoppingCart,
   DollarSign,
   CheckSquare,
   User,
-  Database
+  Database,
+  Shield,
+  Briefcase,
+  FileText
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -109,7 +112,7 @@ const WorkflowBuilder: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [, setIsConnecting] = useState(false);
   const [connectionStart, setConnectionStart] = useState<string | null>(null);
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -117,16 +120,31 @@ const WorkflowBuilder: React.FC = () => {
   const [toolMode, setToolMode] = useState<'select' | 'connect' | 'pan'>('select');
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [connectionPreview, setConnectionPreview] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
+  const [showWorkflowStats, setShowWorkflowStats] = useState<string | null>(null);
+  const [workflowStats, setWorkflowStats] = useState<{[key: string]: any}>({});
+  const [workflowCategory, setWorkflowCategory] = useState<'all' | 'active' | 'inactive'>('all');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [deletingWorkflow, setDeletingWorkflow] = useState<string | null>(null);
+  const [workflowHistory, setWorkflowHistory] = useState<string[]>([]);
+  const [showWorkflowHistory, setShowWorkflowHistory] = useState(false);
+  
+  // Filtrelenmiş workflow'ları hesapla
+  const filteredWorkflows = workflows.filter(workflow => {
+    if (workflowCategory === 'all') return true;
+    if (workflowCategory === 'active') return workflow.status === 'active';
+    if (workflowCategory === 'inactive') return workflow.status === 'inactive' || workflow.status === 'draft';
+    return true;
+  });
   
   // Tutorial state
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [tutorialCompleted, setTutorialCompleted] = useState(false);
+  const [, setTutorialCompleted] = useState(false);
   
   const canvasRef = useRef<HTMLDivElement>(null);
   const connectionCanvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Node tipleri - Gerçek trigger'lar ile
+  // Node tipleri - Gelişmiş trigger'lar ile
   const nodeTypes = [
     {
       type: 'trigger',
@@ -142,7 +160,11 @@ const WorkflowBuilder: React.FC = () => {
         { id: 'order_placed', label: 'Sipariş Verildi', icon: ShoppingCart },
         { id: 'sla_breach', label: 'SLA İhlali', icon: AlertCircle },
         { id: 'daily_report', label: 'Günlük Rapor', icon: Clock },
-        { id: 'webhook', label: 'Webhook', icon: Globe }
+        { id: 'webhook', label: 'Webhook', icon: Globe },
+        { id: 'email_received', label: 'E-posta Alındı', icon: Mail },
+        { id: 'file_uploaded', label: 'Dosya Yüklendi', icon: Upload },
+        { id: 'user_login', label: 'Kullanıcı Girişi', icon: User },
+        { id: 'api_call', label: 'API Çağrısı', icon: Globe }
       ]
     },
     {
@@ -173,20 +195,35 @@ const WorkflowBuilder: React.FC = () => {
         { id: 'create_ticket', label: 'Talep Oluştur', icon: Plus },
         { id: 'send_sms', label: 'SMS Gönder', icon: MessageSquare },
         { id: 'webhook_call', label: 'Webhook Çağır', icon: Globe },
-        { id: 'database_update', label: 'Veritabanı Güncelle', icon: Database }
+        { id: 'database_update', label: 'Veritabanı Güncelle', icon: Database },
+        { id: 'file_download', label: 'Dosya İndir', icon: Download },
+        { id: 'data_transform', label: 'Veri Dönüştür', icon: RefreshCw },
+        { id: 'schedule_task', label: 'Görev Planla', icon: Clock },
+        { id: 'generate_report', label: 'Rapor Oluştur', icon: Eye },
+        { id: 'backup_data', label: 'Veri Yedekle', icon: Database },
+        { id: 'send_slack', label: 'Slack Mesajı', icon: MessageSquare },
+        { id: 'create_calendar', label: 'Takvim Oluştur', icon: Clock }
       ]
     },
     {
       type: 'approval',
-      label: 'Onay',
-      icon: Users,
+      label: 'Onay Süreçleri',
+      icon: UserCheck,
       color: 'bg-purple-500',
-      description: 'Onay süreçleri',
+      description: 'Onay süreçleri ve iş akışları',
       approvals: [
-        { id: 'manager_approval', label: 'Yönetici Onayı', icon: UserCheck },
-        { id: 'finance_approval', label: 'Finans Onayı', icon: DollarSign },
-        { id: 'technical_approval', label: 'Teknik Onay', icon: Settings },
-        { id: 'customer_approval', label: 'Müşteri Onayı', icon: User }
+        { id: 'sequential_approval', label: 'Sıralı Onay', icon: ArrowRight, description: 'Adım adım onay süreci' },
+        { id: 'parallel_approval', label: 'Paralel Onay', icon: Users, description: 'Aynı anda birden fazla onay' },
+        { id: 'conditional_approval', label: 'Koşullu Onay', icon: GitBranch, description: 'Koşula göre onay süreci' },
+        { id: 'manager_approval', label: 'Yönetici Onayı', icon: UserCheck, description: 'Yönetici onayı gerekli' },
+        { id: 'finance_approval', label: 'Finans Onayı', icon: DollarSign, description: 'Finans departmanı onayı' },
+        { id: 'technical_approval', label: 'Teknik Onay', icon: Settings, description: 'Teknik ekip onayı' },
+        { id: 'customer_approval', label: 'Müşteri Onayı', icon: User, description: 'Müşteri onayı gerekli' },
+        { id: 'legal_approval', label: 'Hukuki Onay', icon: FileText, description: 'Hukuk departmanı onayı' },
+        { id: 'hr_approval', label: 'İK Onayı', icon: Briefcase, description: 'İnsan kaynakları onayı' },
+        { id: 'quality_approval', label: 'Kalite Onayı', icon: CheckCircle, description: 'Kalite kontrol onayı' },
+        { id: 'security_approval', label: 'Güvenlik Onayı', icon: Shield, description: 'Güvenlik onayı gerekli' },
+        { id: 'compliance_approval', label: 'Uyumluluk Onayı', icon: AlertTriangle, description: 'Uyumluluk onayı' }
       ]
     },
     {
@@ -201,25 +238,54 @@ const WorkflowBuilder: React.FC = () => {
         { id: 'push_notification', label: 'Push Bildirimi', icon: Bell },
         { id: 'slack_notification', label: 'Slack Bildirimi', icon: MessageSquare }
       ]
+    },
+    {
+      type: 'data',
+      label: 'Veri İşleme',
+      icon: Database,
+      color: 'bg-cyan-500',
+      description: 'Veri manipülasyonu ve işleme',
+      dataActions: [
+        { id: 'filter_data', label: 'Veri Filtrele', icon: GitBranch },
+        { id: 'sort_data', label: 'Veri Sırala', icon: ArrowRight },
+        { id: 'aggregate_data', label: 'Veri Topla', icon: CheckSquare },
+        { id: 'validate_data', label: 'Veri Doğrula', icon: CheckCircle },
+        { id: 'format_data', label: 'Veri Formatla', icon: Edit },
+        { id: 'merge_data', label: 'Veri Birleştir', icon: Link }
+      ]
+    },
+    {
+      type: 'integration',
+      label: 'Entegrasyon',
+      icon: Globe,
+      color: 'bg-pink-500',
+      description: 'Dış sistem entegrasyonları',
+      integrations: [
+        { id: 'api_integration', label: 'API Entegrasyonu', icon: Globe },
+        { id: 'webhook_integration', label: 'Webhook', icon: Link },
+        { id: 'database_integration', label: 'Veritabanı', icon: Database },
+        { id: 'file_integration', label: 'Dosya Sistemi', icon: Upload },
+        { id: 'email_integration', label: 'E-posta Servisi', icon: Mail },
+        { id: 'calendar_integration', label: 'Takvim', icon: Clock }
+      ]
+    },
+    {
+      type: 'automation',
+      label: 'Otomasyon',
+      icon: RefreshCw,
+      color: 'bg-emerald-500',
+      description: 'Otomatik işlemler',
+      automations: [
+        { id: 'scheduled_task', label: 'Zamanlanmış Görev', icon: Clock },
+        { id: 'conditional_automation', label: 'Koşullu Otomasyon', icon: GitBranch },
+        { id: 'batch_processing', label: 'Toplu İşlem', icon: CheckSquare },
+        { id: 'auto_retry', label: 'Otomatik Tekrar', icon: RefreshCw },
+        { id: 'auto_escalation', label: 'Otomatik Yükseltme', icon: ArrowRight },
+        { id: 'auto_cleanup', label: 'Otomatik Temizlik', icon: Trash2 }
+      ]
     }
   ];
 
-  // Varsayılan node konfigürasyonları
-  const defaultNodeConfigs = {
-    trigger: {
-      'ticket_created': { label: 'Talep Oluşturuldu', icon: MessageSquare },
-      'status_changed': { label: 'Durum Değişti', icon: RefreshCw },
-      'priority_updated': { label: 'Öncelik Güncellendi', icon: Flag },
-      'time_based': { label: 'Zaman Bazlı', icon: Clock }
-    },
-    action: {
-      'send_email': { label: 'E-posta Gönder', icon: Mail },
-      'assign_ticket': { label: 'Talep Ata', icon: UserCheck },
-      'update_status': { label: 'Durum Güncelle', icon: Edit },
-      'send_notification': { label: 'Bildirim Gönder', icon: Bell },
-      'webhook': { label: 'Webhook', icon: Globe }
-    }
-  };
 
   // Workflow'ları yükle
   const fetchWorkflows = useCallback(async () => {
@@ -236,6 +302,159 @@ const WorkflowBuilder: React.FC = () => {
       toast.error('Workflow\'lar yüklenemedi');
     }
   }, []);
+
+  // Workflow istatistiklerini getir
+  const fetchWorkflowStats = useCallback(async (workflowId: string) => {
+    try {
+      // Workflow çalıştırma istatistikleri
+      const { data: executions, error: execError } = await supabase
+        .from('workflow_executions')
+        .select('*')
+        .eq('workflow_id', workflowId);
+
+      if (execError) throw execError;
+
+      // Son 30 günlük çalıştırma sayısı
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const recentExecutions = executions?.filter(exec => 
+        new Date(exec.created_at) >= thirtyDaysAgo
+      ) || [];
+
+      // Başarılı/başarısız çalıştırma sayıları
+      const successfulExecutions = executions?.filter(exec => exec.status === 'completed') || [];
+      const failedExecutions = executions?.filter(exec => exec.status === 'failed') || [];
+
+      // Ortalama çalıştırma süresi
+      const completedExecutions = executions?.filter(exec => exec.status === 'completed' && exec.duration) || [];
+      const avgDuration = completedExecutions.length > 0 
+        ? completedExecutions.reduce((sum, exec) => sum + (exec.duration || 0), 0) / completedExecutions.length
+        : 0;
+
+      // En son çalıştırma tarihi
+      const lastExecution = executions?.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0];
+
+      const stats = {
+        totalExecutions: executions?.length || 0,
+        recentExecutions: recentExecutions.length,
+        successfulExecutions: successfulExecutions.length,
+        failedExecutions: failedExecutions.length,
+        successRate: executions?.length > 0 
+          ? Math.round((successfulExecutions.length / executions.length) * 100)
+          : 0,
+        avgDuration: Math.round(avgDuration),
+        lastExecution: lastExecution?.created_at || null,
+        lastStatus: lastExecution?.status || 'never_run'
+      };
+
+      setWorkflowStats(prev => ({
+        ...prev,
+        [workflowId]: stats
+      }));
+
+    } catch (error) {
+      console.error('Workflow istatistikleri yüklenirken hata:', error);
+      // Hata durumunda varsayılan istatistikler
+      setWorkflowStats(prev => ({
+        ...prev,
+        [workflowId]: {
+          totalExecutions: 0,
+          recentExecutions: 0,
+          successfulExecutions: 0,
+          failedExecutions: 0,
+          successRate: 0,
+          avgDuration: 0,
+          lastExecution: null,
+          lastStatus: 'never_run'
+        }
+      }));
+    }
+  }, []);
+
+  // Workflow sil
+  const deleteWorkflow = useCallback(async (workflowId: string) => {
+    try {
+      setDeletingWorkflow(workflowId);
+      
+      // Önce workflow'un aktif olup olmadığını kontrol et
+      const workflow = workflows.find(w => w.id === workflowId);
+      if (workflow?.status === 'active') {
+        toast.error('Aktif workflow\'lar silinemez. Önce pasif hale getirin.');
+        return;
+      }
+
+      // Workflow'u veritabanından sil
+      const { error } = await supabase
+        .from('workflows')
+        .delete()
+        .eq('id', workflowId);
+
+      if (error) throw error;
+
+      // Local state'den de sil
+      setWorkflows(prev => prev.filter(w => w.id !== workflowId));
+      
+      // Eğer silinen workflow seçiliyse, seçimi temizle
+      if (selectedWorkflow?.id === workflowId) {
+        setSelectedWorkflow(null);
+        setIsEditing(false);
+      }
+
+      // İstatistikleri de temizle
+      setWorkflowStats(prev => {
+        const newStats = { ...prev };
+        delete newStats[workflowId];
+        return newStats;
+      });
+
+      toast.success('Workflow başarıyla silindi');
+      setShowDeleteConfirm(null);
+      
+    } catch (error) {
+      console.error('Workflow silinirken hata:', error);
+      toast.error('Workflow silinemedi');
+    } finally {
+      setDeletingWorkflow(null);
+    }
+  }, [workflows, selectedWorkflow]);
+
+  // Workflow geçmişi yönetimi
+  const addToWorkflowHistory = useCallback((workflowId: string) => {
+    setWorkflowHistory(prev => {
+      // Aynı workflow'u tekrar ekleme
+      const filtered = prev.filter(id => id !== workflowId);
+      return [workflowId, ...filtered].slice(0, 10); // Son 10 workflow'u tut
+    });
+  }, []);
+
+  const goBackToPreviousWorkflow = useCallback(() => {
+    if (workflowHistory.length > 0) {
+      const previousWorkflowId = workflowHistory[0];
+      const previousWorkflow = workflows.find(w => w.id === previousWorkflowId);
+      if (previousWorkflow) {
+        setSelectedWorkflow(previousWorkflow);
+        setIsEditing(true);
+        // Geçmişten çıkar
+        setWorkflowHistory(prev => prev.slice(1));
+      }
+    }
+  }, [workflowHistory, workflows]);
+
+  const goToWorkflowFromHistory = useCallback((workflowId: string) => {
+    const workflow = workflows.find(w => w.id === workflowId);
+    if (workflow) {
+      // Mevcut workflow'u geçmişe ekle
+      if (selectedWorkflow?.id) {
+        addToWorkflowHistory(selectedWorkflow.id);
+      }
+      setSelectedWorkflow(workflow);
+      setIsEditing(true);
+      setShowWorkflowHistory(false);
+    }
+  }, [workflows, selectedWorkflow, addToWorkflowHistory]);
 
   // Şablonları yükle
   const fetchTemplates = useCallback(async () => {
@@ -543,7 +762,7 @@ const WorkflowBuilder: React.FC = () => {
   // Workflow yolunu takip et
   const followWorkflowPath = async (workflow: Workflow, startNodeId: string, initialData: any) => {
     const executionPath: any[] = [];
-    let currentNodeId = startNodeId;
+    let currentNodeId: string | null = startNodeId;
     let currentData = initialData;
 
     while (currentNodeId) {
@@ -808,20 +1027,6 @@ const WorkflowBuilder: React.FC = () => {
     toast.success('Bağlantı oluşturuldu');
   };
 
-  // Bağlantı sil
-  const deleteConnection = (connectionId: string) => {
-    if (!selectedWorkflow) return;
-
-    setSelectedWorkflow(prev => prev ? {
-      ...prev,
-      workflow_data: {
-        ...prev.workflow_data,
-        connections: prev.workflow_data.connections.filter(
-          conn => conn.id !== connectionId
-        )
-      }
-    } : null);
-  };
 
   // Şablon kullan
   const useTemplate = (template: WorkflowTemplate) => {
@@ -1170,9 +1375,9 @@ const WorkflowBuilder: React.FC = () => {
          return;
        }
        
-       // Node boyutları
-       const nodeWidth = 192; // w-48 = 12rem = 192px
-       const nodeHeight = 48;  // h-12 = 3rem = 48px
+       // Node boyutları - Güncellenmiş
+       const nodeWidth = 224; // w-56 = 14rem = 224px
+       const nodeHeight = 64;  // h-16 = 4rem = 64px
        
        // Bağlantı başlangıç noktası (kaynak node'un sağ tarafı)
        const startX = sourceNode.position.x + nodeWidth;
@@ -1219,8 +1424,8 @@ const WorkflowBuilder: React.FC = () => {
 
          // Bağlantı önizlemesi - N8n tarzında
      if (connectionPreview) {
-       const nodeWidth = 192;
-       const nodeHeight = 48;
+       const nodeWidth = 224;
+       const nodeHeight = 64;
        
                // N8n tarzında kesikli çizgi önizlemesi - ortogonal
         ctx.strokeStyle = '#6366f1';
@@ -1333,16 +1538,6 @@ const WorkflowBuilder: React.FC = () => {
 
 
 
-  // Node'u sidebar'dan sürükle
-  const handleNodeDragFromSidebar = (nodeType: string, e: React.DragEvent) => {
-    e.preventDefault();
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const x = (e.clientX - rect.left - pan.x) / zoom;
-      const y = (e.clientY - rect.top - pan.y) / zoom;
-      addNode(nodeType, { x, y });
-    }
-  };
 
 
 
@@ -1573,9 +1768,11 @@ const WorkflowBuilder: React.FC = () => {
       <div className="flex-1 flex">
         {/* Sidebar */}
         <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Node Tipleri
           </h2>
+          </div>
           
                      <div className="space-y-3">
              {nodeTypes.map((nodeType) => (
@@ -1678,6 +1875,113 @@ const WorkflowBuilder: React.FC = () => {
                      ))}
                    </div>
                  )}
+
+                 {nodeType.approvals && (
+                   <div className="ml-4 space-y-1">
+                     {nodeType.approvals.map((approval) => (
+                       <div
+                         key={approval.id}
+                         draggable
+                         onDragStart={(e) => {
+                           e.dataTransfer.setData('nodeType', nodeType.type);
+                           e.dataTransfer.setData('subType', approval.id);
+                         }}
+                         className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 cursor-move hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
+                       >
+                         <div className="flex items-center space-x-2">
+                           <div className={`w-6 h-6 rounded flex items-center justify-center ${nodeType.color} shadow-sm`}>
+                             {React.createElement(approval.icon, { className: "w-3 h-3 text-white" })}
+                           </div>
+                           <div className="flex-1">
+                             <span className="text-sm text-gray-700 dark:text-gray-300">
+                               {approval.label}
+                             </span>
+                             {approval.description && (
+                               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                 {approval.description}
+                               </p>
+                             )}
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+
+                 {nodeType.dataActions && (
+                   <div className="ml-4 space-y-1">
+                     {nodeType.dataActions.map((dataAction) => (
+                       <div
+                         key={dataAction.id}
+                         draggable
+                         onDragStart={(e) => {
+                           e.dataTransfer.setData('nodeType', nodeType.type);
+                           e.dataTransfer.setData('subType', dataAction.id);
+                         }}
+                         className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 cursor-move hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
+                       >
+                         <div className="flex items-center space-x-2">
+                           <div className={`w-6 h-6 rounded flex items-center justify-center ${nodeType.color} shadow-sm`}>
+                             {React.createElement(dataAction.icon, { className: "w-3 h-3 text-white" })}
+                           </div>
+                           <span className="text-sm text-gray-700 dark:text-gray-300">
+                             {dataAction.label}
+                           </span>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+
+                 {nodeType.integrations && (
+                   <div className="ml-4 space-y-1">
+                     {nodeType.integrations.map((integration) => (
+                       <div
+                         key={integration.id}
+                         draggable
+                         onDragStart={(e) => {
+                           e.dataTransfer.setData('nodeType', nodeType.type);
+                           e.dataTransfer.setData('subType', integration.id);
+                         }}
+                         className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 cursor-move hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
+                       >
+                         <div className="flex items-center space-x-2">
+                           <div className={`w-6 h-6 rounded flex items-center justify-center ${nodeType.color} shadow-sm`}>
+                             {React.createElement(integration.icon, { className: "w-3 h-3 text-white" })}
+                           </div>
+                           <span className="text-sm text-gray-700 dark:text-gray-300">
+                             {integration.label}
+                           </span>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 )}
+
+                 {nodeType.automations && (
+                   <div className="ml-4 space-y-1">
+                     {nodeType.automations.map((automation) => (
+                       <div
+                         key={automation.id}
+                         draggable
+                         onDragStart={(e) => {
+                           e.dataTransfer.setData('nodeType', nodeType.type);
+                           e.dataTransfer.setData('subType', automation.id);
+                         }}
+                         className="bg-gray-50 dark:bg-gray-700 rounded-lg p-2 cursor-move hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600"
+                       >
+                         <div className="flex items-center space-x-2">
+                           <div className={`w-6 h-6 rounded flex items-center justify-center ${nodeType.color} shadow-sm`}>
+                             {React.createElement(automation.icon, { className: "w-3 h-3 text-white" })}
+                           </div>
+                           <span className="text-sm text-gray-700 dark:text-gray-300">
+                             {automation.label}
+                           </span>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 )}
                </div>
              ))}
            </div>
@@ -1685,39 +1989,156 @@ const WorkflowBuilder: React.FC = () => {
           {/* Workflow Listesi */}
           {!isEditing && (
             <div className="mt-8">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Workflow'lar
               </h3>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {filteredWorkflows.length} workflow
+                  </span>
+                </div>
+              </div>
+              
+              {/* Kategori Seçim Butonları */}
+              <div className="flex space-x-2 mb-4">
+                <button
+                  onClick={() => setWorkflowCategory('all')}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    workflowCategory === 'all'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  Tümü ({workflows.length})
+                </button>
+                <button
+                  onClick={() => setWorkflowCategory('active')}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    workflowCategory === 'active'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  Aktif ({workflows.filter(w => w.status === 'active').length})
+                </button>
+                <button
+                  onClick={() => setWorkflowCategory('inactive')}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    workflowCategory === 'inactive'
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300'
+                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  Pasif ({workflows.filter(w => w.status === 'inactive' || w.status === 'draft').length})
+                </button>
+              </div>
+              
               <div className="space-y-2">
-                {workflows.map((workflow) => (
+                {filteredWorkflows.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 dark:text-gray-500 mb-2">
+                      <MessageSquare size={48} className="mx-auto" />
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {workflowCategory === 'all' 
+                        ? 'Henüz workflow bulunmuyor'
+                        : workflowCategory === 'active'
+                        ? 'Aktif workflow bulunmuyor'
+                        : 'Pasif workflow bulunmuyor'
+                      }
+                    </p>
+                  </div>
+                ) : (
+                  filteredWorkflows.map((workflow) => {
+                  return (
                   <div
                     key={workflow.id}
+                      className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div 
+                          className="flex-1 cursor-pointer"
                     onClick={() => {
+                            // Mevcut workflow'u geçmişe ekle
+                            if (selectedWorkflow?.id && selectedWorkflow.id !== workflow.id) {
+                              addToWorkflowHistory(selectedWorkflow.id);
+                            }
                       setSelectedWorkflow(workflow);
                       setIsEditing(true);
                     }}
-                    className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                   >
+                          <div className="flex items-center space-x-2 mb-1">
                     <h4 className="font-medium text-gray-900 dark:text-white">
                       {workflow.name}
                     </h4>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {/* Kategori İndikatörü */}
+                            <div className={`w-2 h-2 rounded-full ${
+                              workflow.status === 'active' ? 'bg-green-500' :
+                              workflow.status === 'draft' ? 'bg-yellow-500' :
+                              'bg-gray-400'
+                            }`}></div>
+                          </div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
                       {workflow.description}
                     </p>
-                    <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center justify-between">
                       <span className={`px-2 py-1 text-xs rounded-full ${
-                        workflow.status === 'active' ? 'bg-green-100 text-green-800' :
-                        workflow.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {workflow.status}
+                              workflow.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                              workflow.status === 'draft' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
+                              'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300'
+                            }`}>
+                              {workflow.status === 'active' ? 'Aktif' :
+                               workflow.status === 'draft' ? 'Taslak' :
+                               'Pasif'}
                       </span>
-                      <span className="text-xs text-gray-500">
-                        {workflow.workflow_data.nodes.length} node
-                      </span>
+                            <div className="flex items-center space-x-2 text-xs text-gray-500">
+                              <span>{workflow.workflow_data.nodes.length} node</span>
+                              <span>•</span>
+                              <span>{workflow.workflow_data.connections.length} bağlantı</span>
                     </div>
                   </div>
-                ))}
+              </div>
+                        
+                        {/* Aksiyon Butonları */}
+                        <div className="flex items-center space-x-1 ml-2">
+                          {/* Bilgi İkonu */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (workflow.id) {
+                                setShowWorkflowStats(workflow.id);
+                                if (!workflowStats[workflow.id]) {
+                                  fetchWorkflowStats(workflow.id);
+                                }
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                            title="Workflow Detayları"
+                          >
+                            <Info size={16} />
+                          </button>
+                          
+                          {/* Silme İkonu */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (workflow.id) {
+                                setShowDeleteConfirm(workflow.id);
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                            title="Workflow'u Sil"
+                            disabled={workflow.status === 'active'}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                  })
+                )}
               </div>
             </div>
           )}
@@ -1780,31 +2201,101 @@ const WorkflowBuilder: React.FC = () => {
                }
              }}
           >
-                         {/* Debug bilgisi */}
+            {/* Workflow İstatistikleri - Gelişmiş */}
              {selectedWorkflow && (
-               <div className="absolute top-4 left-4 bg-red-500 text-white p-2 rounded text-xs z-50">
-                 <div>Node Sayısı: {selectedWorkflow.workflow_data.nodes.length}</div>
-                 <div>Bağlantı Sayısı: {selectedWorkflow.workflow_data.connections.length}</div>
-                 <div>Zoom: {zoom}</div>
-                 <div>Pan: ({pan.x}, {pan.y})</div>
-                 <div>Canvas Transform: scale({zoom}) translate({pan.x / zoom}px, {pan.y / zoom}px)</div>
-                 <div>Canvas Boyutu: {connectionCanvasRef.current?.width || 0} x {connectionCanvasRef.current?.height || 0}</div>
-                 <div>Canvas Görünür: {connectionCanvasRef.current ? 'EVET' : 'HAYIR'}</div>
-                 <div>Canvas Style: {connectionCanvasRef.current?.style.display || 'N/A'}</div>
-                 <div>Canvas Opacity: {connectionCanvasRef.current?.style.opacity || 'N/A'}</div>
-                 <div>Canvas Z-Index: {connectionCanvasRef.current?.style.zIndex || 'N/A'}</div>
-                 <div>Node Pozisyonları:</div>
-                 {selectedWorkflow.workflow_data.nodes.map((node, index) => (
-                   <div key={node.id} className="text-xs">
-                     Node {index}: ({node.position?.x || 0}, {node.position?.y || 0})
+            <div className="absolute top-4 left-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 shadow-lg z-50">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-3">
+                  {/* Geri Dönme Butonu */}
+                  <button
+                    onClick={() => {
+                      if (workflowHistory.length > 0) {
+                        // Önceki workflow'a git
+                        goBackToPreviousWorkflow();
+                      } else {
+                        // Workflow listesine dön
+                        setSelectedWorkflow(null);
+                        setIsEditing(false);
+                      }
+                    }}
+                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    title={workflowHistory.length > 0 ? "Önceki Workflow'a Dön" : "Workflow Listesine Dön"}
+                  >
+                    <ArrowLeft size={16} />
+                    <span className="text-sm">
+                      {workflowHistory.length > 0 ? "Önceki" : "Geri"}
+                    </span>
+                  </button>
+                  
+                  {/* Workflow Geçmişi Butonu */}
+                  {workflowHistory.length > 0 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowWorkflowHistory(!showWorkflowHistory)}
+                        className="flex items-center space-x-1 px-2 py-1.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                        title="Workflow Geçmişi"
+                      >
+                        <Clock size={14} />
+                        <span className="text-xs">{workflowHistory.length}</span>
+                      </button>
+                      
+                      {/* Workflow Geçmişi Dropdown */}
+                      {showWorkflowHistory && (
+                        <div className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-60 min-w-[200px]">
+                          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Son Workflow'lar</span>
                    </div>
-                 ))}
-                 <div>Bağlantılar:</div>
-                 {selectedWorkflow.workflow_data.connections.map((conn, index) => (
-                   <div key={conn.id} className="text-xs">
-                     Bağlantı {index}: {conn.source} → {conn.target}
+                          <div className="max-h-48 overflow-y-auto">
+                            {workflowHistory.map((workflowId) => {
+                              const workflow = workflows.find(w => w.id === workflowId);
+                              if (!workflow) return null;
+                              return (
+                                <button
+                                  key={workflowId}
+                                  onClick={() => goToWorkflowFromHistory(workflowId)}
+                                  className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                  <div className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                                    {workflow.name}
                    </div>
-                 ))}
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {workflow.status} • {workflow.workflow_data.nodes.length} node
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {selectedWorkflow.name}
+                </h2>
+              </div>
+              
+              <div className="flex items-center space-x-4 text-sm">
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {selectedWorkflow.workflow_data.nodes.length} Node
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {selectedWorkflow.workflow_data.connections.length} Bağlantı
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {Math.round(zoom * 100)}% Zoom
+                  </span>
+                </div>
+              </div>
                </div>
              )}
 
@@ -1820,58 +2311,137 @@ const WorkflowBuilder: React.FC = () => {
               return (
                                  <div
                    key={node.id}
-                   className={`absolute w-48 h-12 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
+                  className={`absolute ${node.type === 'approval' ? 'w-64 h-20' : 'w-56 h-16'} rounded-2xl border-2 cursor-pointer transition-all duration-300 transform hover:scale-105 ${
                      isSelected 
-                       ? 'border-indigo-500 shadow-lg shadow-indigo-500/25' 
+                      ? `border-${node.type === 'approval' ? 'purple' : 'indigo'}-500 shadow-2xl shadow-${node.type === 'approval' ? 'purple' : 'indigo'}-500/30 scale-105` 
                        : isConnecting
-                       ? 'border-green-500 shadow-lg shadow-green-500/25'
-                       : 'border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-400'
-                   } bg-white dark:bg-gray-800 hover:shadow-md`}
+                      ? 'border-green-500 shadow-xl shadow-green-500/25 scale-105'
+                      : `border-gray-200 dark:border-gray-600 hover:border-${node.type === 'approval' ? 'purple' : 'indigo'}-300 dark:hover:border-${node.type === 'approval' ? 'purple' : 'indigo'}-400 hover:shadow-lg`
+                  } ${node.type === 'approval' ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-white dark:bg-gray-800'} backdrop-blur-sm`}
                    style={{
                      left: nodePosition.x,
                      top: nodePosition.y,
                      zIndex: isSelected ? 100 : 50,
-                     transform: `translateZ(0)`
+                    transform: `translateZ(0) ${isSelected ? 'scale(1.05)' : ''}`,
+                    background: node.type === 'approval' 
+                      ? isSelected 
+                        ? 'linear-gradient(135deg, rgba(147, 51, 234, 0.15) 0%, rgba(147, 51, 234, 0.08) 100%)'
+                        : 'linear-gradient(135deg, rgba(147, 51, 234, 0.08) 0%, rgba(147, 51, 234, 0.04) 100%)'
+                      : isSelected 
+                      ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%)'
+                      : 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.8) 100%)'
                    }}
                    onClick={(e) => handleNodeClick(node.id, e)}
                    onDoubleClick={() => handleNodeDoubleClick(node.id)}
                    onMouseDown={(e) => handleNodeDragStart(node.id, e)}
                    onMouseMove={handleNodeDrag}
                  >
-                   <div className="flex items-center h-full px-3">
-                     <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${nodeType?.color} mr-2 shadow-sm`}>
-                       {nodeType?.icon && React.createElement(nodeType.icon, { className: "w-3 h-3 text-white" })}
+                  {/* Node Header */}
+                  {node.type === 'approval' ? (
+                    <div className="h-full px-4 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-purple-500 mr-3 shadow-lg transition-all duration-300 ${
+                            isSelected ? 'scale-110 shadow-xl' : ''
+                          }`}>
+                            <UserCheck className="w-4 h-4 text-white" />
                      </div>
-                     <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-purple-900 dark:text-purple-100 truncate">
+                              {node.data?.label || 'Onay Süreci'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                          <span className="text-xs font-medium text-purple-600 dark:text-purple-400">ONAY</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs text-purple-700 dark:text-purple-300 truncate">
+                          {node.data?.subType ? 
+                            nodeTypes.find(nt => nt.type === 'approval')?.approvals?.find(a => a.id === node.data.subType)?.label || 'Onay Gerekli'
+                            : 'Onay Gerekli'}
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-3 h-3 text-purple-500" />
+                          <span className="text-xs text-purple-600 dark:text-purple-400">24h</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center h-full px-4">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${nodeType?.color} mr-3 shadow-lg transition-all duration-300 ${
+                        isSelected ? 'scale-110 shadow-xl' : ''
+                      }`}>
+                        {nodeType?.icon && React.createElement(nodeType.icon, { className: "w-4 h-4 text-white" })}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                        {node.data?.label || 'Node'}
-                     </span>
                    </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {nodeType?.description || 'Workflow node'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                                     {/* Node Controls - N8n tarzında */}
+                  {/* Connection Points */}
+                  <div className={`absolute -right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 ${node.type === 'approval' ? 'bg-purple-500' : 'bg-indigo-500'} rounded-full border-2 border-white shadow-lg opacity-0 hover:opacity-100 transition-opacity duration-200`} />
+                  <div className={`absolute -left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 ${node.type === 'approval' ? 'bg-purple-500' : 'bg-indigo-500'} rounded-full border-2 border-white shadow-lg opacity-0 hover:opacity-100 transition-opacity duration-200`} />
+
+                  {/* Node Controls - Gelişmiş */}
                    {isSelected && (
-                     <div className="absolute -top-10 left-0 right-0 flex justify-center space-x-2">
+                    <div className="absolute -top-12 left-0 right-0 flex justify-center space-x-2 animate-in slide-in-from-top-2 duration-300">
                        <button
                          onClick={(e) => {
                            e.stopPropagation();
                            setShowNodeConfig(node.id);
                          }}
-                         className="p-1.5 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 shadow-sm transition-colors"
+                        className="p-2 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 shadow-lg transition-all duration-200 hover:scale-110"
                          title="Düzenle"
                        >
-                         <Edit size={12} />
+                        <Edit size={14} />
                        </button>
                        <button
                          onClick={(e) => {
                            e.stopPropagation();
                            deleteNode(node.id);
                          }}
-                         className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-sm transition-colors"
+                        className="p-2 bg-red-500 text-white rounded-xl hover:bg-red-600 shadow-lg transition-all duration-200 hover:scale-110"
                          title="Sil"
                        >
-                         <Trash2 size={12} />
+                        <Trash2 size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Node'u kopyala
+                          const newNode = {
+                            ...node,
+                            id: `node_${Date.now()}`,
+                            position: { x: nodePosition.x + 50, y: nodePosition.y + 50 }
+                          };
+                          setSelectedWorkflow(prev => prev ? {
+                            ...prev,
+                            workflow_data: {
+                              ...prev.workflow_data,
+                              nodes: [...prev.workflow_data.nodes, newNode]
+                            }
+                          } : null);
+                          toast.success('Node kopyalandı');
+                        }}
+                        className="p-2 bg-green-500 text-white rounded-xl hover:bg-green-600 shadow-lg transition-all duration-200 hover:scale-110"
+                        title="Kopyala"
+                      >
+                        <Copy size={14} />
                        </button>
                      </div>
                    )}
+
+                  {/* Node Status Indicator */}
+                  <div className={`absolute top-2 right-2 w-2 h-2 ${node.type === 'approval' ? 'bg-purple-400' : 'bg-green-400'} rounded-full animate-pulse`} />
                 </div>
               );
             })}
@@ -2001,25 +2571,41 @@ const WorkflowBuilder: React.FC = () => {
         </div>
       )}
 
-      {/* Node Configuration Modal */}
+      {/* Node Configuration Modal - Gelişmiş */}
       {showNodeConfig && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center">
+                  <Settings size={20} className="text-white" />
+                </div>
+                <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 Node Konfigürasyonu
               </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Node ayarlarını düzenleyin
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setShowNodeConfig(null)}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Temel Bilgiler */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Temel Bilgiler
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Node Adı
                 </label>
                 <input
@@ -2039,20 +2625,198 @@ const WorkflowBuilder: React.FC = () => {
                       }
                     });
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Node adını girin..."
                 />
               </div>
               
-              <div className="flex justify-end space-x-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Node Tipi
+                    </label>
+                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300">
+                      {selectedWorkflow?.workflow_data.nodes.find(n => n.id === showNodeConfig)?.type || 'Bilinmiyor'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gelişmiş Ayarlar */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Gelişmiş Ayarlar
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Açıklama
+                    </label>
+                    <textarea
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Node açıklaması..."
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Zaman Aşımı (saniye)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="3600"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="30"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Tekrar Sayısı
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="3"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Onay Node Özel Ayarları */}
+              {selectedWorkflow?.workflow_data.nodes.find(n => n.id === showNodeConfig)?.type === 'approval' && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 border border-purple-200 dark:border-purple-700">
+                  <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 mb-4 flex items-center">
+                    <UserCheck className="w-5 h-5 mr-2" />
+                    Onay Süreci Ayarları
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
+                        Onay Tipi
+                      </label>
+                      <select className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="sequential">Sıralı Onay</option>
+                        <option value="parallel">Paralel Onay</option>
+                        <option value="conditional">Koşullu Onay</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
+                        Onaylayıcılar
+                      </label>
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="text"
+                            placeholder="Onaylayıcı e-posta adresi"
+                            className="flex-1 px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          />
+                          <button className="px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="text-xs text-purple-600 dark:text-purple-400">
+                          Birden fazla onaylayıcı ekleyebilirsiniz
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
+                          Zaman Aşımı (saat)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="168"
+                          placeholder="24"
+                          className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
+                          Otomatik Onay
+                        </label>
+                        <select className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                          <option value="none">Yok</option>
+                          <option value="approve">Onayla</option>
+                          <option value="reject">Reddet</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-purple-700 dark:text-purple-300 mb-2">
+                        Bildirim Ayarları
+                      </label>
+                      <div className="space-y-2">
+                        <label className="flex items-center space-x-2">
+                          <input type="checkbox" className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" />
+                          <span className="text-sm text-purple-700 dark:text-purple-300">E-posta bildirimi gönder</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input type="checkbox" className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" />
+                          <span className="text-sm text-purple-700 dark:text-purple-300">SMS bildirimi gönder</span>
+                        </label>
+                        <label className="flex items-center space-x-2">
+                          <input type="checkbox" className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500" />
+                          <span className="text-sm text-purple-700 dark:text-purple-300">Hatırlatma bildirimi gönder</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Koşullar */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Koşullar
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="enableConditions"
+                      className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <label htmlFor="enableConditions" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Koşulları etkinleştir
+                    </label>
+                  </div>
+                  
+                  <div className="ml-7">
+                    <textarea
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono text-sm"
+                      placeholder='{"priority": "high", "status": "open"}'
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
                 <button
                   onClick={() => setShowNodeConfig(null)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  className="px-6 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
                 >
                   İptal
                 </button>
                 <button
-                  onClick={() => setShowNodeConfig(null)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  onClick={() => {
+                    setShowNodeConfig(null);
+                    toast.success('Node ayarları kaydedildi');
+                  }}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-lg"
                 >
                   Kaydet
                 </button>
@@ -2404,6 +3168,306 @@ const WorkflowBuilder: React.FC = () => {
                 {tutorialStep === 7 && "Workflow'nuzu kaydederek tekrar kullanabilirsiniz."}
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Workflow İstatistikleri Modal */}
+      {showWorkflowStats && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Workflow İstatistikleri
+              </h2>
+              <button
+                onClick={() => setShowWorkflowStats(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {showWorkflowStats && (() => {
+              const workflow = workflows.find(w => w.id === showWorkflowStats);
+              const stats = workflowStats[showWorkflowStats] || {};
+              
+              if (!workflow) return null;
+              
+              return (
+                <div className="space-y-6">
+                  {/* Workflow Bilgileri */}
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                      {workflow.name}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      {workflow.description}
+                    </p>
+                    <div className="flex items-center space-x-4">
+                      <span className={`px-3 py-1 text-sm rounded-full ${
+                        workflow.status === 'active' ? 'bg-green-100 text-green-800' :
+                        workflow.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {workflow.status}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {workflow.workflow_data.nodes.length} node
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {workflow.workflow_data.connections.length} bağlantı
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* İstatistik Kartları */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {stats.totalExecutions || 0}
+                      </div>
+                      <div className="text-sm text-blue-600 dark:text-blue-400">Toplam Çalıştırma</div>
+                    </div>
+                    
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        {stats.recentExecutions || 0}
+                      </div>
+                      <div className="text-sm text-green-600 dark:text-green-400">Son 30 Gün</div>
+                    </div>
+                    
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                        {stats.successRate || 0}%
+                      </div>
+                      <div className="text-sm text-purple-600 dark:text-purple-400">Başarı Oranı</div>
+                    </div>
+                    
+                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 text-center">
+                      <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                        {stats.avgDuration || 0}s
+                      </div>
+                      <div className="text-sm text-orange-600 dark:text-orange-400">Ort. Süre</div>
+                    </div>
+                  </div>
+
+                  {/* Detaylı İstatistikler */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-4">
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                        Çalıştırma Durumu
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Başarılı</span>
+                          <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                            {stats.successfulExecutions || 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Başarısız</span>
+                          <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                            {stats.failedExecutions || 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Son Durum</span>
+                          <span className={`text-sm font-medium ${
+                            stats.lastStatus === 'completed' ? 'text-green-600 dark:text-green-400' :
+                            stats.lastStatus === 'failed' ? 'text-red-600 dark:text-red-400' :
+                            'text-gray-600 dark:text-gray-400'
+                          }`}>
+                            {stats.lastStatus === 'completed' ? 'Başarılı' :
+                             stats.lastStatus === 'failed' ? 'Başarısız' :
+                             stats.lastStatus === 'never_run' ? 'Hiç Çalıştırılmadı' :
+                             'Bilinmiyor'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-4">
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                        Zaman Bilgileri
+                      </h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Son Çalıştırma</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {stats.lastExecution 
+                              ? new Date(stats.lastExecution).toLocaleDateString('tr-TR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : 'Hiç çalıştırılmadı'
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Ortalama Süre</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {stats.avgDuration || 0} saniye
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Oluşturulma</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {workflow.created_at ? new Date(workflow.created_at).toLocaleDateString('tr-TR') : 'Bilinmiyor'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Node Detayları */}
+                  <div className="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 p-4">
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                      Workflow Yapısı
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          {workflow.workflow_data.nodes.filter((n: any) => n.type === 'trigger').length}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Tetikleyici</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {workflow.workflow_data.nodes.filter((n: any) => n.type === 'action').length}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Aksiyon</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                          {workflow.workflow_data.nodes.filter((n: any) => n.type === 'condition').length}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Koşul</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                          {workflow.workflow_data.connections.length}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Bağlantı</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Workflow Silme Onay Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                Workflow'u Sil
+              </h2>
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {showDeleteConfirm && (() => {
+              const workflow = workflows.find(w => w.id === showDeleteConfirm);
+              if (!workflow) return null;
+              
+              return (
+                <div className="space-y-4">
+                  {/* Uyarı İkonu */}
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-red-100 dark:bg-red-900/20 rounded-full">
+                    <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+                  </div>
+                  
+                  {/* Uyarı Mesajı */}
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                      Bu işlem geri alınamaz!
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      <strong>"{workflow.name}"</strong> workflow'unu silmek istediğinizden emin misiniz?
+                    </p>
+                    
+                    {/* Workflow Detayları */}
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mb-4">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                        <div className="flex justify-between">
+                          <span>Durum:</span>
+                          <span className={`font-medium ${
+                            workflow.status === 'active' ? 'text-green-600 dark:text-green-400' :
+                            workflow.status === 'draft' ? 'text-yellow-600 dark:text-yellow-400' :
+                            'text-gray-600 dark:text-gray-400'
+                          }`}>
+                            {workflow.status === 'active' ? 'Aktif' :
+                             workflow.status === 'draft' ? 'Taslak' :
+                             'Pasif'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Node Sayısı:</span>
+                          <span className="font-medium">{workflow.workflow_data.nodes.length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Bağlantı Sayısı:</span>
+                          <span className="font-medium">{workflow.workflow_data.connections.length}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Aktif Workflow Uyarısı */}
+                    {workflow.status === 'active' && (
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+                        <div className="flex items-center space-x-2">
+                          <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                            Aktif workflow'lar silinemez. Önce pasif hale getirin.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Aksiyon Butonları */}
+                  <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
+                    <button
+                      onClick={() => setShowDeleteConfirm(null)}
+                      className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                      disabled={deletingWorkflow === workflow.id}
+                    >
+                      İptal
+                    </button>
+                    <button
+                      onClick={() => workflow.id && deleteWorkflow(workflow.id)}
+                      disabled={workflow.status === 'active' || deletingWorkflow === workflow.id}
+                      className={`px-4 py-2 rounded-lg transition-colors ${
+                        workflow.status === 'active' || deletingWorkflow === workflow.id
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-600 dark:text-gray-400'
+                          : 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800'
+                      }`}
+                    >
+                      {deletingWorkflow === workflow.id ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Siliniyor...</span>
+                        </div>
+                      ) : (
+                        'Sil'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
