@@ -24,7 +24,21 @@ import {
   Grid3X3,
   Settings,
   X,
-  Save
+  Save,
+  Shield,
+  Activity,
+  History,
+  Download,
+  Filter,
+  CheckSquare,
+  UserX,
+  UserCheck2,
+  Crown,
+  BarChart3,
+  PieChart,
+  Smartphone,
+  Monitor,
+  Tablet
 } from 'lucide-react';
 
 interface Employee {
@@ -49,6 +63,62 @@ interface Employee {
   team_size?: number;
   reporting_level?: number;
   salary?: number;
+  // Yeni gelişmiş alanlar
+  role?: string;
+  permissions?: string[];
+  last_login?: string;
+  login_count?: number;
+  device_info?: {
+    device_type: 'desktop' | 'mobile' | 'tablet';
+    browser: string;
+    os: string;
+    last_seen: string;
+  };
+  security_settings?: {
+    two_factor_enabled: boolean;
+    password_changed_at: string;
+    failed_login_attempts: number;
+    account_locked: boolean;
+  };
+  activity_log?: ActivityLog[];
+  profile_completion?: number;
+  avatar?: string;
+  emergency_contact?: {
+    name: string;
+    phone: string;
+    relationship: string;
+  };
+  work_schedule?: {
+    start_time: string;
+    end_time: string;
+    timezone: string;
+    work_days: string[];
+  };
+}
+
+interface ActivityLog {
+  id: string;
+  action: string;
+  timestamp: string;
+  ip_address: string;
+  user_agent: string;
+  details: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
+  permissions: string[];
+  description: string;
+  color: string;
+}
+
+interface BulkAction {
+  id: string;
+  name: string;
+  icon: React.ComponentType<any>;
+  action: (selectedIds: string[]) => void;
+  requiresConfirmation: boolean;
 }
 
 interface EmployeeFormData {
@@ -72,6 +142,20 @@ interface EmployeeFormData {
   team_size?: number;
   reporting_level?: number;
   salary?: number;
+  // Yeni alanlar
+  role?: string;
+  permissions?: string[];
+  emergency_contact?: {
+    name: string;
+    phone: string;
+    relationship: string;
+  };
+  work_schedule?: {
+    start_time: string;
+    end_time: string;
+    timezone: string;
+    work_days: string[];
+  };
 }
 
 interface Column {
@@ -98,7 +182,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   
   // Görünüm ve sütun yönetimi state'leri
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'analytics'>('list');
   const [columns, setColumns] = useState<Column[]>([
     { id: 'active', name: 'Aktif Çalışanlar', color: 'bg-green-500', status: 'active', order: 1 },
     { id: 'on_leave', name: 'İzindeki Çalışanlar', color: 'bg-yellow-500', status: 'on_leave', order: 2 },
@@ -108,6 +192,20 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
   const [editingColumn, setEditingColumn] = useState<Column | null>(null);
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnColor, setNewColumnColor] = useState('bg-blue-500');
+  
+  // Yeni gelişmiş state'ler
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
+  const [showBulkActions, setShowBulkActions] = useState(false);
+  const [showRoleManagement, setShowRoleManagement] = useState(false);
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [roles] = useState<Role[]>([
+    { id: 'admin', name: 'Yönetici', permissions: ['all'], description: 'Tam yetki', color: 'bg-red-500' },
+    { id: 'manager', name: 'Müdür', permissions: ['read', 'write', 'approve'], description: 'Yönetim yetkisi', color: 'bg-blue-500' },
+    { id: 'employee', name: 'Çalışan', permissions: ['read'], description: 'Temel yetki', color: 'bg-green-500' },
+    { id: 'hr', name: 'İK', permissions: ['read', 'write', 'hr_management'], description: 'İK yetkisi', color: 'bg-purple-500' }
+  ]);
+  
   const [employeeFormData, setEmployeeFormData] = useState<EmployeeFormData>({
     name: '',
     email: '',
@@ -120,7 +218,20 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
     attendance_rate: 100,
     leave_balance: 20,
     career_goals: [],
-    status: 'active'
+    status: 'active',
+    role: 'employee',
+    permissions: ['read'],
+    emergency_contact: {
+      name: '',
+      phone: '',
+      relationship: ''
+    },
+    work_schedule: {
+      start_time: '09:00',
+      end_time: '18:00',
+      timezone: 'Europe/Istanbul',
+      work_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+    }
   });
 
   const departments = ['Teknoloji', 'Müşteri Hizmetleri', 'Satış', 'İK', 'Finans', 'Pazarlama', 'Operasyon'];
@@ -139,127 +250,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'inactive': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'on_leave': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-    }
-  };
 
-  const calculateExperienceYears = (hireDate: string) => {
-    const hire = new Date(hireDate);
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - hire.getTime());
-    const diffYears = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 365));
-    return diffYears;
-  };
-
-  const filteredEmployees = employees.filter(employee => {
-    const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         employee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         employee.position.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDepartment = !departmentFilter || employee.department === departmentFilter;
-    const matchesStatus = !statusFilter || employee.status === statusFilter;
-    return matchesSearch && matchesDepartment && matchesStatus;
-  });
-
-  const handleAddEmployee = async () => {
-    try {
-      const { error } = await supabase
-        .from('employees')
-        .insert([employeeFormData]);
-
-      if (error) throw error;
-
-      setShowAddEmployee(false);
-      setEmployeeFormData({
-        name: '',
-        email: '',
-        position: '',
-        title: 'Çalışan',
-        department: '',
-        hire_date: '',
-        skills: [],
-        performance_score: 0,
-        attendance_rate: 100,
-        leave_balance: 20,
-        career_goals: [],
-        status: 'active'
-      });
-      onEmployeeUpdate();
-    } catch (error) {
-      console.error('Çalışan eklenirken hata:', error);
-    }
-  };
-
-  const handleEditEmployee = async () => {
-    if (!selectedEmployee) return;
-
-    try {
-      const { error } = await supabase
-        .from('employees')
-        .update(employeeFormData)
-        .eq('id', selectedEmployee.id);
-
-      if (error) throw error;
-
-      setShowEditEmployee(false);
-      setSelectedEmployee(null);
-      onEmployeeUpdate();
-    } catch (error) {
-      console.error('Çalışan güncellenirken hata:', error);
-    }
-  };
-
-  const handleDeleteEmployee = async (id: string) => {
-    if (!confirm('Bu çalışanı silmek istediğinizden emin misiniz?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('employees')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      onEmployeeUpdate();
-    } catch (error) {
-      console.error('Çalışan silinirken hata:', error);
-    }
-  };
-
-  const handleViewEmployee = (employee: Employee) => {
-    if (onViewEmployee) {
-      onViewEmployee(employee.id);
-    } else {
-      setSelectedEmployee(employee);
-      setShowViewEmployee(true);
-    }
-  };
-
-  const handleEditEmployeeClick = (employee: Employee) => {
-    setSelectedEmployee(employee);
-    setEmployeeFormData({
-      name: employee.name,
-      email: employee.email,
-      position: employee.position,
-      title: employee.title || 'Çalışan',
-      department: employee.department,
-      hire_date: employee.hire_date,
-      skills: employee.skills,
-      performance_score: employee.performance_score,
-      attendance_rate: employee.attendance_rate,
-      leave_balance: employee.leave_balance,
-      career_goals: employee.career_goals,
-      status: employee.status,
-      phone: employee.phone,
-      address: employee.address,
-      education: employee.education,
-      experience_years: employee.experience_years
-    });
-    setShowEditEmployee(true);
-  };
 
   // Sütun yönetimi fonksiyonları
   const handleAddColumn = () => {
@@ -302,6 +293,276 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
     setColumns(columns.filter(col => col.id !== columnId));
   };
 
+  // Yeni gelişmiş fonksiyonlar
+  const handleSelectEmployee = (employeeId: string) => {
+    setSelectedEmployees(prev => 
+      prev.includes(employeeId) 
+        ? prev.filter(id => id !== employeeId)
+        : [...prev, employeeId]
+    );
+  };
+
+  const handleSelectAllEmployees = () => {
+    if (selectedEmployees.length === filteredEmployees.length) {
+      setSelectedEmployees([]);
+    } else {
+      setSelectedEmployees(filteredEmployees.map(emp => emp.id));
+    }
+  };
+
+  const bulkActions: BulkAction[] = [
+    {
+      id: 'activate',
+      name: 'Aktifleştir',
+      icon: UserCheck2,
+      action: (ids) => updateEmployeeStatus(ids, 'active'),
+      requiresConfirmation: true
+    },
+    {
+      id: 'deactivate',
+      name: 'Pasifleştir',
+      icon: UserX,
+      action: (ids) => updateEmployeeStatus(ids, 'inactive'),
+      requiresConfirmation: true
+    },
+    {
+      id: 'export',
+      name: 'Dışa Aktar',
+      icon: Download,
+      action: (ids) => exportEmployees(ids),
+      requiresConfirmation: false
+    },
+    {
+      id: 'delete',
+      name: 'Sil',
+      icon: Trash2,
+      action: (ids) => deleteEmployees(ids),
+      requiresConfirmation: true
+    }
+  ];
+
+  const updateEmployeeStatus = async (employeeIds: string[], status: string) => {
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .update({ status })
+        .in('id', employeeIds);
+
+      if (error) throw error;
+
+      onEmployeeUpdate();
+      setSelectedEmployees([]);
+    } catch (error) {
+      console.error('Toplu durum güncelleme hatası:', error);
+    }
+  };
+
+  const exportEmployees = (employeeIds: string[]) => {
+    const selectedEmployeesData = employees.filter(emp => employeeIds.includes(emp.id));
+    const csvContent = generateCSV(selectedEmployeesData);
+    downloadCSV(csvContent, 'employees.csv');
+  };
+
+  const deleteEmployees = async (employeeIds: string[]) => {
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .delete()
+        .in('id', employeeIds);
+
+      if (error) throw error;
+      
+      onEmployeeUpdate();
+      setSelectedEmployees([]);
+    } catch (error) {
+      console.error('Toplu silme hatası:', error);
+    }
+  };
+
+  const generateCSV = (data: Employee[]) => {
+    const headers = ['ID', 'İsim', 'Email', 'Pozisyon', 'Departman', 'Durum', 'İşe Giriş Tarihi'];
+    const rows = data.map(emp => [
+      emp.id,
+      emp.name,
+      emp.email,
+      emp.position,
+      emp.department,
+      getStatusLabel(emp.status),
+      emp.hire_date
+    ]);
+    
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  };
+
+  const downloadCSV = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+
+  const getRoleColor = (roleId: string) => {
+    const role = roles.find(r => r.id === roleId);
+    return role?.color || 'bg-gray-500';
+  };
+
+  const getRoleName = (roleId: string) => {
+    const role = roles.find(r => r.id === roleId);
+    return role?.name || 'Bilinmeyen';
+  };
+
+  // Eksik fonksiyonları ekleyelim
+  const calculateExperienceYears = (hireDate: string) => {
+    const hire = new Date(hireDate);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - hire.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.floor(diffDays / 365);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'inactive': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'on_leave': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    }
+  };
+
+  const handleViewEmployee = (employee: Employee) => {
+    if (onViewEmployee) {
+      onViewEmployee(employee.id);
+    } else {
+      setSelectedEmployee(employee);
+      setShowViewEmployee(true);
+    }
+  };
+
+  const handleEditEmployeeClick = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setEmployeeFormData({
+      name: employee.name,
+      email: employee.email,
+      position: employee.position,
+      title: employee.title,
+      department: employee.department,
+      hire_date: employee.hire_date,
+      skills: employee.skills,
+      performance_score: employee.performance_score,
+      attendance_rate: employee.attendance_rate,
+      leave_balance: employee.leave_balance,
+      career_goals: employee.career_goals,
+      status: employee.status,
+      phone: employee.phone,
+      address: employee.address,
+      education: employee.education,
+      experience_years: employee.experience_years,
+      manager_id: employee.manager_id,
+      team_size: employee.team_size,
+      reporting_level: employee.reporting_level,
+      salary: employee.salary,
+      role: employee.role,
+      permissions: employee.permissions,
+      emergency_contact: employee.emergency_contact,
+      work_schedule: employee.work_schedule
+    });
+    setShowEditEmployee(true);
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (confirm('Bu çalışanı silmek istediğinizden emin misiniz?')) {
+      try {
+        const { error } = await supabase
+          .from('employees')
+          .delete()
+          .eq('id', employeeId);
+
+        if (error) throw error;
+        
+        onEmployeeUpdate();
+      } catch (error) {
+        console.error('Çalışan silinirken hata:', error);
+      }
+    }
+  };
+
+  const handleAddEmployee = async () => {
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .insert([employeeFormData]);
+
+      if (error) throw error;
+      
+      setShowAddEmployee(false);
+      setEmployeeFormData({
+        name: '',
+        email: '',
+        position: '',
+        title: 'Çalışan',
+        department: '',
+        hire_date: '',
+        skills: [],
+        performance_score: 0,
+        attendance_rate: 100,
+        leave_balance: 20,
+        career_goals: [],
+        status: 'active',
+        role: 'employee',
+        permissions: ['read'],
+        emergency_contact: {
+          name: '',
+          phone: '',
+          relationship: ''
+        },
+        work_schedule: {
+          start_time: '09:00',
+          end_time: '18:00',
+          timezone: 'Europe/Istanbul',
+          work_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+        }
+      });
+      onEmployeeUpdate();
+    } catch (error) {
+      console.error('Çalışan eklenirken hata:', error);
+    }
+  };
+
+  const handleEditEmployee = async () => {
+    if (!selectedEmployee) return;
+    
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .update(employeeFormData)
+        .eq('id', selectedEmployee.id);
+
+      if (error) throw error;
+      
+      setShowEditEmployee(false);
+      onEmployeeUpdate();
+    } catch (error) {
+      console.error('Çalışan güncellenirken hata:', error);
+    }
+  };
+
+
+  // Filtrelenmiş çalışanları hesapla
+  const filteredEmployees = employees.filter(employee => {
+    const matchesSearch = !searchTerm || 
+      employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.position.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesDepartment = !departmentFilter || employee.department === departmentFilter;
+    const matchesStatus = !statusFilter || employee.status === statusFilter;
+    
+    return matchesSearch && matchesDepartment && matchesStatus;
+  });
 
   const getEmployeesByStatus = (status: string) => {
     return filteredEmployees.filter(emp => emp.status === status);
@@ -404,9 +665,9 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
         </div>
       </div>
 
-      {/* Arama ve Filtreler */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm">
-        <div className="flex flex-col lg:flex-row gap-4">
+      {/* Gelişmiş Header ve Kontroller */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col lg:flex-row gap-4 mb-4">
           <div className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -442,6 +703,19 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
                 <option key={status} value={status}>{getStatusLabel(status)}</option>
               ))}
             </select>
+
+            {/* Gelişmiş Filtreler Butonu */}
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`px-3 py-2 border rounded-lg flex items-center gap-2 text-sm font-medium transition-colors ${
+                showAdvancedFilters
+                  ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/20 dark:border-blue-600 dark:text-blue-400'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+              <span>Gelişmiş</span>
+            </button>
           </div>
           
           {/* Görünüm Geçiş Butonları */}
@@ -469,6 +743,17 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
                 <Grid3X3 className="w-4 h-4" />
                 <span>Kanban</span>
               </button>
+              <button
+                onClick={() => setViewMode('analytics')}
+                className={`px-3 py-2 rounded-md flex items-center space-x-2 text-sm font-medium transition-colors ${
+                  viewMode === 'analytics'
+                    ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Analitik</span>
+              </button>
             </div>
             
             {viewMode === 'kanban' && (
@@ -480,8 +765,29 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
                 <Settings className="w-4 h-4" />
               </button>
             )}
+
+            {/* Rol Yönetimi Butonu */}
+            <button
+              onClick={() => setShowRoleManagement(true)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
+              title="Rol Yönetimi"
+            >
+              <Shield className="w-4 h-4" />
+              <span>Roller</span>
+            </button>
+
+            {/* Aktivite Log Butonu */}
+            <button
+              onClick={() => setShowActivityLog(true)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center space-x-2"
+              title="Aktivite Geçmişi"
+            >
+              <History className="w-4 h-4" />
+              <span>Log</span>
+            </button>
           </div>
           
+          <div className="flex gap-2">
           <button
             onClick={() => setShowAddEmployee(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
@@ -489,7 +795,91 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
             <UserPlus className="w-5 h-5" />
             <span>Çalışan Ekle</span>
           </button>
+
+            {/* Toplu İşlemler Butonu */}
+            {selectedEmployees.length > 0 && (
+              <button
+                onClick={() => setShowBulkActions(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+              >
+                <CheckSquare className="w-5 h-5" />
+                <span>Toplu İşlem ({selectedEmployees.length})</span>
+              </button>
+            )}
         </div>
+        </div>
+
+        {/* Gelişmiş Filtreler */}
+        {showAdvancedFilters && (
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Rol Filtresi
+                </label>
+                <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
+                  <option value="">Tüm Roller</option>
+                  {roles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Performans Skoru
+                </label>
+                <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
+                  <option value="">Tüm Skorlar</option>
+                  <option value="90-100">90-100% (Mükemmel)</option>
+                  <option value="80-89">80-89% (İyi)</option>
+                  <option value="70-79">70-79% (Orta)</option>
+                  <option value="60-69">60-69% (Düşük)</option>
+                  <option value="0-59">0-59% (Çok Düşük)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  İşe Giriş Tarihi
+                </label>
+                <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
+                  <option value="">Tüm Tarihler</option>
+                  <option value="last-month">Son 1 Ay</option>
+                  <option value="last-3-months">Son 3 Ay</option>
+                  <option value="last-6-months">Son 6 Ay</option>
+                  <option value="last-year">Son 1 Yıl</option>
+                  <option value="over-year">1 Yıldan Fazla</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Güvenlik Durumu
+                </label>
+                <select className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white">
+                  <option value="">Tüm Durumlar</option>
+                  <option value="2fa-enabled">2FA Aktif</option>
+                  <option value="2fa-disabled">2FA Pasif</option>
+                  <option value="locked">Hesap Kilitli</option>
+                  <option value="recent-login">Son Giriş (24h)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setShowAdvancedFilters(false)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              >
+                Temizle
+              </button>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Filtrele
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Çalışanlar Görünümü */}
@@ -507,6 +897,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectedEmployees.length === filteredEmployees.length && filteredEmployees.length > 0}
+                        onChange={handleSelectAllEmployees}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       Çalışan
                     </th>
@@ -531,6 +929,14 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
                   {filteredEmployees.map((employee) => (
                     <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedEmployees.includes(employee.id)}
+                          onChange={() => handleSelectEmployee(employee.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
                             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
@@ -538,12 +944,23 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
                             </div>
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
                               {employee.name}
+                              {employee.role && (
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(employee.role)} text-white`}>
+                                  {getRoleName(employee.role)}
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">
                               {employee.email}
                             </div>
+                            {employee.last_login && (
+                              <div className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Son giriş: {new Date(employee.last_login).toLocaleDateString('tr-TR')}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -578,27 +995,47 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-3">
+                        <div className="flex space-x-1">
                           <button
                             onClick={() => handleViewEmployee(employee)}
                             className="p-2 text-blue-600 hover:text-white hover:bg-blue-600 dark:text-blue-400 dark:hover:text-white dark:hover:bg-blue-600 rounded-lg transition-colors border border-blue-200 dark:border-blue-700"
                             title="Görüntüle"
                           >
-                            <Eye className="w-5 h-5" />
+                            <Eye className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleEditEmployeeClick(employee)}
                             className="p-2 text-green-600 hover:text-white hover:bg-green-600 dark:text-green-400 dark:hover:text-white dark:hover:bg-green-600 rounded-lg transition-colors border border-green-200 dark:border-green-700"
                             title="Düzenle"
                           >
-                            <Edit className="w-5 h-5" />
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedEmployee(employee);
+                              setShowViewEmployee(true);
+                            }}
+                            className="p-2 text-purple-600 hover:text-white hover:bg-purple-600 dark:text-purple-400 dark:hover:text-white dark:hover:bg-purple-600 rounded-lg transition-colors border border-purple-200 dark:border-purple-700"
+                            title="Güvenlik"
+                          >
+                            <Shield className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedEmployee(employee);
+                              setShowViewEmployee(true);
+                            }}
+                            className="p-2 text-orange-600 hover:text-white hover:bg-orange-600 dark:text-orange-400 dark:hover:text-white dark:hover:bg-orange-600 rounded-lg transition-colors border border-orange-200 dark:border-orange-700"
+                            title="Aktivite"
+                          >
+                            <Activity className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteEmployee(employee.id)}
                             className="p-2 text-red-600 hover:text-white hover:bg-red-600 dark:text-red-400 dark:hover:text-white dark:hover:bg-red-600 rounded-lg transition-colors border border-red-200 dark:border-red-700"
                             title="Sil"
                           >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -608,7 +1045,7 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
               </table>
             </div>
           </div>
-        ) : (
+        ) : viewMode === 'kanban' ? (
           // Kanban Görünümü
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -762,6 +1199,184 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
                   })}
                 </div>
               </DragDropContext>
+            </div>
+          </div>
+        ) : (
+          // Analytics Görünümü
+          <div className="space-y-6">
+            {/* Analytics Dashboard */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {/* Departman Dağılımı */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <PieChart className="w-5 h-5 mr-2" />
+                  Departman Dağılımı
+                </h3>
+                <div className="space-y-3">
+                  {departments.map(dept => {
+                    const count = employees.filter(emp => emp.department === dept).length;
+                    const percentage = employees.length > 0 ? (count / employees.length) * 100 : 0;
+                    return (
+                      <div key={dept} className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">{dept}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                            <div 
+                              className="bg-blue-500 h-2 rounded-full" 
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white w-8">
+                            {count}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Performans Analizi */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <BarChart3 className="w-5 h-5 mr-2" />
+                  Performans Analizi
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Mükemmel (90-100%)</span>
+                    <span className="text-sm font-medium text-green-600">
+                      {employees.filter(emp => emp.performance_score >= 90).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">İyi (80-89%)</span>
+                    <span className="text-sm font-medium text-blue-600">
+                      {employees.filter(emp => emp.performance_score >= 80 && emp.performance_score < 90).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Orta (70-79%)</span>
+                    <span className="text-sm font-medium text-yellow-600">
+                      {employees.filter(emp => emp.performance_score >= 70 && emp.performance_score < 80).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Düşük (60-69%)</span>
+                    <span className="text-sm font-medium text-orange-600">
+                      {employees.filter(emp => emp.performance_score >= 60 && emp.performance_score < 70).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Çok Düşük (0-59%)</span>
+                    <span className="text-sm font-medium text-red-600">
+                      {employees.filter(emp => emp.performance_score < 60).length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Güvenlik Durumu */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <Shield className="w-5 h-5 mr-2" />
+                  Güvenlik Durumu
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">2FA Aktif</span>
+                    <span className="text-sm font-medium text-green-600">
+                      {employees.filter(emp => emp.security_settings?.two_factor_enabled).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">2FA Pasif</span>
+                    <span className="text-sm font-medium text-red-600">
+                      {employees.filter(emp => !emp.security_settings?.two_factor_enabled).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Hesap Kilitli</span>
+                    <span className="text-sm font-medium text-red-600">
+                      {employees.filter(emp => emp.security_settings?.account_locked).length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Son 24h Giriş</span>
+                    <span className="text-sm font-medium text-blue-600">
+                      {employees.filter(emp => {
+                        if (!emp.last_login) return false;
+                        const lastLogin = new Date(emp.last_login);
+                        const now = new Date();
+                        const diffHours = (now.getTime() - lastLogin.getTime()) / (1000 * 60 * 60);
+                        return diffHours <= 24;
+                      }).length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Detaylı İstatistikler */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Rol Dağılımı */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <Crown className="w-5 h-5 mr-2" />
+                  Rol Dağılımı
+                </h3>
+                <div className="space-y-3">
+                  {roles.map(role => {
+                    const count = employees.filter(emp => emp.role === role.id).length;
+                    return (
+                      <div key={role.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${role.color}`}></div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{role.name}</span>
+                        </div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cihaz Kullanımı */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                  <Monitor className="w-5 h-5 mr-2" />
+                  Cihaz Kullanımı
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Monitor className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Desktop</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {employees.filter(emp => emp.device_info?.device_type === 'desktop').length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Smartphone className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Mobile</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {employees.filter(emp => emp.device_info?.device_type === 'mobile').length}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Tablet className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Tablet</span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {employees.filter(emp => emp.device_info?.device_type === 'tablet').length}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1049,6 +1664,157 @@ const EmployeeManagement: React.FC<EmployeeManagementProps> = ({ employees, onEm
               >
                 <Edit className="w-4 h-4" />
                 <span>Düzenle</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toplu İşlemler Modal */}
+      {showBulkActions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Toplu İşlemler ({selectedEmployees.length} çalışan)
+            </h3>
+            <div className="space-y-3">
+              {bulkActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.id}
+                    onClick={() => {
+                      if (action.requiresConfirmation) {
+                        if (confirm(`${action.name} işlemini onaylıyor musunuz?`)) {
+                          action.action(selectedEmployees);
+                          setShowBulkActions(false);
+                        }
+                      } else {
+                        action.action(selectedEmployees);
+                        setShowBulkActions(false);
+                      }
+                    }}
+                    className="w-full flex items-center gap-3 p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"
+                  >
+                    <Icon className="w-5 h-5 text-gray-500" />
+                    <span className="text-gray-900 dark:text-white">{action.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowBulkActions(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                İptal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rol Yönetimi Modal */}
+      {showRoleManagement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+              <Shield className="w-5 h-5 mr-2" />
+              Rol Yönetimi
+            </h3>
+            <div className="space-y-4">
+              {roles.map((role) => (
+                <div key={role.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${role.color}`}></div>
+                      <span className="font-medium text-gray-900 dark:text-white">{role.name}</span>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {employees.filter(emp => emp.role === role.id).length} çalışan
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{role.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {role.permissions.map((permission, index) => (
+                      <span key={index} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                        {permission}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowRoleManagement(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aktivite Log Modal */}
+      {showActivityLog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+              <History className="w-5 h-5 mr-2" />
+              Sistem Aktivite Logları
+            </h3>
+            <div className="space-y-3">
+              {employees.slice(0, 10).map((employee) => (
+                <div key={employee.id} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                        {employee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-900 dark:text-white">{employee.name}</span>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{employee.email}</p>
+                      </div>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {employee.last_login ? new Date(employee.last_login).toLocaleString('tr-TR') : 'Hiç giriş yapmamış'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Son Giriş:</span>
+                      <p className="text-gray-900 dark:text-white">
+                        {employee.last_login ? new Date(employee.last_login).toLocaleDateString('tr-TR') : 'Yok'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Giriş Sayısı:</span>
+                      <p className="text-gray-900 dark:text-white">{employee.login_count || 0}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">2FA:</span>
+                      <p className={`${employee.security_settings?.two_factor_enabled ? 'text-green-600' : 'text-red-600'}`}>
+                        {employee.security_settings?.two_factor_enabled ? 'Aktif' : 'Pasif'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Durum:</span>
+                      <p className={`${employee.security_settings?.account_locked ? 'text-red-600' : 'text-green-600'}`}>
+                        {employee.security_settings?.account_locked ? 'Kilitli' : 'Aktif'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowActivityLog(false)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                Kapat
               </button>
             </div>
           </div>

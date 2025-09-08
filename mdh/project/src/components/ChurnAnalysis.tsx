@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import AdvancedChartInteractivity, { DataPoint, ChartAnnotation } from './common/AdvancedChartInteractivity';
 import { 
   TrendingDown, 
   Users, 
@@ -51,6 +52,7 @@ interface PlanChurnData {
   plan: string;
   count: number;
   percentage: number;
+  churn_rate?: number;
 }
 
 interface RiskCustomer {
@@ -173,14 +175,6 @@ const mockChurnReasons: ChurnReason[] = [
   { reason: 'Ödeme Sorunu', count: 1, percentage: 16.7 }
 ];
 
-interface RecoveryAction {
-  id: string;
-  type: 'email' | 'call' | 'discount' | 'upgrade' | 'survey';
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  action: () => void;
-}
 
 interface UserDetailModalProps {
   user: ChurnedUser | null;
@@ -404,40 +398,6 @@ Saygılarımızla,
     }
   };
 
-  const recoveryActions: RecoveryAction[] = [
-    {
-      id: 'discount',
-      type: 'discount',
-      title: 'Özel İndirim',
-      description: '%20 indirim ile geri kazan',
-      icon: <Percent className="w-5 h-5" />,
-      action: () => handleRecoveryAction('discount')
-    },
-    {
-      id: 'upgrade',
-      type: 'upgrade',
-      title: 'Plan Yükseltme',
-      description: 'Ücretsiz plan yükseltme teklifi',
-      icon: <TrendingUp className="w-5 h-5" />,
-      action: () => handleRecoveryAction('upgrade')
-    },
-    {
-      id: 'gift',
-      type: 'gift',
-      title: 'Hediye Paketi',
-      description: 'Özel hediye paketi gönder',
-      icon: <Gift className="w-5 h-5" />,
-      action: () => handleRecoveryAction('gift')
-    },
-    {
-      id: 'survey',
-      type: 'survey',
-      title: 'Memnuniyet Anketi',
-      description: 'Ayrılma nedenini öğren',
-      icon: <MessageSquare className="w-5 h-5" />,
-      action: () => handleRecoveryAction('survey')
-    }
-  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -791,6 +751,13 @@ const ChurnAnalysis: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<ChurnedUser | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Advanced Interactivity States
+  const [enableAdvancedInteractivity, setEnableAdvancedInteractivity] = useState(false);
+  const [churnReasonsDataPoints, setChurnReasonsDataPoints] = useState<DataPoint[]>([]);
+  const [planChurnDataPoints, setPlanChurnDataPoints] = useState<DataPoint[]>([]);
+  const [drillDownLevel, setDrillDownLevel] = useState(0);
+  const [drillDownPath, setDrillDownPath] = useState<string[]>([]);
+
   const fetchChurnData = async (isRefresh = false) => {
     try {
       if (isRefresh) {
@@ -862,6 +829,111 @@ const ChurnAnalysis: React.FC = () => {
   useEffect(() => {
     fetchChurnData();
   }, [timeFilter]);
+
+  // Advanced Interactivity - Veri dönüştürme
+  useEffect(() => {
+    if (enableAdvancedInteractivity) {
+      console.log('Churn Analysis - Advanced Interactivity Enabled');
+      console.log('Drill Down Level:', drillDownLevel);
+      console.log('Drill Down Path:', drillDownPath);
+      
+      // Churn reasons verilerini DataPoint formatına dönüştür
+      let reasonsPoints: DataPoint[] = [];
+      
+      if (drillDownLevel === 0) {
+        // Seviye 0: Genel churn nedenleri
+        reasonsPoints = churnReasons.map((item, index) => ({
+          id: `reason-${index}`,
+          x: item.reason,
+          y: item.count,
+          label: `${item.count} kullanıcı (${item.percentage}%)`,
+          metadata: { percentage: item.percentage }
+        }));
+      } else if (drillDownLevel === 1) {
+        // Seviye 1: Detaylı neden analizi
+        reasonsPoints = [
+          { id: 'reason-price', x: 'Fiyat Yüksekliği', y: 45, label: '45 kullanıcı (35%)', metadata: { percentage: 35 } },
+          { id: 'reason-support', x: 'Destek Sorunu', y: 32, label: '32 kullanıcı (25%)', metadata: { percentage: 25 } },
+          { id: 'reason-features', x: 'Özellik Eksikliği', y: 28, label: '28 kullanıcı (22%)', metadata: { percentage: 22 } },
+          { id: 'reason-competitor', x: 'Rakip Tercihi', y: 23, label: '23 kullanıcı (18%)', metadata: { percentage: 18 } }
+        ];
+      } else {
+        // Seviye 2: Alt kategoriler
+        reasonsPoints = [
+          { id: 'reason-price-monthly', x: 'Aylık Fiyat', y: 25, label: '25 kullanıcı', metadata: { percentage: 20 } },
+          { id: 'reason-price-annual', x: 'Yıllık Fiyat', y: 20, label: '20 kullanıcı', metadata: { percentage: 15 } },
+          { id: 'reason-support-response', x: 'Yanıt Süresi', y: 18, label: '18 kullanıcı', metadata: { percentage: 14 } },
+          { id: 'reason-support-quality', x: 'Destek Kalitesi', y: 14, label: '14 kullanıcı', metadata: { percentage: 11 } }
+        ];
+      }
+      
+      // Plan churn verilerini DataPoint formatına dönüştür
+      let planPoints: DataPoint[] = [];
+      
+      if (drillDownLevel === 0) {
+        // Seviye 0: Plan bazında churn
+        planPoints = churnData?.churn_by_plan?.map((item, index) => ({
+          id: `plan-${index}`,
+          x: item.plan,
+          y: item.count,
+          label: `${item.count} kullanıcı`,
+          metadata: { churnRate: item.churn_rate }
+        })) || [];
+      } else if (drillDownLevel === 1) {
+        // Seviye 1: Plan detayları
+        planPoints = [
+          { id: 'plan-basic-details', x: 'Temel Plan', y: 45, label: '45 kullanıcı', metadata: { churnRate: 15.2 } },
+          { id: 'plan-premium-details', x: 'Premium Plan', y: 32, label: '32 kullanıcı', metadata: { churnRate: 8.7 } },
+          { id: 'plan-enterprise-details', x: 'Kurumsal Plan', y: 18, label: '18 kullanıcı', metadata: { churnRate: 5.1 } }
+        ];
+      } else {
+        // Seviye 2: Aylık detaylar
+        planPoints = [
+          { id: 'plan-basic-jan', x: 'Ocak', y: 12, label: '12 kullanıcı', metadata: { churnRate: 4.1 } },
+          { id: 'plan-basic-feb', x: 'Şubat', y: 15, label: '15 kullanıcı', metadata: { churnRate: 5.2 } },
+          { id: 'plan-basic-mar', x: 'Mart', y: 18, label: '18 kullanıcı', metadata: { churnRate: 6.1 } }
+        ];
+      }
+      
+      console.log('Churn Reasons Points:', reasonsPoints);
+      console.log('Plan Churn Points:', planPoints);
+      setChurnReasonsDataPoints(reasonsPoints);
+      setPlanChurnDataPoints(planPoints);
+    }
+  }, [enableAdvancedInteractivity, drillDownLevel, drillDownPath, churnReasons, churnData]);
+
+  // Event handlers
+  const handleChurnReasonsDataUpdate = (updatedData: DataPoint[]) => {
+    console.log('Churn Reasons Data Updated:', updatedData);
+    setChurnReasonsDataPoints(updatedData);
+  };
+
+  const handlePlanChurnDataUpdate = (updatedData: DataPoint[]) => {
+    console.log('Plan Churn Data Updated:', updatedData);
+    setPlanChurnDataPoints(updatedData);
+  };
+
+  const handleAnnotationAdd = (annotation: ChartAnnotation) => {
+    console.log('Annotation Added:', annotation);
+  };
+
+  const handleAnnotationUpdate = (annotation: ChartAnnotation) => {
+    console.log('Annotation Updated:', annotation);
+  };
+
+  const handleDrillDown = (path: string) => {
+    console.log('Drill Down:', path);
+    setDrillDownPath([...drillDownPath, path]);
+    setDrillDownLevel(drillDownLevel + 1);
+  };
+
+  const handleDrillUp = () => {
+    console.log('Drill Up');
+    if (drillDownLevel > 0) {
+      setDrillDownLevel(drillDownLevel - 1);
+      setDrillDownPath(drillDownPath.slice(0, -1));
+    }
+  };
 
   const handleRefresh = () => {
     fetchChurnData(true);
@@ -945,6 +1017,18 @@ const ChurnAnalysis: React.FC = () => {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {/* Advanced Interactivity Toggle */}
+          <button
+            onClick={() => setEnableAdvancedInteractivity(!enableAdvancedInteractivity)}
+            className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              enableAdvancedInteractivity
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 mr-2" />
+            Gelişmiş Etkileşim
+          </button>
           <button 
             onClick={handleRefresh}
             disabled={refreshing}
@@ -1064,25 +1148,99 @@ const ChurnAnalysis: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Churn Reasons */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Churn Nedenleri</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {drillDownLevel === 0 ? 'Churn Nedenleri' : 
+               drillDownLevel === 1 ? 'Detaylı Neden Analizi' : 
+               'Alt Kategori Analizi'}
+            </h3>
+            {enableAdvancedInteractivity && (
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  Seviye {drillDownLevel + 1}
+                </span>
+                {drillDownLevel > 0 && (
+                  <button
+                    onClick={handleDrillUp}
+                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                  >
+                    ↑ Yukarı
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          
           {churnReasons.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={churnReasons}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="count"
-                  label={({ reason, percentage }) => `${reason} (${percentage.toFixed(1)}%)`}
-                >
-                  {churnReasons.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            enableAdvancedInteractivity ? (
+              <AdvancedChartInteractivity
+                data={churnReasonsDataPoints}
+                onDataUpdate={handleChurnReasonsDataUpdate}
+                onAnnotationAdd={handleAnnotationAdd}
+                onAnnotationUpdate={handleAnnotationUpdate}
+                drillDownLevel={drillDownLevel}
+                onDrillDown={handleDrillDown}
+                onDrillUp={handleDrillUp}
+              >
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={drillDownLevel === 0 ? churnReasons : 
+                            drillDownLevel === 1 ? [
+                              { reason: 'Fiyat Yüksekliği', count: 45, percentage: 35 },
+                              { reason: 'Destek Sorunu', count: 32, percentage: 25 },
+                              { reason: 'Özellik Eksikliği', count: 28, percentage: 22 },
+                              { reason: 'Rakip Tercihi', count: 23, percentage: 18 }
+                            ] : [
+                              { reason: 'Aylık Fiyat', count: 25, percentage: 20 },
+                              { reason: 'Yıllık Fiyat', count: 20, percentage: 15 },
+                              { reason: 'Yanıt Süresi', count: 18, percentage: 14 },
+                              { reason: 'Destek Kalitesi', count: 14, percentage: 11 }
+                            ]}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      dataKey="count"
+                      label={({ reason, percentage }) => `${reason} (${percentage.toFixed(1)}%)`}
+                    >
+                      {(drillDownLevel === 0 ? churnReasons : 
+                        drillDownLevel === 1 ? [
+                          { reason: 'Fiyat Yüksekliği', count: 45, percentage: 35 },
+                          { reason: 'Destek Sorunu', count: 32, percentage: 25 },
+                          { reason: 'Özellik Eksikliği', count: 28, percentage: 22 },
+                          { reason: 'Rakip Tercihi', count: 23, percentage: 18 }
+                        ] : [
+                          { reason: 'Aylık Fiyat', count: 25, percentage: 20 },
+                          { reason: 'Yıllık Fiyat', count: 20, percentage: 15 },
+                          { reason: 'Yanıt Süresi', count: 18, percentage: 14 },
+                          { reason: 'Destek Kalitesi', count: 14, percentage: 11 }
+                        ]).map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </AdvancedChartInteractivity>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={churnReasons}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    dataKey="count"
+                    label={({ reason, percentage }) => `${reason} (${percentage.toFixed(1)}%)`}
+                  >
+                    {churnReasons.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )
           ) : (
             <div className="flex items-center justify-center h-[300px] text-gray-500">
               <div className="text-center">
@@ -1095,17 +1253,70 @@ const ChurnAnalysis: React.FC = () => {
 
         {/* Plan-based Churn Analysis */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Plan Bazında Churn Analizi</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {drillDownLevel === 0 ? 'Plan Bazında Churn Analizi' : 
+               drillDownLevel === 1 ? 'Plan Detay Analizi' : 
+               'Aylık Churn Trendi'}
+            </h3>
+            {enableAdvancedInteractivity && (
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  Seviye {drillDownLevel + 1}
+                </span>
+                {drillDownLevel > 0 && (
+                  <button
+                    onClick={handleDrillUp}
+                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                  >
+                    ↑ Yukarı
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          
           {churnData?.churn_by_plan && churnData.churn_by_plan.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={churnData.churn_by_plan}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="plan" />
-                <YAxis />
-                <Tooltip formatter={(value) => [`${value} kullanıcı`, 'Ayrılan Sayısı']} />
-                <Bar dataKey="count" fill="#ef4444" name="Ayrılan Kullanıcı" />
-              </BarChart>
-            </ResponsiveContainer>
+            enableAdvancedInteractivity ? (
+              <AdvancedChartInteractivity
+                data={planChurnDataPoints}
+                onDataUpdate={handlePlanChurnDataUpdate}
+                onAnnotationAdd={handleAnnotationAdd}
+                onAnnotationUpdate={handleAnnotationUpdate}
+                drillDownLevel={drillDownLevel}
+                onDrillDown={handleDrillDown}
+                onDrillUp={handleDrillUp}
+              >
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={drillDownLevel === 0 ? churnData.churn_by_plan : 
+                                drillDownLevel === 1 ? [
+                                  { plan: 'Temel Plan', count: 45, churn_rate: 15.2 },
+                                  { plan: 'Premium Plan', count: 32, churn_rate: 8.7 },
+                                  { plan: 'Kurumsal Plan', count: 18, churn_rate: 5.1 }
+                                ] : [
+                                  { plan: 'Ocak', count: 12, churn_rate: 4.1 },
+                                  { plan: 'Şubat', count: 15, churn_rate: 5.2 },
+                                  { plan: 'Mart', count: 18, churn_rate: 6.1 }
+                                ]}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="plan" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => [`${value} kullanıcı`, 'Ayrılan Sayısı']} />
+                    <Bar dataKey="count" fill="#ef4444" name="Ayrılan Kullanıcı" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </AdvancedChartInteractivity>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={churnData.churn_by_plan}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="plan" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => [`${value} kullanıcı`, 'Ayrılan Sayısı']} />
+                  <Bar dataKey="count" fill="#ef4444" name="Ayrılan Kullanıcı" />
+                </BarChart>
+              </ResponsiveContainer>
+            )
           ) : (
             <div className="flex items-center justify-center h-[300px] text-gray-500">
               <div className="text-center">

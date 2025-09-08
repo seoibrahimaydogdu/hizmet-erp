@@ -35,6 +35,19 @@ import { tr } from 'date-fns/locale';
 import { formatCurrency } from '../../lib/currency';
 import { toast } from 'react-hot-toast';
 import CostAnalysis from './CostAnalysis';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
+import AdvancedChartInteractivity, { DataPoint, ChartAnnotation } from '../common/AdvancedChartInteractivity';
 
 interface Payment {
   id: string;
@@ -96,6 +109,7 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
   // Kanban board için state'ler
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [draggedPayment, setDraggedPayment] = useState<Payment | null>(null);
+  const [viewingPayment, setViewingPayment] = useState<Payment | null>(null);
   const [columns, setColumns] = useState<PaymentColumn[]>([]);
   const [showColumnModal, setShowColumnModal] = useState(false);
   const [editingColumn, setEditingColumn] = useState<PaymentColumn | null>(null);
@@ -134,6 +148,13 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
     compactMode: false,
     autoSort: true
   });
+
+  // Advanced Interactivity States
+  const [enableAdvancedInteractivity, setEnableAdvancedInteractivity] = useState(false);
+  const [paymentTrendsDataPoints, setPaymentTrendsDataPoints] = useState<DataPoint[]>([]);
+  const [paymentMethodDataPoints, setPaymentMethodDataPoints] = useState<DataPoint[]>([]);
+  const [drillDownLevel, setDrillDownLevel] = useState(0);
+  const [drillDownPath, setDrillDownPath] = useState<string[]>([]);
 
   // Varsayılan sütunlar
   const defaultColumns: PaymentColumn[] = [
@@ -178,6 +199,7 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
 
   const handleShowBillingInfo = (payment: Payment) => {
     // Fatura detaylarını göster
+    setViewingPayment(payment);
     toast.success(`${payment.customers?.name || 'Müşteri'} için fatura detayları gösteriliyor`);
   };
 
@@ -190,6 +212,131 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, paymentMethodFilter, itemsPerPage]);
+
+  // Grafik verilerini oluştur
+  const paymentTrendsData = [
+    { month: 'Ocak', amount: 45000, count: 25 },
+    { month: 'Şubat', amount: 52000, count: 28 },
+    { month: 'Mart', amount: 48000, count: 26 },
+    { month: 'Nisan', amount: 61000, count: 32 },
+    { month: 'Mayıs', amount: 55000, count: 29 },
+    { month: 'Haziran', amount: 67000, count: 35 }
+  ];
+
+  const paymentMethodData = [
+    { name: 'Kredi Kartı', value: 45, color: '#3B82F6' },
+    { name: 'Banka Havalesi', value: 30, color: '#10B981' },
+    { name: 'Nakit', value: 15, color: '#F59E0B' },
+    { name: 'Çek', value: 10, color: '#EF4444' }
+  ];
+
+  // Advanced Interactivity - Veri dönüştürme
+  useEffect(() => {
+    if (enableAdvancedInteractivity) {
+      console.log('Payment Management - Advanced Interactivity Enabled');
+      console.log('Drill Down Level:', drillDownLevel);
+      console.log('Drill Down Path:', drillDownPath);
+      
+      // Payment trends verilerini DataPoint formatına dönüştür
+      let trendsPoints: DataPoint[] = [];
+      
+      if (drillDownLevel === 0) {
+        // Seviye 0: Aylık trend
+        trendsPoints = paymentTrendsData.map((item, index) => ({
+          id: `trend-${index}`,
+          x: item.month,
+          y: item.amount,
+          label: `₺${item.amount.toLocaleString()}`,
+          metadata: { count: item.count }
+        }));
+      } else if (drillDownLevel === 1) {
+        // Seviye 1: Haftalık detay
+        trendsPoints = [
+          { id: 'trend-w1', x: '1. Hafta', y: 12000, label: '₺12,000', metadata: { count: 6 } },
+          { id: 'trend-w2', x: '2. Hafta', y: 15000, label: '₺15,000', metadata: { count: 8 } },
+          { id: 'trend-w3', x: '3. Hafta', y: 18000, label: '₺18,000', metadata: { count: 9 } },
+          { id: 'trend-w4', x: '4. Hafta', y: 22000, label: '₺22,000', metadata: { count: 12 } }
+        ];
+      } else {
+        // Seviye 2: Günlük detay
+        trendsPoints = [
+          { id: 'trend-d1', x: 'Pzt', y: 3000, label: '₺3,000', metadata: { count: 2 } },
+          { id: 'trend-d2', x: 'Sal', y: 3500, label: '₺3,500', metadata: { count: 3 } },
+          { id: 'trend-d3', x: 'Çar', y: 4000, label: '₺4,000', metadata: { count: 4 } },
+          { id: 'trend-d4', x: 'Per', y: 4500, label: '₺4,500', metadata: { count: 5 } },
+          { id: 'trend-d5', x: 'Cum', y: 5000, label: '₺5,000', metadata: { count: 6 } }
+        ];
+      }
+      
+      // Payment method verilerini DataPoint formatına dönüştür
+      let methodPoints: DataPoint[] = [];
+      
+      if (drillDownLevel === 0) {
+        // Seviye 0: Genel ödeme yöntemleri
+        methodPoints = paymentMethodData.map((item, index) => ({
+          id: `method-${index}`,
+          x: item.name,
+          y: item.value,
+          label: `${item.value}%`,
+          metadata: { color: item.color }
+        }));
+      } else if (drillDownLevel === 1) {
+        // Seviye 1: Ödeme yöntemine göre detay
+        methodPoints = [
+          { id: 'method-kk', x: 'Kredi Kartı', y: 45, label: '45%', metadata: { color: '#3B82F6' } },
+          { id: 'method-bh', x: 'Banka Havalesi', y: 30, label: '30%', metadata: { color: '#10B981' } },
+          { id: 'method-nk', x: 'Nakit', y: 15, label: '15%', metadata: { color: '#F59E0B' } },
+          { id: 'method-ck', x: 'Çek', y: 10, label: '10%', metadata: { color: '#EF4444' } }
+        ];
+      } else {
+        // Seviye 2: Tutar aralığına göre detay
+        methodPoints = [
+          { id: 'method-0-1k', x: '0-1000₺', y: 25, label: '25%', metadata: { color: '#10B981' } },
+          { id: 'method-1k-5k', x: '1000-5000₺', y: 40, label: '40%', metadata: { color: '#3B82F6' } },
+          { id: 'method-5k-10k', x: '5000-10000₺', y: 25, label: '25%', metadata: { color: '#F59E0B' } },
+          { id: 'method-10k+', x: '10000₺+', y: 10, label: '10%', metadata: { color: '#EF4444' } }
+        ];
+      }
+      
+      console.log('Payment Trends Points:', trendsPoints);
+      console.log('Payment Method Points:', methodPoints);
+      setPaymentTrendsDataPoints(trendsPoints);
+      setPaymentMethodDataPoints(methodPoints);
+    }
+  }, [enableAdvancedInteractivity, drillDownLevel, drillDownPath]);
+
+  // Event handlers
+  const handlePaymentTrendsDataUpdate = (updatedData: DataPoint[]) => {
+    console.log('Payment Trends Data Updated:', updatedData);
+    setPaymentTrendsDataPoints(updatedData);
+  };
+
+  const handlePaymentMethodDataUpdate = (updatedData: DataPoint[]) => {
+    console.log('Payment Method Data Updated:', updatedData);
+    setPaymentMethodDataPoints(updatedData);
+  };
+
+  const handleAnnotationAdd = (annotation: ChartAnnotation) => {
+    console.log('Annotation Added:', annotation);
+  };
+
+  const handleAnnotationUpdate = (annotation: ChartAnnotation) => {
+    console.log('Annotation Updated:', annotation);
+  };
+
+  const handleDrillDown = (path: string) => {
+    console.log('Drill Down:', path);
+    setDrillDownPath([...drillDownPath, path]);
+    setDrillDownLevel(drillDownLevel + 1);
+  };
+
+  const handleDrillUp = () => {
+    console.log('Drill Up');
+    if (drillDownLevel > 0) {
+      setDrillDownLevel(drillDownLevel - 1);
+      setDrillDownPath(drillDownPath.slice(0, -1));
+    }
+  };
 
   // Sürükle-bırak fonksiyonları
   const handleDragStart = (e: React.DragEvent, payment: Payment) => {
@@ -632,9 +779,9 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
   const getPaymentMethodText = (method: string) => {
     switch (method) {
       case 'credit_card':
-        return 'Credit Card';
+        return 'Kredi Kartı';
       case 'Credit Card':
-        return 'Credit Card';
+        return 'Kredi Kartı';
       case 'bank_transfer':
         return 'Banka Transferi';
       case 'cash':
@@ -670,7 +817,7 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
       case 'completed':
         return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+        return 'text-yellow-600 dark:text-yellow-400';
       case 'overdue':
         return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
       default:
@@ -757,6 +904,18 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Ödeme Takibi</h2>
             <div className="flex items-center space-x-3">
+              {/* Advanced Interactivity Toggle */}
+              <button
+                onClick={() => setEnableAdvancedInteractivity(!enableAdvancedInteractivity)}
+                className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  enableAdvancedInteractivity
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                <Activity className="w-4 h-4 mr-2" />
+                Gelişmiş Etkileşim
+              </button>
               {/* Görünüm Değiştirme Butonları */}
               <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
                 <button
@@ -813,16 +972,6 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
                   </>
                 )}
                 
-                {viewMode === 'list' && (
-                  <button
-                    onClick={() => setShowColumnSettings(true)}
-                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 flex items-center gap-2"
-                    title="Sütun Ayarları"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Sütun Ayarları
-                  </button>
-                )}
                 
                 <button
                   onClick={onSendBulkReminders}
@@ -841,6 +990,188 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Grafik Bölümü - Gelişmiş Etkileşim Aktifken */}
+          {enableAdvancedInteractivity && (
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Ödeme Trendleri */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {drillDownLevel === 0 ? 'Aylık Ödeme Trendleri' : 
+                     drillDownLevel === 1 ? 'Haftalık Ödeme Trendleri' : 
+                     'Günlük Ödeme Trendleri'}
+                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                      Seviye {drillDownLevel + 1}
+                    </span>
+                    {drillDownLevel > 0 && (
+                      <button
+                        onClick={handleDrillUp}
+                        className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        ↑ Yukarı
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                <AdvancedChartInteractivity
+                  data={paymentTrendsDataPoints}
+                  onDataUpdate={handlePaymentTrendsDataUpdate}
+                  onAnnotationAdd={handleAnnotationAdd}
+                  onAnnotationUpdate={handleAnnotationUpdate}
+                  drillDownLevel={drillDownLevel}
+                  onDrillDown={handleDrillDown}
+                  onDrillUp={handleDrillUp}
+                >
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={drillDownLevel === 0 ? paymentTrendsData : 
+                                  drillDownLevel === 1 ? [
+                                    { month: '1. Hafta', amount: 12000, count: 6 },
+                                    { month: '2. Hafta', amount: 15000, count: 8 },
+                                    { month: '3. Hafta', amount: 18000, count: 9 },
+                                    { month: '4. Hafta', amount: 22000, count: 12 }
+                                  ] : [
+                                    { month: 'Pzt', amount: 3000, count: 2 },
+                                    { month: 'Sal', amount: 3500, count: 3 },
+                                    { month: 'Çar', amount: 4000, count: 4 },
+                                    { month: 'Per', amount: 4500, count: 5 },
+                                    { month: 'Cum', amount: 5000, count: 6 }
+                                  ]}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip 
+                        formatter={(value: any) => [`₺${value.toLocaleString()}`, '']}
+                        labelFormatter={(label) => `${label}`}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="amount" 
+                        stroke="#3B82F6" 
+                        fill="#3B82F6" 
+                        fillOpacity={0.6}
+                        name="Ödeme Tutarı"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </AdvancedChartInteractivity>
+              </div>
+
+              {/* Ödeme Yöntemleri Dağılımı */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {drillDownLevel === 0 ? 'Ödeme Yöntemleri Dağılımı' : 
+                     drillDownLevel === 1 ? 'Ödeme Yöntemi Detayları' : 
+                     'Tutar Aralığı Dağılımı'}
+                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                      Seviye {drillDownLevel + 1}
+                    </span>
+                    {drillDownLevel > 0 && (
+                      <button
+                        onClick={handleDrillUp}
+                        className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                      >
+                        ↑ Yukarı
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                <AdvancedChartInteractivity
+                  data={paymentMethodDataPoints}
+                  onDataUpdate={handlePaymentMethodDataUpdate}
+                  onAnnotationAdd={handleAnnotationAdd}
+                  onAnnotationUpdate={handleAnnotationUpdate}
+                  drillDownLevel={drillDownLevel}
+                  onDrillDown={handleDrillDown}
+                  onDrillUp={handleDrillUp}
+                >
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={drillDownLevel === 0 ? paymentMethodData : 
+                              drillDownLevel === 1 ? [
+                                { name: 'Kredi Kartı', value: 45, color: '#3B82F6' },
+                                { name: 'Banka Havalesi', value: 30, color: '#10B981' },
+                                { name: 'Nakit', value: 15, color: '#F59E0B' },
+                                { name: 'Çek', value: 10, color: '#EF4444' }
+                              ] : [
+                                { name: '0-1000₺', value: 25, color: '#10B981' },
+                                { name: '1000-5000₺', value: 40, color: '#3B82F6' },
+                                { name: '5000-10000₺', value: 25, color: '#F59E0B' },
+                                { name: '10000₺+', value: 10, color: '#EF4444' }
+                              ]}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={true}
+                        label={({ name, percent, value }) => {
+                          if (value === 0) return null;
+                          return `${name} ${percent ? (percent * 100).toFixed(0) : 0}%`;
+                        }}
+                        outerRadius={70}
+                        fill="#8884d8"
+                        dataKey="value"
+                        paddingAngle={2}
+                      >
+                        {(drillDownLevel === 0 ? paymentMethodData : 
+                          drillDownLevel === 1 ? [
+                            { name: 'Kredi Kartı', value: 45, color: '#3B82F6' },
+                            { name: 'Banka Havalesi', value: 30, color: '#10B981' },
+                            { name: 'Nakit', value: 15, color: '#F59E0B' },
+                            { name: 'Çek', value: 10, color: '#EF4444' }
+                          ] : [
+                            { name: '0-1000₺', value: 25, color: '#10B981' },
+                            { name: '1000-5000₺', value: 40, color: '#3B82F6' },
+                            { name: '5000-10000₺', value: 25, color: '#F59E0B' },
+                            { name: '10000₺+', value: 10, color: '#EF4444' }
+                          ]).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value: any) => [`${value}%`, '']}
+                        labelFormatter={(label) => `${label}`}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </AdvancedChartInteractivity>
+                
+                {/* Legend */}
+                {paymentMethodData.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-3 justify-center">
+                    {(drillDownLevel === 0 ? paymentMethodData : 
+                      drillDownLevel === 1 ? [
+                        { name: 'Kredi Kartı', value: 45, color: '#3B82F6' },
+                        { name: 'Banka Havalesi', value: 30, color: '#10B981' },
+                        { name: 'Nakit', value: 15, color: '#F59E0B' },
+                        { name: 'Çek', value: 10, color: '#EF4444' }
+                      ] : [
+                        { name: '0-1000₺', value: 25, color: '#10B981' },
+                        { name: '1000-5000₺', value: 40, color: '#3B82F6' },
+                        { name: '5000-10000₺', value: 25, color: '#F59E0B' },
+                        { name: '10000₺+', value: 10, color: '#EF4444' }
+                      ]).map((entry, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: entry.color }}
+                        ></div>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {entry.name} ({entry.value}%)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Ödeme Yöntemi Filtresi */}
           <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
@@ -1699,6 +2030,335 @@ const PaymentManagement: React.FC<PaymentManagementProps> = ({
               >
                 {editingColumn ? 'Güncelle' : 'Ekle'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fatura Detayları Modal */}
+      {viewingPayment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[95vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Fatura Detayları
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {viewingPayment.customers?.name || 'Müşteri'} - {viewingPayment.invoice_number || `INV-${viewingPayment.id}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingPayment(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-8">
+              {/* Özet Kartları */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-green-600 dark:text-green-400">Toplam Tutar</p>
+                      <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                        {formatCurrency(viewingPayment.amount, (viewingPayment.currency as 'TRY' | 'USD' | 'EUR') || 'TRY')}
+                      </p>
+                    </div>
+                    <DollarSign className="w-8 h-8 text-green-500" />
+                  </div>
+                </div>
+                
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Ödeme Durumu</p>
+                      <p className={`text-lg font-semibold ${getStatusColor(viewingPayment.status)}`}>
+                        {getStatusText(viewingPayment.status)}
+                      </p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-blue-500" />
+                  </div>
+                </div>
+                
+                <div className="bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-900/20 dark:to-violet-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Ödeme Yöntemi</p>
+                      <p className="text-lg font-semibold text-purple-700 dark:text-purple-300">
+                        {getPaymentMethodText(viewingPayment.payment_method)}
+                      </p>
+                    </div>
+                    <CreditCard className="w-8 h-8 text-purple-500" />
+                  </div>
+                </div>
+                
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 p-4 rounded-lg border border-orange-200 dark:border-orange-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Gecikme Durumu</p>
+                      <div className="flex items-center space-x-1">
+                        {(() => {
+                          const delayStatus = getDelayStatus(viewingPayment);
+                          return (
+                            <>
+                              <span className="text-lg">{delayStatus.icon}</span>
+                              <span className={`text-sm font-semibold ${delayStatus.color}`}>
+                                {delayStatus.text}
+                              </span>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                    <Clock className="w-8 h-8 text-orange-500" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Detaylı Bilgiler */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Fatura Bilgileri */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Fatura Bilgileri</h4>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Fatura Numarası</span>
+                      <span className="text-sm font-mono text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 px-3 py-1 rounded">
+                        {viewingPayment.invoice_number || `INV-${viewingPayment.id}`}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Fatura Tarihi</span>
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {viewingPayment.created_at ? format(new Date(viewingPayment.created_at), 'dd MMMM yyyy HH:mm', { locale: tr }) : 'Belirtilmemiş'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Vade Tarihi</span>
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {viewingPayment.due_date ? format(new Date(viewingPayment.due_date), 'dd MMMM yyyy', { locale: tr }) : 'Belirtilmemiş'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Ödeme Tarihi</span>
+                      <span className="text-sm text-gray-900 dark:text-white">
+                        {viewingPayment.payment_date ? format(new Date(viewingPayment.payment_date), 'dd MMMM yyyy HH:mm', { locale: tr }) : 'Ödenmedi'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Para Birimi</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {viewingPayment.currency || 'TRY'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Müşteri Bilgileri */}
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Müşteri Bilgileri</h4>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Müşteri Adı</span>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {viewingPayment.customers?.name || 'Belirtilmemiş'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">E-posta</span>
+                      <span className="text-sm text-blue-600 dark:text-blue-400">
+                        {viewingPayment.customers?.email || 'Belirtilmemiş'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Müşteri ID</span>
+                      <span className="text-sm font-mono text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 px-3 py-1 rounded">
+                        {viewingPayment.customer_id}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Abonelik ID</span>
+                      <span className="text-sm font-mono text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 px-3 py-1 rounded">
+                        {viewingPayment.subscription_id || 'Belirtilmemiş'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Finansal Detaylar */}
+              <div className="space-y-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Calculator className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Finansal Detaylar</h4>
+                </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Brüt Tutar (KDV Dahil)</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(viewingPayment.amount, (viewingPayment.currency as 'TRY' | 'USD' | 'EUR') || 'TRY')}
+                      </p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Net Tutar (KDV Hariç)</p>
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                        {(() => {
+                          const vatRate = viewingPayment.currency === 'TRY' ? 0.20 : 0.05;
+                          const netAmount = viewingPayment.amount / (1 + vatRate);
+                          return formatCurrency(netAmount, (viewingPayment.currency as 'TRY' | 'USD' | 'EUR') || 'TRY');
+                        })()}
+                      </p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">KDV Tutarı</p>
+                      <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                        {(() => {
+                          const vatRate = viewingPayment.currency === 'TRY' ? 0.20 : 0.05;
+                          const vatAmount = viewingPayment.amount - (viewingPayment.amount / (1 + vatRate));
+                          return formatCurrency(vatAmount, (viewingPayment.currency as 'TRY' | 'USD' | 'EUR') || 'TRY');
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Komisyon ve Ek Bilgiler */}
+              {(viewingPayment.commission_type || viewingPayment.notes) && (
+                <div className="space-y-6">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Settings className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Ek Bilgiler</h4>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {viewingPayment.commission_type && (
+                      <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Komisyon Türü</span>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1 rounded">
+                          {viewingPayment.commission_type}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {viewingPayment.notes && (
+                      <div>
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400 block mb-2">Notlar</span>
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                          <p className="text-sm text-gray-900 dark:text-white leading-relaxed">
+                            {viewingPayment.notes}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Ödeme Geçmişi */}
+              <div className="space-y-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Activity className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Ödeme Geçmişi</h4>
+                </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-3 h-3 rounded-full ${
+                        viewingPayment.status === 'completed' ? 'bg-green-500' : 
+                        viewingPayment.status === 'pending' ? 'bg-yellow-500' : 
+                        'bg-red-500'
+                      }`}></div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {getStatusText(viewingPayment.status)}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {viewingPayment.payment_date ? 
+                            format(new Date(viewingPayment.payment_date), 'dd MMMM yyyy HH:mm', { locale: tr }) : 
+                            'Henüz ödenmedi'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(viewingPayment.amount, (viewingPayment.currency as 'TRY' | 'USD' | 'EUR') || 'TRY')}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {getPaymentMethodText(viewingPayment.payment_method)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer Actions */}
+            <div className="flex justify-between items-center p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+              <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                <Clock className="w-4 h-4" />
+                <span>Son güncelleme: {format(new Date(), 'dd MMMM yyyy HH:mm', { locale: tr })}</span>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setViewingPayment(null)}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500 transition-colors"
+                >
+                  Kapat
+                </button>
+                <button
+                  onClick={() => {
+                    // Ödeme düzenleme modal'ını aç
+                    setViewingPayment(null);
+                    // Burada editingPayment state'ini set edebiliriz
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Düzenle</span>
+                </button>
+                <button
+                  onClick={() => {
+                    // PDF indirme işlemi
+                    toast.success('Fatura PDF olarak indiriliyor...');
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>PDF Olarak İndir</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

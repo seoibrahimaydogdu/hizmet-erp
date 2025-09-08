@@ -33,6 +33,8 @@ import {
   Move,
   Target
 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import AdvancedChartInteractivity, { DataPoint, ChartAnnotation } from './common/AdvancedChartInteractivity';
 import { useSupabase } from '../hooks/useSupabase';
 import { toast } from 'react-hot-toast';
 import EmployeeChat from './EmployeeChat';
@@ -94,6 +96,7 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showEditProjectModal, setShowEditProjectModal] = useState(false);
   const [showProjectDetailModal, setShowProjectDetailModal] = useState(false);
+  const [activeProjectTab, setActiveProjectTab] = useState<'overview' | 'team' | 'timeline' | 'analytics' | 'files'>('overview');
   const [showAutoReportingModal, setShowAutoReportingModal] = useState(false);
   const [showTeamChatModal, setShowTeamChatModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -132,6 +135,13 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
     order: 0,
     isDefault: false
   });
+
+  // Advanced Interactivity States
+  const [enableAdvancedInteractivity, setEnableAdvancedInteractivity] = useState(false);
+  const [projectStatusDataPoints, setProjectStatusDataPoints] = useState<DataPoint[]>([]);
+  const [projectPriorityDataPoints, setProjectPriorityDataPoints] = useState<DataPoint[]>([]);
+  const [drillDownLevel, setDrillDownLevel] = useState(0);
+  const [drillDownPath, setDrillDownPath] = useState<string[]>([]);
 
   // Mock data for demonstration
   const mockProjects: Project[] = [
@@ -292,6 +302,128 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
     loadData();
     loadColumns();
   }, []);
+
+  // Advanced Interactivity - Veri dönüştürme
+  useEffect(() => {
+    if (enableAdvancedInteractivity) {
+      console.log('Smart Project Management - Advanced Interactivity Enabled');
+      console.log('Drill Down Level:', drillDownLevel);
+      console.log('Drill Down Path:', drillDownPath);
+      
+      // Project status verilerini DataPoint formatına dönüştür
+      let statusPoints: DataPoint[] = [];
+      
+      if (drillDownLevel === 0) {
+        // Seviye 0: Genel proje durumları
+        const statusCounts = projects.reduce((acc, project) => {
+          acc[project.status] = (acc[project.status] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        statusPoints = Object.entries(statusCounts).map(([status, count], index) => ({
+          id: `status-${index}`,
+          x: status === 'planning' ? 'Planlama' : 
+             status === 'active' ? 'Aktif' : 
+             status === 'completed' ? 'Tamamlandı' : 'Beklemede',
+          y: count,
+          label: `${count} proje`,
+          metadata: { status, count }
+        }));
+      } else if (drillDownLevel === 1) {
+        // Seviye 1: Detaylı durum analizi
+        statusPoints = [
+          { id: 'status-planning-detail', x: 'Planlama Aşaması', y: 8, label: '8 proje', metadata: { status: 'planning' } },
+          { id: 'status-active-detail', x: 'Aktif Projeler', y: 12, label: '12 proje', metadata: { status: 'active' } },
+          { id: 'status-completed-detail', x: 'Tamamlanan', y: 15, label: '15 proje', metadata: { status: 'completed' } },
+          { id: 'status-onhold-detail', x: 'Beklemede', y: 3, label: '3 proje', metadata: { status: 'on_hold' } }
+        ];
+      } else {
+        // Seviye 2: Aylık detaylar
+        statusPoints = [
+          { id: 'status-jan', x: 'Ocak', y: 5, label: '5 proje', metadata: { month: 'january' } },
+          { id: 'status-feb', x: 'Şubat', y: 7, label: '7 proje', metadata: { month: 'february' } },
+          { id: 'status-mar', x: 'Mart', y: 9, label: '9 proje', metadata: { month: 'march' } },
+          { id: 'status-apr', x: 'Nisan', y: 6, label: '6 proje', metadata: { month: 'april' } }
+        ];
+      }
+      
+      // Project priority verilerini DataPoint formatına dönüştür
+      let priorityPoints: DataPoint[] = [];
+      
+      if (drillDownLevel === 0) {
+        // Seviye 0: Öncelik bazında projeler
+        const priorityCounts = projects.reduce((acc, project) => {
+          acc[project.priority] = (acc[project.priority] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        priorityPoints = Object.entries(priorityCounts).map(([priority, count], index) => ({
+          id: `priority-${index}`,
+          x: priority === 'low' ? 'Düşük' : 
+             priority === 'medium' ? 'Orta' : 
+             priority === 'high' ? 'Yüksek' : 'Kritik',
+          y: count,
+          label: `${count} proje`,
+          metadata: { priority, count }
+        }));
+      } else if (drillDownLevel === 1) {
+        // Seviye 1: Öncelik detayları
+        priorityPoints = [
+          { id: 'priority-low-detail', x: 'Düşük Öncelik', y: 6, label: '6 proje', metadata: { priority: 'low' } },
+          { id: 'priority-medium-detail', x: 'Orta Öncelik', y: 18, label: '18 proje', metadata: { priority: 'medium' } },
+          { id: 'priority-high-detail', x: 'Yüksek Öncelik', y: 10, label: '10 proje', metadata: { priority: 'high' } },
+          { id: 'priority-critical-detail', x: 'Kritik Öncelik', y: 4, label: '4 proje', metadata: { priority: 'critical' } }
+        ];
+      } else {
+        // Seviye 2: Bütçe bazında detaylar
+        priorityPoints = [
+          { id: 'priority-budget-low', x: '0-10K ₺', y: 8, label: '8 proje', metadata: { budgetRange: '0-10k' } },
+          { id: 'priority-budget-medium', x: '10-50K ₺', y: 15, label: '15 proje', metadata: { budgetRange: '10-50k' } },
+          { id: 'priority-budget-high', x: '50-100K ₺', y: 12, label: '12 proje', metadata: { budgetRange: '50-100k' } },
+          { id: 'priority-budget-critical', x: '100K+ ₺', y: 3, label: '3 proje', metadata: { budgetRange: '100k+' } }
+        ];
+      }
+      
+      console.log('Project Status Points:', statusPoints);
+      console.log('Project Priority Points:', priorityPoints);
+      setProjectStatusDataPoints(statusPoints);
+      setProjectPriorityDataPoints(priorityPoints);
+    }
+  }, [enableAdvancedInteractivity, drillDownLevel, drillDownPath, projects]);
+
+  // Event handlers
+  const handleProjectStatusDataUpdate = (updatedData: DataPoint[]) => {
+    console.log('Project Status Data Updated:', updatedData);
+    setProjectStatusDataPoints(updatedData);
+  };
+
+  const handleProjectPriorityDataUpdate = (updatedData: DataPoint[]) => {
+    console.log('Project Priority Data Updated:', updatedData);
+    setProjectPriorityDataPoints(updatedData);
+  };
+
+
+  const handleAnnotationAdd = (annotation: ChartAnnotation) => {
+    console.log('Annotation Added:', annotation);
+  };
+
+  const handleAnnotationUpdate = (annotation: ChartAnnotation) => {
+    console.log('Annotation Updated:', annotation);
+  };
+
+  const handleDrillDown = (path: string) => {
+    console.log('Drill Down:', path);
+    setDrillDownPath([...drillDownPath, path]);
+    setDrillDownLevel(drillDownLevel + 1);
+  };
+
+  const handleDrillUp = () => {
+    console.log('Drill Up');
+    if (drillDownLevel > 0) {
+      setDrillDownLevel(drillDownLevel - 1);
+      setDrillDownPath(drillDownPath.slice(0, -1));
+    }
+  };
 
   const loadColumns = async () => {
     try {
@@ -722,6 +854,7 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
 
   const handleViewProject = (project: Project) => {
     setViewingProject(project);
+    setActiveProjectTab('overview'); // Tab'ı her açılışta sıfırla
     setShowProjectDetailModal(true);
     toast.success(`${project.name} projesi detayları görüntüleniyor`);
   };
@@ -1102,7 +1235,157 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
             icon={<AlertTriangle className="w-6 h-6" />}
             color="red"
           />
-      </div>
+            </div>
+
+      {/* Advanced Interactivity Charts */}
+      {enableAdvancedInteractivity && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Project Status Chart */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {drillDownLevel === 0 ? 'Proje Durumları' : 
+                 drillDownLevel === 1 ? 'Detaylı Durum Analizi' : 
+                 'Aylık Proje Trendi'}
+              </h3>
+              {enableAdvancedInteractivity && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    Seviye {drillDownLevel + 1}
+                  </span>
+                  {drillDownLevel > 0 && (
+                    <button
+                      onClick={handleDrillUp}
+                      className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      ↑ Yukarı
+                    </button>
+                  )}
+          </div>
+              )}
+        </div>
+
+            <AdvancedChartInteractivity
+              data={projectStatusDataPoints}
+              onDataUpdate={handleProjectStatusDataUpdate}
+              onAnnotationAdd={handleAnnotationAdd}
+              onAnnotationUpdate={handleAnnotationUpdate}
+              drillDownLevel={drillDownLevel}
+              onDrillDown={handleDrillDown}
+              onDrillUp={handleDrillUp}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={drillDownLevel === 0 ? [
+                      { name: 'Planlama', value: projects.filter(p => p.status === 'planning').length, color: '#3B82F6' },
+                      { name: 'Aktif', value: projects.filter(p => p.status === 'active').length, color: '#10B981' },
+                      { name: 'Tamamlandı', value: projects.filter(p => p.status === 'completed').length, color: '#8B5CF6' },
+                      { name: 'Beklemede', value: projects.filter(p => p.status === 'on_hold').length, color: '#F59E0B' }
+                    ] : drillDownLevel === 1 ? [
+                      { name: 'Planlama Aşaması', value: 8, color: '#3B82F6' },
+                      { name: 'Aktif Projeler', value: 12, color: '#10B981' },
+                      { name: 'Tamamlanan', value: 15, color: '#8B5CF6' },
+                      { name: 'Beklemede', value: 3, color: '#F59E0B' }
+                    ] : [
+                      { name: 'Ocak', value: 5, color: '#3B82F6' },
+                      { name: 'Şubat', value: 7, color: '#10B981' },
+                      { name: 'Mart', value: 9, color: '#8B5CF6' },
+                      { name: 'Nisan', value: 6, color: '#F59E0B' }
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                  >
+                    {(drillDownLevel === 0 ? [
+                      { name: 'Planlama', value: projects.filter(p => p.status === 'planning').length, color: '#3B82F6' },
+                      { name: 'Aktif', value: projects.filter(p => p.status === 'active').length, color: '#10B981' },
+                      { name: 'Tamamlandı', value: projects.filter(p => p.status === 'completed').length, color: '#8B5CF6' },
+                      { name: 'Beklemede', value: projects.filter(p => p.status === 'on_hold').length, color: '#F59E0B' }
+                    ] : drillDownLevel === 1 ? [
+                      { name: 'Planlama Aşaması', value: 8, color: '#3B82F6' },
+                      { name: 'Aktif Projeler', value: 12, color: '#10B981' },
+                      { name: 'Tamamlanan', value: 15, color: '#8B5CF6' },
+                      { name: 'Beklemede', value: 3, color: '#F59E0B' }
+                    ] : [
+                      { name: 'Ocak', value: 5, color: '#3B82F6' },
+                      { name: 'Şubat', value: 7, color: '#10B981' },
+                      { name: 'Mart', value: 9, color: '#8B5CF6' },
+                      { name: 'Nisan', value: 6, color: '#F59E0B' }
+                    ]).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </AdvancedChartInteractivity>
+        </div>
+
+          {/* Project Priority Chart */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {drillDownLevel === 0 ? 'Proje Öncelikleri' : 
+                 drillDownLevel === 1 ? 'Öncelik Detay Analizi' : 
+                 'Bütçe Bazında Analiz'}
+              </h3>
+              {enableAdvancedInteractivity && (
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    Seviye {drillDownLevel + 1}
+                  </span>
+                  {drillDownLevel > 0 && (
+                    <button
+                      onClick={handleDrillUp}
+                      className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                    >
+                      ↑ Yukarı
+                    </button>
+                  )}
+            </div>
+              )}
+        </div>
+
+            <AdvancedChartInteractivity
+              data={projectPriorityDataPoints}
+              onDataUpdate={handleProjectPriorityDataUpdate}
+              onAnnotationAdd={handleAnnotationAdd}
+              onAnnotationUpdate={handleAnnotationUpdate}
+              drillDownLevel={drillDownLevel}
+              onDrillDown={handleDrillDown}
+              onDrillUp={handleDrillUp}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={drillDownLevel === 0 ? [
+                  { priority: 'Düşük', count: projects.filter(p => p.priority === 'low').length },
+                  { priority: 'Orta', count: projects.filter(p => p.priority === 'medium').length },
+                  { priority: 'Yüksek', count: projects.filter(p => p.priority === 'high').length },
+                  { priority: 'Kritik', count: projects.filter(p => p.priority === 'critical').length }
+                ] : drillDownLevel === 1 ? [
+                  { priority: 'Düşük Öncelik', count: 6 },
+                  { priority: 'Orta Öncelik', count: 18 },
+                  { priority: 'Yüksek Öncelik', count: 10 },
+                  { priority: 'Kritik Öncelik', count: 4 }
+                ] : [
+                  { priority: '0-10K ₺', count: 8 },
+                  { priority: '10-50K ₺', count: 15 },
+                  { priority: '50-100K ₺', count: 12 },
+                  { priority: '100K+ ₺', count: 3 }
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="priority" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => [`${value} proje`, 'Proje Sayısı']} />
+                  <Bar dataKey="count" fill="#8B5CF6" name="Proje Sayısı" />
+                </BarChart>
+              </ResponsiveContainer>
+            </AdvancedChartInteractivity>
+            </div>
+            </div>
+      )}
 
       {/* Proje Listesi */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
@@ -2083,6 +2366,18 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
           <p className="text-gray-600 dark:text-gray-400">Proje performansını optimize edin ve riskleri önceden tahmin edin</p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Advanced Interactivity Toggle */}
+          <button
+            onClick={() => setEnableAdvancedInteractivity(!enableAdvancedInteractivity)}
+            className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              enableAdvancedInteractivity
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Gelişmiş Etkileşim
+          </button>
           <AdvancedButton
             onClick={loadData}
             variant="ghost"
@@ -2423,36 +2718,111 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
        {/* Proje Detay Modal */}
        {showProjectDetailModal && viewingProject && (
          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-7xl max-h-[95vh] overflow-y-auto">
              <div className="flex items-center justify-between mb-6">
-               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Proje Detayları</h3>
+               <div>
+                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Proje Detayları</h3>
+                 <p className="text-gray-600 dark:text-gray-400 mt-1">
+                   {viewingProject.name} - Kapsamlı Proje Analizi
+                 </p>
+               </div>
+               <div className="flex items-center gap-3">
+                 <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
+                   <Download className="w-4 h-4" />
+                   Rapor İndir
+                 </button>
+                 <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
+                   <Edit className="w-4 h-4" />
+                   Düzenle
+                 </button>
                <button
-                 onClick={() => setShowProjectDetailModal(false)}
-                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                   onClick={() => {
+                     setShowProjectDetailModal(false);
+                     setActiveProjectTab('overview'); // Tab'ı kapatırken sıfırla
+                   }}
+                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2"
                >
                  <X className="w-6 h-6" />
                </button>
+               </div>
              </div>
              
+
+             {/* Tab Navigation */}
+             <div className="flex space-x-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg mb-6">
+               <button
+                 onClick={() => setActiveProjectTab('overview')}
+                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                   activeProjectTab === 'overview'
+                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                 }`}
+               >
+                 <BarChart3 className="w-4 h-4 inline mr-2" />
+                 Genel Bakış
+               </button>
+               <button
+                 onClick={() => setActiveProjectTab('team')}
+                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                   activeProjectTab === 'team'
+                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                 }`}
+               >
+                 <Users className="w-4 h-4 inline mr-2" />
+                 Ekip & Görevler
+               </button>
+               <button
+                 onClick={() => setActiveProjectTab('timeline')}
+                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                   activeProjectTab === 'timeline'
+                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                 }`}
+               >
+                 <Calendar className="w-4 h-4 inline mr-2" />
+                 Zaman Çizelgesi
+               </button>
+               <button
+                 onClick={() => setActiveProjectTab('analytics')}
+                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                   activeProjectTab === 'analytics'
+                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                 }`}
+               >
+                 <TrendingUp className="w-4 h-4 inline mr-2" />
+                 Analitik
+               </button>
+               <button
+                 onClick={() => setActiveProjectTab('files')}
+                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                   activeProjectTab === 'files'
+                     ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                 }`}
+               >
+                 <FileText className="w-4 h-4 inline mr-2" />
+                 Dosyalar & Yorumlar
+               </button>
+             </div>
+             
+             {/* Tab Content */}
+             {activeProjectTab === 'overview' && (
              <div className="space-y-6">
                {/* Proje Başlığı */}
-               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                 <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-6 border border-blue-200 dark:border-blue-700">
+                   <div className="flex items-start justify-between">
+                     <div>
+                       <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                    {viewingProject.name}
                  </h4>
-                 <p className="text-gray-600 dark:text-gray-400">
+                       <p className="text-gray-600 dark:text-gray-400 text-lg">
                    {viewingProject.description}
                  </p>
                </div>
-
-               {/* Proje Bilgileri Grid */}
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                   <div className="flex items-center space-x-2 mb-2">
-                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Durum</span>
-                   </div>
-                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                     <div className="flex items-center gap-2">
+                       <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
                      viewingProject.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                      viewingProject.status === 'planning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
                      viewingProject.status === 'completed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
@@ -2463,47 +2833,120 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                       viewingProject.status === 'completed' ? 'Tamamlandı' :
                       'Bilinmiyor'}
                    </span>
+                     </div>
+                   </div>
                  </div>
 
-                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                   <div className="flex items-center space-x-2 mb-2">
-                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                 {/* Proje Bilgileri Grid */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                   {/* İlerleme Kartı */}
+                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                     <div className="flex items-center justify-between mb-4">
+                       <div className="flex items-center space-x-2">
+                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">İlerleme</span>
                    </div>
-                   <div className="flex items-center space-x-2">
-                     <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                       <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                         {viewingProject.progress}%
+                       </span>
+                     </div>
+                     <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3 mb-2">
                        <div 
-                         className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                         className="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all duration-500"
                          style={{ width: `${viewingProject.progress}%` }}
                        ></div>
                      </div>
-                     <span className="text-sm font-medium text-gray-900 dark:text-white">
-                       {viewingProject.progress}%
-                     </span>
+                     <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                       <span>Başlangıç</span>
+                       <span>Hedef: 100%</span>
                    </div>
                  </div>
 
-                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                   <div className="flex items-center space-x-2 mb-2">
-                     <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                   {/* Bütçe Kartı */}
+                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                     <div className="flex items-center justify-between mb-4">
+                       <div className="flex items-center space-x-2">
+                         <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Bütçe</span>
                    </div>
-                   <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                       <DollarSign className="w-5 h-5 text-purple-500" />
+                     </div>
+                     <div className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                      ₺{viewingProject.budget.toLocaleString()}
                    </div>
+                     <div className="text-sm text-gray-600 dark:text-gray-400">
+                       Harcanan: ₺{viewingProject.actual_cost.toLocaleString()}
+                     </div>
+                     <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mt-2">
+                       <div 
+                         className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500"
+                         style={{ width: `${Math.min((viewingProject.actual_cost / viewingProject.budget) * 100, 100)}%` }}
+                       ></div>
+                     </div>
                  </div>
 
-                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                   <div className="flex items-center space-x-2 mb-2">
-                     <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                   {/* Risk Kartı */}
+                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                     <div className="flex items-center justify-between mb-4">
+                       <div className="flex items-center space-x-2">
+                         <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Risk Skoru</span>
                    </div>
-                   <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                       <AlertTriangle className="w-5 h-5 text-red-500" />
+                     </div>
+                     <div className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                      {typeof viewingProject.risk_level === 'number' ? `${viewingProject.risk_level}%` : 
                       viewingProject.risk_level === 'high' ? 'Yüksek' :
                       viewingProject.risk_level === 'medium' ? 'Orta' :
                       viewingProject.risk_level === 'low' ? 'Düşük' : 'Bilinmiyor'}
                    </div>
+                     <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                       <div 
+                         className={`h-2 rounded-full transition-all duration-500 ${
+                           viewingProject.risk_level === 'high' || (typeof viewingProject.risk_level === 'number' && viewingProject.risk_level > 70) ? 'bg-red-500' :
+                           viewingProject.risk_level === 'medium' || (typeof viewingProject.risk_level === 'number' && viewingProject.risk_level > 40) ? 'bg-yellow-500' :
+                           'bg-green-500'
+                         }`}
+                         style={{ 
+                           width: typeof viewingProject.risk_level === 'number' ? `${viewingProject.risk_level}%` : 
+                                  viewingProject.risk_level === 'high' ? '80%' :
+                                  viewingProject.risk_level === 'medium' ? '50%' : '20%'
+                         }}
+                       ></div>
+                     </div>
+                   </div>
+
+                   {/* Ekip Kartı */}
+                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                     <div className="flex items-center justify-between mb-4">
+                       <div className="flex items-center space-x-2">
+                         <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Ekip</span>
+                       </div>
+                       <Users className="w-5 h-5 text-orange-500" />
+                     </div>
+                     <div className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                       {viewingProject.team_size} Kişi
+                     </div>
+                     <div className="text-sm text-gray-600 dark:text-gray-400">
+                       Aktif üyeler
+                     </div>
+                     <div className="flex -space-x-2 mt-3">
+                       {[...Array(Math.min(viewingProject.team_size, 4))].map((_, i) => (
+                         <div key={i} className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full border-2 border-white dark:border-gray-700 flex items-center justify-center">
+                           <span className="text-xs font-semibold text-white">
+                             {String.fromCharCode(65 + i)}
+                           </span>
+                         </div>
+                       ))}
+                       {viewingProject.team_size > 4 && (
+                         <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-full border-2 border-white dark:border-gray-700 flex items-center justify-center">
+                           <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                             +{viewingProject.team_size - 4}
+                           </span>
+                         </div>
+                       )}
+                     </div>
                  </div>
 
                  <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
@@ -2533,21 +2976,376 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                  </div>
                </div>
 
-               {/* Tarih Bilgileri */}
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                   <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Başlangıç Tarihi</h5>
-                   <p className="text-gray-900 dark:text-white">
-                     {viewingProject.start_date ? new Date(viewingProject.start_date).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
-                   </p>
+                 {/* Proje Tarihleri */}
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6">
+                     <h5 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                       <Calendar className="w-5 h-5 mr-2 text-blue-500" />
+                       Proje Tarihleri
+                     </h5>
+                     <div className="space-y-3">
+                       <div className="flex justify-between items-center">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Başlangıç:</span>
+                         <span className="text-sm font-medium text-gray-900 dark:text-white">
+                           {new Date(viewingProject.start_date).toLocaleDateString('tr-TR')}
+                         </span>
                  </div>
-                 <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                   <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bitiş Tarihi</h5>
-                   <p className="text-gray-900 dark:text-white">
-                     {viewingProject.end_date ? new Date(viewingProject.end_date).toLocaleDateString('tr-TR') : 'Belirtilmemiş'}
-                   </p>
+                       <div className="flex justify-between items-center">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Bitiş:</span>
+                         <span className="text-sm font-medium text-gray-900 dark:text-white">
+                           {new Date(viewingProject.end_date).toLocaleDateString('tr-TR')}
+                         </span>
+                       </div>
+                       <div className="flex justify-between items-center">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Oluşturulma:</span>
+                         <span className="text-sm font-medium text-gray-900 dark:text-white">
+                           {new Date(viewingProject.created_at).toLocaleDateString('tr-TR')}
+                         </span>
+                       </div>
+                     </div>
+                   </div>
+
+                   <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-6">
+                     <h5 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                       <Target className="w-5 h-5 mr-2 text-green-500" />
+                       Proje Hedefleri
+                     </h5>
+                     <div className="space-y-3">
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Öncelik:</span>
+                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                           viewingProject.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                           viewingProject.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                           'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                         }`}>
+                           {viewingProject.priority === 'high' ? 'Yüksek' :
+                            viewingProject.priority === 'medium' ? 'Orta' : 'Düşük'}
+                         </span>
+                       </div>
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Durum:</span>
+                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                           viewingProject.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                           viewingProject.status === 'planning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                           viewingProject.status === 'completed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                           'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                         }`}>
+                           {viewingProject.status === 'active' ? 'Aktif' :
+                            viewingProject.status === 'planning' ? 'Planlama' :
+                            viewingProject.status === 'completed' ? 'Tamamlandı' : 'Bilinmiyor'}
+                         </span>
+                       </div>
+                     </div>
+                   </div>
                  </div>
                </div>
+             )}
+
+             {/* Team Tab */}
+             {activeProjectTab === 'team' && (
+               <div className="space-y-6">
+                 <div className="bg-white dark:bg-gray-700 rounded-lg p-6">
+                   <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
+                     <Users className="w-6 h-6 mr-2 text-blue-500" />
+                     Ekip Üyeleri ve Görevler
+                   </h4>
+                   
+                   {/* Ekip Üyeleri */}
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                     {[...Array(viewingProject.team_size)].map((_, i) => (
+                       <div key={i} className="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                         <div className="flex items-center space-x-3 mb-3">
+                           <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                             <span className="text-sm font-semibold text-white">
+                               {String.fromCharCode(65 + i)}
+                             </span>
+                           </div>
+                           <div>
+                             <h5 className="font-medium text-gray-900 dark:text-white">
+                               Ekip Üyesi {i + 1}
+                             </h5>
+                             <p className="text-sm text-gray-600 dark:text-gray-400">
+                               Geliştirici
+                   </p>
+                 </div>
+                         </div>
+                         <div className="space-y-2">
+                           <div className="flex justify-between text-sm">
+                             <span className="text-gray-600 dark:text-gray-400">Görevler:</span>
+                             <span className="font-medium text-gray-900 dark:text-white">5</span>
+                           </div>
+                           <div className="flex justify-between text-sm">
+                             <span className="text-gray-600 dark:text-gray-400">Tamamlanan:</span>
+                             <span className="font-medium text-green-600 dark:text-green-400">3</span>
+                           </div>
+                         </div>
+                       </div>
+                     ))}
+               </div>
+
+                   {/* Görev Listesi */}
+                   <div className="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                     <h5 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                       Aktif Görevler
+                     </h5>
+                     <div className="space-y-3">
+                       {[
+                         { name: 'UI/UX Tasarımı', assignee: 'Ekip Üyesi 1', progress: 80, priority: 'high' },
+                         { name: 'Backend API Geliştirme', assignee: 'Ekip Üyesi 2', progress: 60, priority: 'medium' },
+                         { name: 'Veritabanı Optimizasyonu', assignee: 'Ekip Üyesi 3', progress: 40, priority: 'low' },
+                         { name: 'Test Senaryoları', assignee: 'Ekip Üyesi 1', progress: 20, priority: 'medium' }
+                       ].map((task, index) => (
+                         <div key={index} className="bg-white dark:bg-gray-700 rounded-lg p-4">
+                           <div className="flex items-center justify-between mb-2">
+                             <h6 className="font-medium text-gray-900 dark:text-white">{task.name}</h6>
+                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                               task.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                               task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                               'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                             }`}>
+                               {task.priority === 'high' ? 'Yüksek' : task.priority === 'medium' ? 'Orta' : 'Düşük'}
+                             </span>
+                           </div>
+                           <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                             <span>{task.assignee}</span>
+                             <span>{task.progress}%</span>
+                           </div>
+                           <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                             <div 
+                               className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                               style={{ width: `${task.progress}%` }}
+                             ></div>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             )}
+
+             {/* Timeline Tab */}
+             {activeProjectTab === 'timeline' && (
+               <div className="space-y-6">
+                 <div className="bg-white dark:bg-gray-700 rounded-lg p-6">
+                   <h4 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center">
+                     <Calendar className="w-6 h-6 mr-2 text-blue-500" />
+                     Proje Zaman Çizelgesi
+                   </h4>
+                   
+                   {/* Gantt Chart Benzeri Timeline */}
+                   <div className="space-y-4">
+                     {[
+                       { phase: 'Planlama', start: '2024-01-01', end: '2024-01-15', progress: 100, status: 'completed' },
+                       { phase: 'Tasarım', start: '2024-01-10', end: '2024-01-25', progress: 80, status: 'active' },
+                       { phase: 'Geliştirme', start: '2024-01-20', end: '2024-02-15', progress: 60, status: 'active' },
+                       { phase: 'Test', start: '2024-02-10', end: '2024-02-25', progress: 20, status: 'pending' },
+                       { phase: 'Deployment', start: '2024-02-20', end: '2024-03-01', progress: 0, status: 'pending' }
+                     ].map((phase, index) => (
+                       <div key={index} className="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                         <div className="flex items-center justify-between mb-3">
+                           <h5 className="font-semibold text-gray-900 dark:text-white">{phase.phase}</h5>
+                           <div className="flex items-center gap-2">
+                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                               phase.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                               phase.status === 'active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                               'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                             }`}>
+                               {phase.status === 'completed' ? 'Tamamlandı' :
+                                phase.status === 'active' ? 'Aktif' : 'Beklemede'}
+                             </span>
+                             <span className="text-sm font-medium text-gray-900 dark:text-white">
+                               {phase.progress}%
+                             </span>
+                           </div>
+                         </div>
+                         <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                           <span>{new Date(phase.start).toLocaleDateString('tr-TR')}</span>
+                           <span>{new Date(phase.end).toLocaleDateString('tr-TR')}</span>
+                         </div>
+                         <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                           <div 
+                             className={`h-3 rounded-full transition-all duration-500 ${
+                               phase.status === 'completed' ? 'bg-green-500' :
+                               phase.status === 'active' ? 'bg-blue-500' : 'bg-gray-400'
+                             }`}
+                             style={{ width: `${phase.progress}%` }}
+                           ></div>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               </div>
+             )}
+
+             {/* Analytics Tab */}
+             {activeProjectTab === 'analytics' && (
+               <div className="space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {/* Performans Grafiği */}
+                   <div className="bg-white dark:bg-gray-700 rounded-lg p-6">
+                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                       <TrendingUp className="w-5 h-5 mr-2 text-green-500" />
+                       Performans Trendi
+                     </h4>
+                     <div className="h-64 flex items-center justify-center">
+                       <div className="text-center">
+                         <BarChart3 className="w-16 h-16 text-gray-400 mx-auto mb-2" />
+                         <p className="text-gray-600 dark:text-gray-400">Performans grafiği burada görünecek</p>
+                       </div>
+                     </div>
+                   </div>
+
+                   {/* Risk Analizi */}
+                   <div className="bg-white dark:bg-gray-700 rounded-lg p-6">
+                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                       <AlertTriangle className="w-5 h-5 mr-2 text-red-500" />
+                       Risk Analizi
+                     </h4>
+                     <div className="space-y-4">
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Bütçe Riski</span>
+                         <div className="flex items-center gap-2">
+                           <div className="w-20 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                             <div className="bg-yellow-500 h-2 rounded-full" style={{ width: '60%' }}></div>
+                           </div>
+                           <span className="text-sm font-medium text-gray-900 dark:text-white">60%</span>
+                         </div>
+                       </div>
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Zaman Riski</span>
+                         <div className="flex items-center gap-2">
+                           <div className="w-20 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                             <div className="bg-red-500 h-2 rounded-full" style={{ width: '80%' }}></div>
+                           </div>
+                           <span className="text-sm font-medium text-gray-900 dark:text-white">80%</span>
+                         </div>
+                       </div>
+                       <div className="flex items-center justify-between">
+                         <span className="text-sm text-gray-600 dark:text-gray-400">Kaynak Riski</span>
+                         <div className="flex items-center gap-2">
+                           <div className="w-20 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                             <div className="bg-green-500 h-2 rounded-full" style={{ width: '30%' }}></div>
+                           </div>
+                           <span className="text-sm font-medium text-gray-900 dark:text-white">30%</span>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
+
+                 {/* Detaylı Metrikler */}
+                 <div className="bg-white dark:bg-gray-700 rounded-lg p-6">
+                   <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                     <Activity className="w-5 h-5 mr-2 text-blue-500" />
+                     Detaylı Metrikler
+                   </h4>
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                     <div className="text-center">
+                       <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                         {viewingProject.progress}%
+                       </div>
+                       <div className="text-sm text-gray-600 dark:text-gray-400">Genel İlerleme</div>
+                     </div>
+                     <div className="text-center">
+                       <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
+                         {Math.round((viewingProject.actual_cost / viewingProject.budget) * 100)}%
+                       </div>
+                       <div className="text-sm text-gray-600 dark:text-gray-400">Bütçe Kullanımı</div>
+                     </div>
+                     <div className="text-center">
+                       <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
+                         {viewingProject.team_size}
+                       </div>
+                       <div className="text-sm text-gray-600 dark:text-gray-400">Aktif Ekip Üyesi</div>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             )}
+
+             {/* Files Tab */}
+             {activeProjectTab === 'files' && (
+               <div className="space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {/* Dosyalar */}
+                   <div className="bg-white dark:bg-gray-700 rounded-lg p-6">
+                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                       <FileText className="w-5 h-5 mr-2 text-blue-500" />
+                       Proje Dosyaları
+                     </h4>
+                     <div className="space-y-3">
+                       {[
+                         { name: 'Proje Planı.pdf', size: '2.4 MB', date: '2024-01-15', type: 'pdf' },
+                         { name: 'Tasarım Mockup.fig', size: '5.2 MB', date: '2024-01-20', type: 'figma' },
+                         { name: 'API Dokümantasyonu.md', size: '156 KB', date: '2024-01-25', type: 'markdown' },
+                         { name: 'Test Raporu.xlsx', size: '890 KB', date: '2024-02-01', type: 'excel' }
+                       ].map((file, index) => (
+                         <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-600 rounded-lg">
+                           <div className="flex items-center space-x-3">
+                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                               file.type === 'pdf' ? 'bg-red-100 text-red-600' :
+                               file.type === 'figma' ? 'bg-purple-100 text-purple-600' :
+                               file.type === 'markdown' ? 'bg-blue-100 text-blue-600' :
+                               'bg-green-100 text-green-600'
+                             }`}>
+                               <FileText className="w-4 h-4" />
+                             </div>
+                             <div>
+                               <div className="font-medium text-gray-900 dark:text-white">{file.name}</div>
+                               <div className="text-sm text-gray-600 dark:text-gray-400">
+                                 {file.size} • {new Date(file.date).toLocaleDateString('tr-TR')}
+                               </div>
+                             </div>
+                           </div>
+                           <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                             <Download className="w-4 h-4" />
+                           </button>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+
+                   {/* Yorumlar */}
+                   <div className="bg-white dark:bg-gray-700 rounded-lg p-6">
+                     <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                       <MessageSquare className="w-5 h-5 mr-2 text-green-500" />
+                       Proje Yorumları
+                     </h4>
+                     <div className="space-y-4">
+                       {[
+                         { author: 'Proje Yöneticisi', comment: 'İlerleme çok iyi gidiyor, tebrikler ekip!', date: '2024-02-01', time: '14:30' },
+                         { author: 'Ekip Üyesi 1', comment: 'UI tasarımı tamamlandı, review için hazır.', date: '2024-01-28', time: '16:45' },
+                         { author: 'Ekip Üyesi 2', comment: 'Backend API\'ler test edildi, sorun yok.', date: '2024-01-25', time: '11:20' }
+                       ].map((comment, index) => (
+                         <div key={index} className="bg-gray-50 dark:bg-gray-600 rounded-lg p-4">
+                           <div className="flex items-center justify-between mb-2">
+                             <span className="font-medium text-gray-900 dark:text-white">{comment.author}</span>
+                             <span className="text-sm text-gray-600 dark:text-gray-400">
+                               {new Date(comment.date).toLocaleDateString('tr-TR')} {comment.time}
+                             </span>
+                           </div>
+                           <p className="text-gray-700 dark:text-gray-300">{comment.comment}</p>
+                         </div>
+                       ))}
+                     </div>
+                     
+                     {/* Yeni Yorum Ekleme */}
+                     <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                       <textarea
+                         placeholder="Yeni yorum ekle..."
+                         className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
+                         rows={3}
+                       ></textarea>
+                       <button className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+                         Yorum Ekle
+                       </button>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             )}
 
                {/* İşlem Butonları */}
                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-600">
@@ -2567,7 +3365,6 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                  >
                    Kapat
                  </button>
-               </div>
              </div>
            </div>
          </div>
@@ -2759,12 +3556,7 @@ const SmartProjectManagement: React.FC<SmartProjectManagementProps> = ({ onChann
                 </button>
               </div>
               <div className="h-[calc(95vh-80px)]">
-                <EmployeeChat
-                  currentUserId="1"
-                  currentUserName="Proje Yöneticisi"
-                  currentUserRole="Admin"
-                  currentUserDepartment="Yönetim"
-                />
+                <EmployeeChat />
               </div>
             </div>
           </div>
